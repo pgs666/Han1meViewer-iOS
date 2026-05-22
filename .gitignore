@@ -2,6 +2,7 @@
 build/
 **/build/
 .kotlin/
+.artifacts/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 DerivedData/
