@@ -73,8 +73,8 @@ struct VideoDetailView: View {
                     if !snapshot.tagSummary.isEmpty {
                         Text(snapshot.tagSummary)
                     }
-                    if let description = snapshot.description, !description.isEmpty {
-                        Text(description)
+                    if let videoDescription = snapshot.videoDescription, !videoDescription.isEmpty {
+                        Text(videoDescription)
                     }
                 }
             }
