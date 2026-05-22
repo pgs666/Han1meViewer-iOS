@@ -26,6 +26,7 @@ struct HomeView: View {
         case .loaded(let snapshot):
             List {
                 Section("Status") {
+                    Text(viewModel.smokeFetchSummary)
                     Text(snapshot.summary)
                     Text(snapshot.baseUrl)
                 }

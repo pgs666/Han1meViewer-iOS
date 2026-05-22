@@ -85,8 +85,8 @@ class KsoupHtmlParser : HtmlParser {
         val caption = detailWrapper?.selectFirst("div[class^=video-caption-text]")
         val uploadInfo = detailWrapper?.selectFirst("div > div > div")?.text()
         val uploadGroups = uploadInfo?.let { VIEW_AND_UPLOAD_TIME_REGEX.find(it)?.groups }
-        val uploadTime = uploadGroups?.get(3)?.value?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        val views = uploadGroups?.get(2)?.value
+        val uploadTime = uploadGroups?.get(2)?.value?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val views = uploadGroups?.get(1)?.value?.trim()
 
         val sources = body.selectFirst("video#player")?.let { video ->
             video.children().mapNotNull { source ->

@@ -11,8 +11,10 @@ final class HomeViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    @Published private(set) var smokeFetchSummary: String = "Smoke fetch pending"
 
     private let homeFeature = HomeFeature()
+    private let smokeTest = SharedSmokeTest()
 
     func load() {
         guard case .loading = state else {
@@ -26,6 +28,8 @@ final class HomeViewModel: ObservableObject {
 
     private func loadHome() async {
         do {
+            let smokeResult = try await smokeTest.fetchSomething()
+            smokeFetchSummary = "Smoke HTTP: \(smokeResult.sourceUrl), bytes: \(smokeResult.bodyLength)"
             let snapshot = try await homeFeature.loadHome()
             state = .loaded(snapshot)
         } catch {
