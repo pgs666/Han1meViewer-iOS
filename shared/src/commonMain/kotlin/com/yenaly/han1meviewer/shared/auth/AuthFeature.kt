@@ -59,6 +59,26 @@ class WebLoginFeature(
             username = null,
         )
     }
+
+    suspend fun currentSessionSnapshot(): AuthSnapshot {
+        val isLoggedIn = sessionStore.loadCookies().hasLoginSession()
+        return AuthSnapshot(
+            isLoggedIn = isLoggedIn,
+            message = if (isLoggedIn) {
+                "Login session found"
+            } else {
+                "No login session found"
+            },
+            username = null,
+        )
+    }
+
+    private fun List<SessionCookie>.hasLoginSession(): Boolean {
+        return any { cookie ->
+            cookie.name.equals("hanime1_session", ignoreCase = true) ||
+                cookie.name.contains("session", ignoreCase = true)
+        }
+    }
 }
 
 @Serializable

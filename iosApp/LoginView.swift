@@ -4,7 +4,9 @@ import Han1meShared
 
 struct LoginView: View {
     let webLoginFeature: WebLoginFeature
+    let onLoginSuccess: () -> Void
 
+    @Environment(\.presentationMode) private var presentationMode
     @State private var status: LoginStatus = .idle
     @State private var reloadToken = UUID()
 
@@ -15,7 +17,11 @@ struct LoginView: View {
             WebLoginView(
                 reloadToken: reloadToken,
                 webLoginFeature: webLoginFeature,
-                status: $status
+                status: $status,
+                onLoginSuccess: {
+                    onLoginSuccess()
+                    presentationMode.wrappedValue.dismiss()
+                }
             )
         }
         .navigationTitle("账号登录")
@@ -72,9 +78,14 @@ private struct WebLoginView: UIViewRepresentable {
     let reloadToken: UUID
     let webLoginFeature: WebLoginFeature
     @Binding var status: LoginStatus
+    let onLoginSuccess: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(webLoginFeature: webLoginFeature, status: $status)
+        Coordinator(
+            webLoginFeature: webLoginFeature,
+            status: $status,
+            onLoginSuccess: onLoginSuccess
+        )
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -101,10 +112,17 @@ private struct WebLoginView: UIViewRepresentable {
         var reloadToken: UUID?
 
         private let webLoginFeature: WebLoginFeature
+        private let onLoginSuccess: () -> Void
+        private var didCompleteLogin = false
         @Binding private var status: LoginStatus
 
-        init(webLoginFeature: WebLoginFeature, status: Binding<LoginStatus>) {
+        init(
+            webLoginFeature: WebLoginFeature,
+            status: Binding<LoginStatus>,
+            onLoginSuccess: @escaping () -> Void
+        ) {
             self.webLoginFeature = webLoginFeature
+            self.onLoginSuccess = onLoginSuccess
             _status = status
         }
 
@@ -144,8 +162,13 @@ private struct WebLoginView: UIViewRepresentable {
         }
 
         private func importCookiesIfPossible(from webView: WKWebView) {
+            guard !didCompleteLogin else {
+                return
+            }
+
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
                 guard let self = self else { return }
+                guard !self.didCompleteLogin else { return }
 
                 let hanimeCookies = cookies.filter { cookie in
                     cookie.domain.contains("hanime1.me")
@@ -167,6 +190,8 @@ private struct WebLoginView: UIViewRepresentable {
                         )
                         if snapshot.isLoggedIn {
                             self.status = .imported
+                            self.didCompleteLogin = true
+                            self.onLoginSuccess()
                         }
                     } catch {
                         self.status = .failed(ErrorMessage.userFriendly(error))

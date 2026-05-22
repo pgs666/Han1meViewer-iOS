@@ -22,4 +22,19 @@ class WebLoginFeatureTest {
         assertEquals(3, cookies.size)
         assertTrue(cookies.any { it.name == "hanime1_session" && it.value == "session-value" })
     }
+
+    @Test
+    fun reportsCurrentLoginSession() = runTest {
+        val store = MemorySessionStore()
+        val feature = WebLoginFeature(store)
+
+        assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
+
+        feature.importCookieHeader(
+            cookieHeader = "hanime1_session=session-value",
+            domain = "hanime1.me",
+        )
+
+        assertEquals(true, feature.currentSessionSnapshot().isLoggedIn)
+    }
 }
