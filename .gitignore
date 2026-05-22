@@ -1,0 +1,8 @@
+.gradle/
+build/
+**/build/
+.kotlin/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+DerivedData/
+local.properties

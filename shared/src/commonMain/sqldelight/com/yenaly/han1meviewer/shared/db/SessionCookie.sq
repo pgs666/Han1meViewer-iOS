@@ -1,0 +1,19 @@
+CREATE TABLE session_cookie (
+    name TEXT NOT NULL,
+    value TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    path TEXT NOT NULL DEFAULT '/',
+    expires_at_epoch_millis INTEGER,
+    PRIMARY KEY (name, domain, path)
+);
+
+selectAll:
+SELECT *
+FROM session_cookie;
+
+upsert:
+INSERT OR REPLACE INTO session_cookie(name, value, domain, path, expires_at_epoch_millis)
+VALUES (?, ?, ?, ?, ?);
+
+deleteAll:
+DELETE FROM session_cookie;
