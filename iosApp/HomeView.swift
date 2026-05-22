@@ -38,7 +38,6 @@ struct HomeView: View {
         case .loaded(let snapshot):
             List {
                 Section("Status") {
-                    Text(viewModel.smokeFetchSummary)
                     Text(snapshot.summary)
                     Text(snapshot.baseUrl)
                 }
@@ -49,20 +48,31 @@ struct HomeView: View {
                     }
                 }
 
-                if let firstVideoTitle = snapshot.firstVideoTitle {
-                    Section("First video") {
-                        if let videoCode = snapshot.firstVideoCode {
-                            NavigationLink {
-                                VideoDetailView(videoCode: videoCode)
-                            } label: {
+                Section("Videos") {
+                    ForEach(snapshot.videos) { video in
+                        NavigationLink {
+                            VideoDetailView(videoCode: video.videoCode)
+                        } label: {
+                            HStack(spacing: 12) {
+                                AsyncImage(url: video.coverUrl.flatMap(URL.init(string:))) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                } placeholder: {
+                                    Color.gray.opacity(0.18)
+                                }
+                                .frame(width: 96, height: 54)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(firstVideoTitle)
-                                    Text(videoCode)
+                                    Text(video.title)
+                                        .lineLimit(2)
+                                    Text(video.sectionTitle)
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                        } else {
-                            Text(firstVideoTitle)
+                            .padding(.vertical, 4)
                         }
                     }
                 }

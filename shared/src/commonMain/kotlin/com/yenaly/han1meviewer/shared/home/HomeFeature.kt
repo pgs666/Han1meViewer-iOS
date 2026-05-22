@@ -18,22 +18,35 @@ class HomeFeature {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
         }.bodyAsText()
         val homePage = parser.parseHome(html)
-        val allItems = homePage.sections.flatMap { section -> section.items }
-        val firstItem = allItems.firstOrNull()
+        val videos = homePage.sections.flatMap { section ->
+            section.items.mapNotNull { item ->
+                val videoCode = item.videoCode ?: return@mapNotNull null
+                HomeVideoSnapshot(
+                    videoCode = videoCode,
+                    title = item.title,
+                    coverUrl = item.coverUrl,
+                    sectionTitle = section.title,
+                    detailUrl = item.detailUrl,
+                )
+            }
+        }
+        val firstItem = videos.firstOrNull()
 
         return HomeFeedSnapshot(
-            summary = "Sections: ${homePage.sections.size}, items: ${allItems.size}",
+            summary = "Sections: ${homePage.sections.size}, items: ${videos.size}",
             baseUrl = DEFAULT_BASE_URL,
             username = homePage.username,
             bannerTitle = homePage.banner?.title,
             firstVideoTitle = firstItem?.title,
             firstVideoCode = firstItem?.videoCode,
             sectionCount = homePage.sections.size,
-            itemCount = allItems.size,
+            itemCount = videos.size,
+            videos = videos.take(MAX_HOME_VIDEOS),
         )
     }
 
     private companion object {
+        const val MAX_HOME_VIDEOS = 30
         const val DEFAULT_BASE_URL = "https://hanime1.me"
         const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
@@ -51,4 +64,18 @@ data class HomeFeedSnapshot(
     val firstVideoCode: String?,
     val sectionCount: Int,
     val itemCount: Int,
+    private val videos: List<HomeVideoSnapshot>,
+) {
+    fun videoCount(): Int = videos.size
+
+    fun videoAt(index: Int): HomeVideoSnapshot? = videos.getOrNull(index)
+}
+
+@Serializable
+data class HomeVideoSnapshot(
+    val videoCode: String,
+    val title: String,
+    val coverUrl: String?,
+    val sectionTitle: String,
+    val detailUrl: String?,
 )
