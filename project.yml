@@ -36,4 +36,5 @@ targets:
         basedOnDependencyAnalysis: false
         script: |
           cd "$SRCROOT"
+          chmod +x ./gradlew
           ./gradlew :shared:embedAndSignAppleFrameworkForXcode
