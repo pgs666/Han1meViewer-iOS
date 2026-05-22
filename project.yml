@@ -21,6 +21,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.yenaly.han1meviewer.ios
         INFOPLIST_FILE: iosApp/Info.plist
         ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
         FRAMEWORK_SEARCH_PATHS:
           - $(inherited)
           - $(SRCROOT)/shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
