@@ -9,7 +9,7 @@ struct LoginView: View {
     private let smokeMessage = SharedSmokeTest().message()
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 Section {
                     Text(smokeMessage)
@@ -45,5 +45,6 @@ struct LoginView: View {
             }
             .navigationTitle("Han1meViewer")
         }
+        .navigationViewStyle(.stack)
     }
 }

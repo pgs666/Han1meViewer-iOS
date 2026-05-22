@@ -4,7 +4,7 @@ struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             content
                 .navigationTitle("Home")
                 .task {
@@ -14,6 +14,7 @@ struct HomeView: View {
                     viewModel.load()
                 }
         }
+        .navigationViewStyle(.stack)
     }
 
     @ViewBuilder
@@ -22,7 +23,18 @@ struct HomeView: View {
         case .idle, .loading:
             ProgressView()
         case .failed(let message):
-            ContentUnavailableView("Unable to load home", systemImage: "wifi.exclamationmark", description: Text(message))
+            VStack(spacing: 12) {
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.largeTitle)
+                    .foregroundColor(.secondary)
+                Text("Unable to load home")
+                    .font(.headline)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
         case .loaded(let snapshot):
             List {
                 Section("Status") {
