@@ -10,17 +10,22 @@ struct Han1meViewerApp: App {
             TabView {
                 HomeView(environment: sharedEnvironment)
                     .tabItem {
-                        Label("Home", systemImage: "house")
+                        Label("首页", systemImage: "house")
+                    }
+
+                FollowingView()
+                    .tabItem {
+                        Label("关注", systemImage: "heart")
+                    }
+
+                MineView(authFeature: sharedEnvironment.authFeature())
+                    .tabItem {
+                        Label("我的", systemImage: "person.crop.circle")
                     }
 
                 SearchView()
                     .tabItem {
-                        Label("Search", systemImage: "magnifyingglass")
-                    }
-
-                LoginView(authFeature: sharedEnvironment.authFeature())
-                    .tabItem {
-                        Label("Login", systemImage: "person.crop.circle")
+                        Label("搜索", systemImage: "magnifyingglass")
                     }
             }
         }
