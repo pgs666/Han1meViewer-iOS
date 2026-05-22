@@ -26,36 +26,29 @@ class WebLoginFeature(
     private val sessionStore: SessionStore,
 ) {
     suspend fun importCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
-        val cookies = cookieHeader.split(";")
-            .mapNotNull { rawCookie ->
-                val parts = rawCookie.trim().split("=", limit = 2)
-                val name = parts.getOrNull(0)?.trim().orEmpty()
-                val value = parts.getOrNull(1)?.trim().orEmpty()
-                if (name.isBlank() || value.isBlank()) {
-                    null
-                } else {
-                    SessionCookie(
-                        name = name,
-                        value = value,
-                        domain = domain,
-                    )
-                }
-            }
+        val cookies = parseCookieHeader(cookieHeader, domain)
 
         sessionStore.saveCookies(cookies)
 
-        val isLoggedIn = cookies.any { cookie ->
-            cookie.name.equals("hanime1_session", ignoreCase = true) ||
-                cookie.name.contains("session", ignoreCase = true)
-        }
+        return AuthSnapshot(
+            isLoggedIn = false,
+            message = "Web cookies imported but login was not confirmed.",
+            username = null,
+        )
+    }
+
+    suspend fun importConfirmedLoginCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
+        val cookies = parseCookieHeader(cookieHeader, domain) + SessionCookie(
+            name = confirmedLoginCookieName,
+            value = "true",
+            domain = appCookieDomain,
+        )
+
+        sessionStore.saveCookies(cookies)
 
         return AuthSnapshot(
-            isLoggedIn = isLoggedIn,
-            message = if (isLoggedIn) {
-                "Web login cookie imported"
-            } else {
-                "Cookies imported, but no login session cookie was found."
-            },
+            isLoggedIn = true,
+            message = "Web login confirmed",
             username = null,
         )
     }
@@ -84,9 +77,33 @@ class WebLoginFeature(
 
     private fun List<SessionCookie>.hasLoginSession(): Boolean {
         return any { cookie ->
-            cookie.name.equals("hanime1_session", ignoreCase = true) ||
-                cookie.name.contains("session", ignoreCase = true)
+            cookie.name == confirmedLoginCookieName &&
+                cookie.value == "true" &&
+                cookie.domain == appCookieDomain
         }
+    }
+
+    private fun parseCookieHeader(cookieHeader: String, domain: String): List<SessionCookie> {
+        return cookieHeader.split(";")
+            .mapNotNull { rawCookie ->
+                val parts = rawCookie.trim().split("=", limit = 2)
+                val name = parts.getOrNull(0)?.trim().orEmpty()
+                val value = parts.getOrNull(1)?.trim().orEmpty()
+                if (name.isBlank() || value.isBlank()) {
+                    null
+                } else {
+                    SessionCookie(
+                        name = name,
+                        value = value,
+                        domain = domain,
+                    )
+                }
+            }
+    }
+
+    private companion object {
+        const val confirmedLoginCookieName = "han1me_ios_web_login_confirmed"
+        const val appCookieDomain = "han1meviewer.local"
     }
 }
 

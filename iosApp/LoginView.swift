@@ -137,7 +137,6 @@ private struct WebLoginView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             status = .idle
-            importCookiesIfPossible(from: webView)
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -156,12 +155,12 @@ private struct WebLoginView: UIViewRepresentable {
             if let url = navigationAction.request.url,
                url.host?.contains("hanime1.me") == true,
                url.path != "/login" {
-                importCookiesIfPossible(from: webView)
+                importConfirmedLoginCookies(from: webView)
             }
             decisionHandler(.allow)
         }
 
-        private func importCookiesIfPossible(from webView: WKWebView) {
+        private func importConfirmedLoginCookies(from webView: WKWebView) {
             guard !didCompleteLogin else {
                 return
             }
@@ -184,7 +183,7 @@ private struct WebLoginView: UIViewRepresentable {
 
                 Task { @MainActor in
                     do {
-                        let snapshot = try await self.webLoginFeature.importCookieHeader(
+                        let snapshot = try await self.webLoginFeature.importConfirmedLoginCookieHeader(
                             cookieHeader: cookieHeader,
                             domain: "hanime1.me"
                         )
