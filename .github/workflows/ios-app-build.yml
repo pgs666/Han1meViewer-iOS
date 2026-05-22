@@ -11,11 +11,14 @@ on:
 jobs:
   ios-app:
     name: Build SwiftUI app with KMP framework
-    runs-on: macos-15
+    runs-on: macos-26
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
       - name: Set up JDK
         uses: actions/setup-java@v5

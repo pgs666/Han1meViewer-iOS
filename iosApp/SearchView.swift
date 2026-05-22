@@ -24,7 +24,7 @@ struct SearchView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(LiquidGlassSearchButtonStyle())
+                .searchProminentGlassButton()
                 .disabled(keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 List {
@@ -40,6 +40,19 @@ struct SearchView: View {
             .navigationTitle("搜索")
         }
         .navigationViewStyle(.stack)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func searchProminentGlassButton() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+        } else {
+            self.buttonStyle(LiquidGlassSearchButtonStyle())
+        }
     }
 }
 
