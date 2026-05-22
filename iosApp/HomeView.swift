@@ -1,7 +1,14 @@
 import SwiftUI
+import Han1meShared
 
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
+    private let environment: SharedAppEnvironment
+
+    init(environment: SharedAppEnvironment) {
+        self.environment = environment
+        _viewModel = StateObject(wrappedValue: HomeViewModel(homeFeature: environment.homeFeature()))
+    }
 
     var body: some View {
         NavigationView {
@@ -51,7 +58,7 @@ struct HomeView: View {
                 Section("Videos") {
                     ForEach(snapshot.videos) { video in
                         NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode)
+                            VideoDetailView(videoCode: video.videoCode, videoFeature: environment.videoFeature())
                         } label: {
                             HStack(spacing: 12) {
                                 AsyncImage(url: video.coverUrl.flatMap(URL.init(string:))) { image in

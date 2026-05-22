@@ -2,11 +2,9 @@ package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.LoginResult
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
-import com.yenaly.han1meviewer.shared.network.setCookieHeaders
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
-import com.yenaly.han1meviewer.shared.session.CookieHeaderProvider
+import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
 import com.yenaly.han1meviewer.shared.session.SessionStore
-import com.yenaly.han1meviewer.shared.session.SetCookieParser
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.get
@@ -21,13 +19,13 @@ import io.ktor.http.Parameters
 import io.ktor.http.Url
 
 class KtorAuthRepository(
-    private val sessionStore: SessionStore,
+    sessionStore: SessionStore,
     private val baseUrl: String = DEFAULT_BASE_URL,
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : AuthRepository {
-    private val cookieHeaderProvider = CookieHeaderProvider(sessionStore)
     private val baseDomain = Url(baseUrl).host
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseDomain)
 
     override suspend fun login(email: String, password: String): LoginResult {
         val loginPage = client.get("$baseUrl/login") {
@@ -74,9 +72,7 @@ class KtorAuthRepository(
     }
 
     private suspend fun io.ktor.client.request.HttpRequestBuilder.applyStoredCookies() {
-        cookieHeaderProvider.buildCookieHeader(baseDomain)?.let { cookieHeader ->
-            header(HttpHeaders.Cookie, cookieHeader)
-        }
+        cookieBridge.applyStoredCookies(this)
     }
 
     private fun io.ktor.client.request.HttpRequestBuilder.applyCommonHeaders() {
@@ -85,8 +81,7 @@ class KtorAuthRepository(
     }
 
     private suspend fun saveResponseCookies(response: HttpResponse) {
-        val cookies = SetCookieParser.parseAll(response.headers.setCookieHeaders(), fallbackDomain = baseDomain)
-        cookieHeaderProvider.saveResponseCookies(cookies)
+        cookieBridge.saveResponseCookies(response)
     }
 
     private companion object {

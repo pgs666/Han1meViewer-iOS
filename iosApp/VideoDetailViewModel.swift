@@ -12,7 +12,11 @@ final class VideoDetailViewModel: ObservableObject {
 
     @Published private(set) var state: State = .idle
 
-    private let videoFeature = VideoFeature()
+    private let videoFeature: VideoFeature
+
+    init(videoFeature: VideoFeature) {
+        self.videoFeature = videoFeature
+    }
 
     func load(videoCode: String) {
         guard case .loading = state else {
@@ -29,7 +33,7 @@ final class VideoDetailViewModel: ObservableObject {
             let snapshot = try await videoFeature.loadVideo(videoCode: videoCode)
             state = .loaded(snapshot)
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ErrorMessage.userFriendly(error))
         }
     }
 }

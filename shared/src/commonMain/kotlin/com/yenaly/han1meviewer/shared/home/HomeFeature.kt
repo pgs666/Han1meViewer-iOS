@@ -1,23 +1,17 @@
 package com.yenaly.han1meviewer.shared.home
 
-import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
-import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
-import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.HttpHeaders
+import com.yenaly.han1meviewer.shared.repository.HomeRepository
+import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
+import com.yenaly.han1meviewer.shared.session.SessionStore
 import kotlinx.serialization.Serializable
 
-class HomeFeature {
-    private val client: HttpClient = createHan1meHttpClient()
-    private val parser = KsoupHtmlParser()
+class HomeFeature(
+    private val repository: HomeRepository,
+) {
+    constructor(sessionStore: SessionStore) : this(KtorHomeRepository(sessionStore))
 
     suspend fun loadHome(): HomeFeedSnapshot {
-        val html = client.get(DEFAULT_BASE_URL) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-        }.bodyAsText()
-        val homePage = parser.parseHome(html)
+        val homePage = repository.getHomePage()
         val videos = homePage.sections.flatMap { section ->
             section.items.mapNotNull { item ->
                 val videoCode = item.videoCode ?: return@mapNotNull null
@@ -48,9 +42,6 @@ class HomeFeature {
     private companion object {
         const val MAX_HOME_VIDEOS = 30
         const val DEFAULT_BASE_URL = "https://hanime1.me"
-        const val DEFAULT_USER_AGENT =
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
-                "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     }
 }
 

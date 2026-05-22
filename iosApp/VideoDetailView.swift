@@ -4,6 +4,11 @@ struct VideoDetailView: View {
     let videoCode: String
     @StateObject private var viewModel = VideoDetailViewModel()
 
+    init(videoCode: String, videoFeature: VideoFeature) {
+        self.videoCode = videoCode
+        _viewModel = StateObject(wrappedValue: VideoDetailViewModel(videoFeature: videoFeature))
+    }
+
     var body: some View {
         content
         .navigationTitle("Detail")

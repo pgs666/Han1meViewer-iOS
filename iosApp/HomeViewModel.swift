@@ -12,7 +12,11 @@ final class HomeViewModel: ObservableObject {
 
     @Published private(set) var state: State = .idle
 
-    private let homeFeature = HomeFeature()
+    private let homeFeature: HomeFeature
+
+    init(homeFeature: HomeFeature) {
+        self.homeFeature = homeFeature
+    }
 
     func load() {
         guard case .loading = state else {
@@ -29,7 +33,7 @@ final class HomeViewModel: ObservableObject {
             let snapshot = try await homeFeature.loadHome()
             state = .loaded(HomeScreenSnapshot(snapshot))
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ErrorMessage.userFriendly(error))
         }
     }
 }

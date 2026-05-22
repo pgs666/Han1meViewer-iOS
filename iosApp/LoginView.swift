@@ -4,17 +4,15 @@ import Han1meShared
 struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
-    @State private var isSubmitting = false
-    @State private var message: String?
-    private let smokeMessage = SharedSmokeTest().message()
+    @StateObject private var viewModel: LoginViewModel
+
+    init(authFeature: AuthFeature) {
+        _viewModel = StateObject(wrappedValue: LoginViewModel(authFeature: authFeature))
+    }
 
     var body: some View {
         NavigationView {
             Form {
-                Section {
-                    Text(smokeMessage)
-                }
-
                 Section {
                     TextField("Email", text: $email)
                         .textInputAutocapitalization(.never)
@@ -24,11 +22,9 @@ struct LoginView: View {
 
                 Section {
                     Button {
-                        isSubmitting = true
-                        message = "Shared login wiring pending"
-                        isSubmitting = false
+                        viewModel.login(email: email, password: password)
                     } label: {
-                        if isSubmitting {
+                        if case .submitting = viewModel.state {
                             ProgressView()
                         } else {
                             Text("Login")
@@ -40,11 +36,35 @@ struct LoginView: View {
                 if let message {
                     Section {
                         Text(message)
+                            .foregroundColor(messageColor)
                     }
                 }
             }
             .navigationTitle("Han1meViewer")
         }
         .navigationViewStyle(.stack)
+    }
+
+    private var isSubmitting: Bool {
+        if case .submitting = viewModel.state {
+            return true
+        }
+        return false
+    }
+
+    private var message: String? {
+        switch viewModel.state {
+        case .idle, .submitting:
+            return nil
+        case .succeeded(let message), .failed(let message):
+            return message
+        }
+    }
+
+    private var messageColor: Color {
+        if case .succeeded = viewModel.state {
+            return .green
+        }
+        return .primary
     }
 }
