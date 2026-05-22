@@ -73,6 +73,15 @@ class WebLoginFeature(
         )
     }
 
+    suspend fun logout(): AuthSnapshot {
+        sessionStore.clear()
+        return AuthSnapshot(
+            isLoggedIn = false,
+            message = "Logged out",
+            username = null,
+        )
+    }
+
     private fun List<SessionCookie>.hasLoginSession(): Boolean {
         return any { cookie ->
             cookie.name.equals("hanime1_session", ignoreCase = true) ||

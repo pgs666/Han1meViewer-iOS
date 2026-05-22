@@ -37,4 +37,21 @@ class WebLoginFeatureTest {
 
         assertEquals(true, feature.currentSessionSnapshot().isLoggedIn)
     }
+
+    @Test
+    fun logoutClearsCurrentLoginSession() = runTest {
+        val store = MemorySessionStore()
+        val feature = WebLoginFeature(store)
+
+        feature.importCookieHeader(
+            cookieHeader = "hanime1_session=session-value",
+            domain = "hanime1.me",
+        )
+
+        val snapshot = feature.logout()
+
+        assertEquals(false, snapshot.isLoggedIn)
+        assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
+        assertTrue(store.loadCookies().isEmpty())
+    }
 }

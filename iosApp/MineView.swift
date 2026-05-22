@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 import Han1meShared
 
 struct MineView: View {
@@ -6,25 +7,36 @@ struct MineView: View {
 
     @State private var isLoggedIn = false
     @State private var isCheckingLogin = false
-    @State private var showLoginSuccessAlert = false
+    @State private var activeAlert: MineAlert?
 
     var body: some View {
         NavigationView {
             List {
                 Section {
-                    NavigationLink {
-                        LoginView(
-                            webLoginFeature: webLoginFeature,
-                            onLoginSuccess: {
-                                isLoggedIn = true
-                                showLoginSuccessAlert = true
-                            }
-                        )
-                    } label: {
-                        MineAccountRow(
-                            isLoggedIn: isLoggedIn,
-                            isChecking: isCheckingLogin
-                        )
+                    if isLoggedIn {
+                        Button {
+                            activeAlert = .confirmLogout
+                        } label: {
+                            MineAccountRow(
+                                isLoggedIn: isLoggedIn,
+                                isChecking: isCheckingLogin
+                            )
+                        }
+                    } else {
+                        NavigationLink {
+                            LoginView(
+                                webLoginFeature: webLoginFeature,
+                                onLoginSuccess: {
+                                    isLoggedIn = true
+                                    activeAlert = .loginSuccess
+                                }
+                            )
+                        } label: {
+                            MineAccountRow(
+                                isLoggedIn: isLoggedIn,
+                                isChecking: isCheckingLogin
+                            )
+                        }
                     }
                 }
 
@@ -49,12 +61,30 @@ struct MineView: View {
             .onAppear {
                 refreshLoginState()
             }
-            .alert(isPresented: $showLoginSuccessAlert) {
-                Alert(
-                    title: Text("登录成功"),
-                    message: Text("已同步网页登录状态。"),
-                    dismissButton: .default(Text("好"))
-                )
+            .alert(item: $activeAlert) { alert in
+                switch alert {
+                case .loginSuccess:
+                    return Alert(
+                        title: Text("登录成功"),
+                        message: Text("已同步网页登录状态。"),
+                        dismissButton: .default(Text("好"))
+                    )
+                case .confirmLogout:
+                    return Alert(
+                        title: Text("退出登录"),
+                        message: Text("确定要清除当前登录状态吗？"),
+                        primaryButton: .destructive(Text("退出登录")) {
+                            logout()
+                        },
+                        secondaryButton: .cancel(Text("取消"))
+                    )
+                case .loggedOut:
+                    return Alert(
+                        title: Text("已退出登录"),
+                        message: Text("本地登录状态已清除。"),
+                        dismissButton: .default(Text("好"))
+                    )
+                }
             }
         }
         .navigationViewStyle(.stack)
@@ -80,6 +110,70 @@ struct MineView: View {
             }
         }
     }
+
+    private func logout() {
+        isCheckingLogin = true
+        Task {
+            do {
+                _ = try await webLoginFeature.logout()
+                await clearWebViewCookies()
+                await MainActor.run {
+                    isLoggedIn = false
+                    isCheckingLogin = false
+                    activeAlert = .loggedOut
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingLogin = false
+                }
+            }
+        }
+    }
+
+    private func clearWebViewCookies() async {
+        await withCheckedContinuation { continuation in
+            let dataStore = WKWebsiteDataStore.default()
+            let cookieStore = dataStore.httpCookieStore
+            cookieStore.getAllCookies { cookies in
+                let hanimeCookies = cookies.filter { cookie in
+                    cookie.domain.contains("hanime1.me")
+                }
+
+                guard !hanimeCookies.isEmpty else {
+                    continuation.resume()
+                    return
+                }
+
+                let group = DispatchGroup()
+                hanimeCookies.forEach { cookie in
+                    group.enter()
+                    cookieStore.delete(cookie) {
+                        group.leave()
+                    }
+                }
+                group.notify(queue: .main) {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+}
+
+private enum MineAlert: Identifiable {
+    case loginSuccess
+    case confirmLogout
+    case loggedOut
+
+    var id: String {
+        switch self {
+        case .loginSuccess:
+            return "loginSuccess"
+        case .confirmLogout:
+            return "confirmLogout"
+        case .loggedOut:
+            return "loggedOut"
+        }
+    }
 }
 
 private struct MineAccountRow: View {
@@ -95,7 +189,7 @@ private struct MineAccountRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(isLoggedIn ? "已登录" : "账户登录")
                     .foregroundColor(.primary)
-                Text(isChecking ? "正在检查登录状态" : (isLoggedIn ? "网页登录状态已同步" : "使用网页登录并同步 Cookie"))
+                Text(isChecking ? "正在检查登录状态" : (isLoggedIn ? "点击可退出登录" : "使用网页登录并同步 Cookie"))
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
