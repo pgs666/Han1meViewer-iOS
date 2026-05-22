@@ -1,70 +1,178 @@
 import SwiftUI
+import WebKit
 import Han1meShared
 
 struct LoginView: View {
-    @State private var email = ""
-    @State private var password = ""
-    @StateObject private var viewModel: LoginViewModel
+    let webLoginFeature: WebLoginFeature
 
-    init(authFeature: AuthFeature) {
-        _viewModel = StateObject(wrappedValue: LoginViewModel(authFeature: authFeature))
-    }
+    @State private var status: LoginStatus = .idle
+    @State private var reloadToken = UUID()
 
     var body: some View {
-        NavigationView {
-            Form {
-                Section {
-                    TextField("Email", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    SecureField("Password", text: $password)
+        VStack(spacing: 0) {
+            WebLoginStatusBar(status: status)
+
+            WebLoginView(
+                reloadToken: reloadToken,
+                webLoginFeature: webLoginFeature,
+                status: $status
+            )
+        }
+        .navigationTitle("账号登录")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    status = .loading
+                    reloadToken = UUID()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .accessibilityLabel("刷新登录页")
+            }
+        }
+    }
+}
+
+private enum LoginStatus: Equatable {
+    case idle
+    case loading
+    case imported
+    case failed(String)
+}
+
+private struct WebLoginStatusBar: View {
+    let status: LoginStatus
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch status {
+            case .idle:
+                Label("请在网页中完成登录", systemImage: "globe")
+            case .loading:
+                ProgressView()
+                Text("正在载入登录页")
+            case .imported:
+                Label("已同步登录 Cookie", systemImage: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            case .failed(let message):
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .foregroundColor(.orange)
+            }
+        }
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(.secondarySystemBackground))
+    }
+}
+
+private struct WebLoginView: UIViewRepresentable {
+    let reloadToken: UUID
+    let webLoginFeature: WebLoginFeature
+    @Binding var status: LoginStatus
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(webLoginFeature: webLoginFeature, status: $status)
+    }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        configuration.preferences.javaScriptEnabled = true
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
+        webView.allowsBackForwardNavigationGestures = true
+        context.coordinator.reloadToken = reloadToken
+        context.coordinator.loadLoginPage(in: webView)
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        if context.coordinator.reloadToken != reloadToken {
+            context.coordinator.reloadToken = reloadToken
+            context.coordinator.loadLoginPage(in: webView)
+        }
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        var reloadToken: UUID?
+
+        private let webLoginFeature: WebLoginFeature
+        @Binding private var status: LoginStatus
+
+        init(webLoginFeature: WebLoginFeature, status: Binding<LoginStatus>) {
+            self.webLoginFeature = webLoginFeature
+            _status = status
+        }
+
+        func loadLoginPage(in webView: WKWebView) {
+            guard let url = URL(string: "https://hanime1.me/login") else {
+                status = .failed("登录地址无效")
+                return
+            }
+            status = .loading
+            webView.load(URLRequest(url: url))
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            status = .idle
+            importCookiesIfPossible(from: webView)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            status = .failed(ErrorMessage.userFriendly(error))
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            status = .failed(ErrorMessage.userFriendly(error))
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            if let url = navigationAction.request.url,
+               url.host?.contains("hanime1.me") == true,
+               url.path != "/login" {
+                importCookiesIfPossible(from: webView)
+            }
+            decisionHandler(.allow)
+        }
+
+        private func importCookiesIfPossible(from webView: WKWebView) {
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+                guard let self = self else { return }
+
+                let hanimeCookies = cookies.filter { cookie in
+                    cookie.domain.contains("hanime1.me")
                 }
 
-                Section {
-                    Button {
-                        viewModel.login(email: email, password: password)
-                    } label: {
-                        if case .submitting = viewModel.state {
-                            ProgressView()
-                        } else {
-                            Text("Login")
+                let cookieHeader = hanimeCookies
+                    .map { "\($0.name)=\($0.value)" }
+                    .joined(separator: "; ")
+
+                guard !cookieHeader.isEmpty else {
+                    return
+                }
+
+                Task { @MainActor in
+                    do {
+                        let snapshot = try await self.webLoginFeature.importCookieHeader(
+                            cookieHeader: cookieHeader,
+                            domain: "hanime1.me"
+                        )
+                        if snapshot.isLoggedIn {
+                            self.status = .imported
                         }
-                    }
-                    .disabled(email.isEmpty || password.isEmpty || isSubmitting)
-                }
-
-                if let message {
-                    Section {
-                        Text(message)
-                            .foregroundColor(messageColor)
+                    } catch {
+                        self.status = .failed(ErrorMessage.userFriendly(error))
                     }
                 }
             }
-            .navigationTitle("Han1meViewer")
         }
-        .navigationViewStyle(.stack)
-    }
-
-    private var isSubmitting: Bool {
-        if case .submitting = viewModel.state {
-            return true
-        }
-        return false
-    }
-
-    private var message: String? {
-        switch viewModel.state {
-        case .idle, .submitting:
-            return nil
-        case .succeeded(let message), .failed(let message):
-            return message
-        }
-    }
-
-    private var messageColor: Color {
-        if case .succeeded = viewModel.state {
-            return .green
-        }
-        return .primary
     }
 }

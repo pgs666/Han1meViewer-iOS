@@ -1,6 +1,7 @@
 package com.yenaly.han1meviewer.shared.app
 
 import com.yenaly.han1meviewer.shared.auth.AuthFeature
+import com.yenaly.han1meviewer.shared.auth.WebLoginFeature
 import com.yenaly.han1meviewer.shared.db.DatabaseDriverFactory
 import com.yenaly.han1meviewer.shared.db.createDatabase
 import com.yenaly.han1meviewer.shared.home.HomeFeature
@@ -18,6 +19,10 @@ class SharedAppEnvironment(
 
     fun authFeature(): AuthFeature {
         return AuthFeature(KtorAuthRepository(sessionStore))
+    }
+
+    fun webLoginFeature(): WebLoginFeature {
+        return WebLoginFeature(sessionStore)
     }
 
     fun homeFeature(): HomeFeature {

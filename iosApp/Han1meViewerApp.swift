@@ -18,7 +18,9 @@ struct Han1meViewerApp: App {
                         Label("关注", systemImage: "heart")
                     }
 
-                MineView(authFeature: sharedEnvironment.authFeature())
+                MineView(
+                    webLoginFeature: sharedEnvironment.webLoginFeature()
+                )
                     .tabItem {
                         Label("我的", systemImage: "person.crop.circle")
                     }

@@ -2,14 +2,14 @@ import SwiftUI
 import Han1meShared
 
 struct MineView: View {
-    let authFeature: AuthFeature
+    let webLoginFeature: WebLoginFeature
 
     var body: some View {
         NavigationView {
             List {
                 Section {
                     NavigationLink {
-                        LoginView(authFeature: authFeature)
+                        LoginView(webLoginFeature: webLoginFeature)
                     } label: {
                         Label("账户登录", systemImage: "person.crop.circle.badge.checkmark")
                     }
