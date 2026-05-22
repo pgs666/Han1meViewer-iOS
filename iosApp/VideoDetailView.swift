@@ -1,8 +1,9 @@
 import SwiftUI
+import Han1meShared
 
 struct VideoDetailView: View {
     let videoCode: String
-    @StateObject private var viewModel = VideoDetailViewModel()
+    @StateObject private var viewModel: VideoDetailViewModel
 
     init(videoCode: String, videoFeature: VideoFeature) {
         self.videoCode = videoCode
