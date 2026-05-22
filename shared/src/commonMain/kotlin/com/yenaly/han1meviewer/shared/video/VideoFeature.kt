@@ -2,12 +2,11 @@ package com.yenaly.han1meviewer.shared.video
 
 import com.yenaly.han1meviewer.shared.model.PlaybackSource
 import com.yenaly.han1meviewer.shared.repository.KtorVideoRepository
-import com.yenaly.han1meviewer.shared.repository.VideoRepository
 import kotlinx.serialization.Serializable
 
-class VideoFeature(
-    private val repository: VideoRepository = KtorVideoRepository(),
-) {
+class VideoFeature {
+    private val repository = KtorVideoRepository()
+
     suspend fun loadVideo(videoCode: String): VideoDetailSnapshot {
         val video = repository.getVideo(videoCode)
         val defaultSource = video.sources.firstOrNull { source -> source.isDefault }
