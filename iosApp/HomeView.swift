@@ -51,10 +51,18 @@ struct HomeView: View {
 
                 if let firstVideoTitle = snapshot.firstVideoTitle {
                     Section("First video") {
-                        Text(firstVideoTitle)
                         if let videoCode = snapshot.firstVideoCode {
-                            Text(videoCode)
-                                .foregroundStyle(.secondary)
+                            NavigationLink {
+                                VideoDetailView(videoCode: videoCode)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(firstVideoTitle)
+                                    Text(videoCode)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } else {
+                            Text(firstVideoTitle)
                         }
                     }
                 }
