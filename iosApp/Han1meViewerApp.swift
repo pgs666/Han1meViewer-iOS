@@ -25,7 +25,7 @@ struct Han1meViewerApp: App {
                         Label("我的", systemImage: "person.crop.circle")
                     }
 
-                SearchView()
+                SearchView(environment: sharedEnvironment)
                     .tabItem {
                         Label("搜索", systemImage: "magnifyingglass")
                     }
