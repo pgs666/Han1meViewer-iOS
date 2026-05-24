@@ -9,7 +9,8 @@ enum ErrorMessage {
             return "The request timed out. Check your network and try again."
         }
         if lowercased.contains("cloudflare") || lowercased.contains("forbidden") || lowercased.contains("403") {
-            return "The site blocked this request. Open the site once in a browser, then try again."
+            CloudflareChallengeCenter.requestChallenge()
+            return "The site blocked this request. Complete the browser challenge, then try again."
         }
         if lowercased.contains("could not connect") || lowercased.contains("network") || lowercased.contains("offline") {
             return "Network connection failed. Check Wi-Fi or VPN and try again."

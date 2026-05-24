@@ -1,5 +1,6 @@
 package com.yenaly.han1meviewer.shared.app
 
+import com.yenaly.han1meviewer.shared.auth.CloudflareFeature
 import com.yenaly.han1meviewer.shared.auth.WebLoginFeature
 import com.yenaly.han1meviewer.shared.db.DatabaseDriverFactory
 import com.yenaly.han1meviewer.shared.db.createDatabase
@@ -38,6 +39,10 @@ class SharedAppEnvironment(
 
     fun webLoginFeature(): WebLoginFeature {
         return WebLoginFeature(sessionStore)
+    }
+
+    fun cloudflareFeature(): CloudflareFeature {
+        return CloudflareFeature(sessionStore)
     }
 
     fun homeFeature(): HomeFeature {
