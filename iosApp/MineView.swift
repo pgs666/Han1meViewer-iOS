@@ -105,9 +105,14 @@ struct MineView: View {
 
                 Section("视频") {
                     NavigationLink {
+                        OnlineWatchHistoryView(environment: environment)
+                    } label: {
+                        MineMenuRow(title: "在线历史", systemImage: "clock.arrow.circlepath")
+                    }
+                    NavigationLink {
                         WatchHistoryView(environment: environment)
                     } label: {
-                        MineMenuRow(title: "观看历史", systemImage: "clock.arrow.circlepath")
+                        MineMenuRow(title: "本地历史", systemImage: "clock")
                     }
                     Button {
                         activeAlert = .notMigrated("下载")

@@ -4,6 +4,7 @@ import com.yenaly.han1meviewer.shared.model.HanimeInfo
 import com.yenaly.han1meviewer.shared.model.HanimeVideo
 import com.yenaly.han1meviewer.shared.model.HomePage
 import com.yenaly.han1meviewer.shared.model.MySubscriptions
+import com.yenaly.han1meviewer.shared.model.OnlineWatchHistorySort
 import com.yenaly.han1meviewer.shared.model.PageResult
 import com.yenaly.han1meviewer.shared.model.SearchParams
 import com.yenaly.han1meviewer.shared.model.UserPlaylistPage
@@ -41,4 +42,10 @@ interface UserVideoListRepository {
 
 interface UserPlaylistRepository {
     suspend fun getPlaylists(userId: String, page: Int): UserPlaylistPage
+}
+
+interface OnlineWatchHistoryRepository {
+    suspend fun getHistories(userId: String, sort: OnlineWatchHistorySort, page: Int): UserVideoListPage
+
+    suspend fun removeHistoryItem(videoCode: String, csrfToken: String?)
 }

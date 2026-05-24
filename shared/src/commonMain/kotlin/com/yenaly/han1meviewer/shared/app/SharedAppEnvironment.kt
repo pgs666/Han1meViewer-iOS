@@ -6,9 +6,11 @@ import com.yenaly.han1meviewer.shared.db.createDatabase
 import com.yenaly.han1meviewer.shared.following.FollowingFeature
 import com.yenaly.han1meviewer.shared.history.WatchHistoryFeature
 import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
+import com.yenaly.han1meviewer.shared.history.OnlineWatchHistoryFeature
 import com.yenaly.han1meviewer.shared.home.HomeFeature
 import com.yenaly.han1meviewer.shared.repository.KtorFollowingRepository
 import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
+import com.yenaly.han1meviewer.shared.repository.KtorOnlineWatchHistoryRepository
 import com.yenaly.han1meviewer.shared.repository.KtorSearchRepository
 import com.yenaly.han1meviewer.shared.repository.KtorUserPlaylistRepository
 import com.yenaly.han1meviewer.shared.repository.KtorUserVideoListRepository
@@ -62,6 +64,13 @@ class SharedAppEnvironment(
 
     fun watchHistoryFeature(): WatchHistoryFeature {
         return WatchHistoryFeature(watchHistoryStore)
+    }
+
+    fun onlineWatchHistoryFeature(): OnlineWatchHistoryFeature {
+        return OnlineWatchHistoryFeature(
+            homeRepository = homeRepository,
+            historyRepository = KtorOnlineWatchHistoryRepository(sessionStore),
+        )
     }
 
     fun watchLaterFeature(): UserVideoListFeature {

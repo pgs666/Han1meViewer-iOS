@@ -80,6 +80,12 @@ data class UserVideoListPage(
 )
 
 @Serializable
+enum class OnlineWatchHistorySort(val value: String) {
+    Latest("latest"),
+    Oldest("oldest"),
+}
+
+@Serializable
 data class UserPlaylistPage(
     val playlists: List<UserPlaylist>,
     val csrfToken: String?,
