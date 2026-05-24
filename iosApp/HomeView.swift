@@ -44,11 +44,6 @@ struct HomeView: View {
             .padding()
         case .loaded(let snapshot):
             List {
-                Section("Status") {
-                    Text(snapshot.summary)
-                    Text(snapshot.baseUrl)
-                }
-
                 if let bannerTitle = snapshot.bannerTitle {
                     Section("Banner") {
                         Text(bannerTitle)
@@ -89,9 +84,6 @@ private struct HomeVideoListRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(video.title)
                     .lineLimit(2)
-                Text(video.sectionTitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)

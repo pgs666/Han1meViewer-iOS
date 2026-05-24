@@ -44,16 +44,9 @@ final class SearchViewModel: ObservableObject {
 }
 
 struct SearchScreenSnapshot {
-    let keyword: String
-    let page: Int
-    let hasNext: Bool
     let results: [SearchVideoRow]
 
     init(_ snapshot: SearchSnapshot) {
-        keyword = snapshot.keyword
-        page = Int(snapshot.page)
-        hasNext = snapshot.hasNext
-
         let count = Int(snapshot.itemCount())
         results = (0..<count).compactMap { index in
             guard let item = snapshot.itemAt(index: Int32(index)) else {

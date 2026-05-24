@@ -11,13 +11,6 @@ class KsoupHtmlParserTest {
     private val parser = KsoupHtmlParser()
 
     @Test
-    fun parsesLoginCsrfToken() {
-        val html = """<html><body><form><input name="_token" value="csrf-123"></form></body></html>"""
-
-        assertEquals("csrf-123", parser.parseLoginCsrf(html))
-    }
-
-    @Test
     fun parsesNormalSearchCards() {
         val html = """
             <html>

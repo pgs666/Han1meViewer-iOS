@@ -10,5 +10,4 @@ interface HtmlParser {
     fun parseHome(html: String): HomePage
     fun parseSearch(html: String, params: SearchParams, page: Int): PageResult<HanimeInfo>
     fun parseVideo(html: String, videoCode: String): HanimeVideo
-    fun parseLoginCsrf(html: String): String?
 }

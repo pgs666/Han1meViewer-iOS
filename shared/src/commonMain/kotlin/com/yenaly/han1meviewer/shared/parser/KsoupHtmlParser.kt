@@ -134,10 +134,6 @@ class KsoupHtmlParser : HtmlParser {
         )
     }
 
-    override fun parseLoginCsrf(html: String): String? {
-        return Ksoup.parse(html).body().selectFirst("input[name=_token]")?.attr("value")
-    }
-
     private fun Element?.toHanimeInfoList(
         selector: String = "div[class^=horizontal-card]",
     ): List<HanimeInfo> = this?.select(selector)?.mapNotNull { it.toNormalHanimeInfo() }.orEmpty()

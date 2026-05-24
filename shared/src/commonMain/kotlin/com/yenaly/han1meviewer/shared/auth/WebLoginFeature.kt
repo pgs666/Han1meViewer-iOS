@@ -1,26 +1,8 @@
 package com.yenaly.han1meviewer.shared.auth
 
 import com.yenaly.han1meviewer.shared.model.SessionCookie
-import com.yenaly.han1meviewer.shared.repository.AuthRepository
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import kotlinx.serialization.Serializable
-
-class AuthFeature(
-    private val repository: AuthRepository,
-) {
-    suspend fun login(email: String, password: String): AuthSnapshot {
-        val result = repository.login(email, password)
-        return AuthSnapshot(
-            isLoggedIn = result.isLoggedIn,
-            message = if (result.isLoggedIn) {
-                "Login succeeded"
-            } else {
-                "Login failed. Check your email, password, or Cloudflare state."
-            },
-            username = result.username,
-        )
-    }
-}
 
 class WebLoginFeature(
     private val sessionStore: SessionStore,

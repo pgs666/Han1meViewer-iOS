@@ -39,29 +39,11 @@ final class HomeViewModel: ObservableObject {
 }
 
 struct HomeScreenSnapshot {
-    let summary: String
-    let baseUrl: String
     let bannerTitle: String?
-    let videos: [HomeVideoRow]
     let sections: [HomeSectionRow]
 
     init(_ snapshot: HomeFeedSnapshot) {
-        summary = snapshot.summary
-        baseUrl = snapshot.baseUrl
         bannerTitle = snapshot.bannerTitle
-
-        let count = Int(snapshot.videoCount())
-        videos = (0..<count).compactMap { index in
-            guard let video = snapshot.videoAt(index: Int32(index)) else {
-                return nil
-            }
-            return HomeVideoRow(
-                videoCode: video.videoCode,
-                title: video.title,
-                coverUrl: video.coverUrl,
-                sectionTitle: video.sectionTitle
-            )
-        }
 
         let sectionCount = Int(snapshot.homeSectionCount())
         sections = (0..<sectionCount).compactMap { sectionIndex -> HomeSectionRow? in
@@ -77,8 +59,7 @@ struct HomeScreenSnapshot {
                 return HomeVideoRow(
                     videoCode: video.videoCode,
                     title: video.title,
-                    coverUrl: video.coverUrl,
-                    sectionTitle: video.sectionTitle
+                    coverUrl: video.coverUrl
                 )
             }
 
@@ -107,7 +88,6 @@ struct HomeVideoRow: Identifiable {
     let videoCode: String
     let title: String
     let coverUrl: String?
-    let sectionTitle: String
 
     var id: String { videoCode }
 }
