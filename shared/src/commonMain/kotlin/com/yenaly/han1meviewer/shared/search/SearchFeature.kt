@@ -25,6 +25,8 @@ class SearchFeature(
 
         return SearchSnapshot(
             items = items,
+            page = result.page,
+            hasNext = result.hasNext,
         )
     }
 }
@@ -32,6 +34,8 @@ class SearchFeature(
 @Serializable
 data class SearchSnapshot(
     private val items: List<SearchVideoSnapshot>,
+    val page: Int,
+    val hasNext: Boolean,
 ) {
     fun itemCount(): Int = items.size
 

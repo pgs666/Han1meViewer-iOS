@@ -7,12 +7,16 @@ final class SearchViewModel: ObservableObject {
         case idle
         case loading
         case loaded(SearchScreenSnapshot)
+        case loadingMore(SearchScreenSnapshot)
         case failed(String)
     }
 
     @Published private(set) var state: State = .idle
 
     private let searchFeature: SearchFeature
+    private var currentKeyword = ""
+    private var currentPage: Int32 = 0
+    private var hasNextPage = false
 
     init(searchFeature: SearchFeature) {
         self.searchFeature = searchFeature
@@ -22,33 +26,77 @@ final class SearchViewModel: ObservableObject {
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKeyword.isEmpty else {
             state = .idle
+            currentKeyword = ""
+            currentPage = 0
+            hasNextPage = false
             return
         }
-        guard case .loading = state else {
-            state = .loading
-            Task {
-                await loadSearch(keyword: trimmedKeyword)
-            }
+        guard !isLoading else {
             return
+        }
+
+        currentKeyword = trimmedKeyword
+        currentPage = 0
+        hasNextPage = false
+        state = .loading
+        Task {
+            await loadSearch(keyword: trimmedKeyword, page: 1, appendingTo: nil)
         }
     }
 
-    private func loadSearch(keyword: String) async {
+    func loadMoreIfNeeded(currentItemID: String?) {
+        guard hasNextPage, !currentKeyword.isEmpty, !isLoading else {
+            return
+        }
+        guard case .loaded(let snapshot) = state else {
+            return
+        }
+        guard snapshot.results.last?.id == currentItemID else {
+            return
+        }
+
+        let nextPage = currentPage + 1
+        state = .loadingMore(snapshot)
+        Task {
+            await loadSearch(keyword: currentKeyword, page: nextPage, appendingTo: snapshot)
+        }
+    }
+
+    private var isLoading: Bool {
+        switch state {
+        case .loading, .loadingMore:
+            return true
+        case .idle, .loaded, .failed:
+            return false
+        }
+    }
+
+    private func loadSearch(keyword: String, page: Int32, appendingTo existingSnapshot: SearchScreenSnapshot?) async {
         do {
-            let snapshot = try await searchFeature.search(keyword: keyword, page: 1)
-            state = .loaded(SearchScreenSnapshot(snapshot))
+            let snapshot = try await searchFeature.search(keyword: keyword, page: page)
+            let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
+            currentPage = screenSnapshot.page
+            hasNextPage = screenSnapshot.hasNext
+            state = .loaded(screenSnapshot)
         } catch {
-            state = .failed(ErrorMessage.userFriendly(error))
+            if let existingSnapshot {
+                state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
+            } else {
+                state = .failed(ErrorMessage.userFriendly(error))
+            }
         }
     }
 }
 
 struct SearchScreenSnapshot {
     let results: [SearchVideoRow]
+    let page: Int32
+    let hasNext: Bool
+    let loadMoreError: String?
 
-    init(_ snapshot: SearchSnapshot) {
+    init(_ snapshot: SearchSnapshot, appendingTo existingSnapshot: SearchScreenSnapshot? = nil) {
         let count = Int(snapshot.itemCount())
-        results = (0..<count).compactMap { index in
+        let newResults = (0..<count).compactMap { index in
             guard let item = snapshot.itemAt(index: Int32(index)) else {
                 return nil
             }
@@ -62,6 +110,35 @@ struct SearchScreenSnapshot {
                 artist: item.artist
             )
         }
+        results = SearchScreenSnapshot.merging(existingSnapshot?.results ?? [], with: newResults)
+        page = snapshot.page
+        hasNext = snapshot.hasNext
+        loadMoreError = nil
+    }
+
+    private init(results: [SearchVideoRow], page: Int32, hasNext: Bool, loadMoreError: String?) {
+        self.results = results
+        self.page = page
+        self.hasNext = hasNext
+        self.loadMoreError = loadMoreError
+    }
+
+    func withLoadMoreError(_ message: String) -> SearchScreenSnapshot {
+        SearchScreenSnapshot(
+            results: results,
+            page: page,
+            hasNext: hasNext,
+            loadMoreError: message
+        )
+    }
+
+    private static func merging(_ existing: [SearchVideoRow], with newResults: [SearchVideoRow]) -> [SearchVideoRow] {
+        var seenIDs = Set(existing.map(\.id))
+        var merged = existing
+        for result in newResults where seenIDs.insert(result.id).inserted {
+            merged.append(result)
+        }
+        return merged
     }
 }
 

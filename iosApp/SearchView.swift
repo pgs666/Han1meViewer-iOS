@@ -81,7 +81,7 @@ struct SearchView: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .loaded(let snapshot):
+        case .loaded(let snapshot), .loadingMore(let snapshot):
             List {
                 Section("结果") {
                     if snapshot.results.isEmpty {
@@ -97,11 +97,59 @@ struct SearchView: View {
                             } label: {
                                 SearchResultRow(video: video)
                             }
+                            .onAppear {
+                                viewModel.loadMoreIfNeeded(currentItemID: video.id)
+                            }
                         }
+                        searchFooter(snapshot: snapshot)
                     }
                 }
             }
             .listStyle(.insetGrouped)
+        }
+    }
+
+    @ViewBuilder
+    private func searchFooter(snapshot: SearchScreenSnapshot) -> some View {
+        switch viewModel.state {
+        case .loadingMore:
+            HStack {
+                Spacer()
+                ProgressView()
+                Spacer()
+            }
+            .padding(.vertical, 10)
+        default:
+            if let message = snapshot.loadMoreError {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("加载更多失败")
+                        .font(.subheadline.weight(.semibold))
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("重试") {
+                        viewModel.loadMoreIfNeeded(currentItemID: snapshot.results.last?.id)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 8)
+            } else if snapshot.hasNext {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .onAppear {
+                            viewModel.loadMoreIfNeeded(currentItemID: snapshot.results.last?.id)
+                        }
+                    Spacer()
+                }
+                .padding(.vertical, 10)
+            } else if !snapshot.results.isEmpty {
+                Text("已全部加载")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+            }
         }
     }
 }
