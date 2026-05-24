@@ -247,6 +247,7 @@ private struct SearchFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: SearchFilterState
     @State private var selectedTagSectionID: String?
+    @State private var isBrandSectionExpanded: Bool
 
     init(
         catalog: SearchOptionCatalog,
@@ -260,6 +261,7 @@ private struct SearchFilterSheet: View {
         self.onReset = onReset
         _draft = State(initialValue: initialFilters)
         _selectedTagSectionID = State(initialValue: catalog.tagSections.first?.id)
+        _isBrandSectionExpanded = State(initialValue: !initialFilters.brands.isEmpty)
     }
 
     var body: some View {
@@ -365,26 +367,50 @@ private struct SearchFilterSheet: View {
 
     private var brandSection: some View {
         Section {
-            if catalog.brands.isEmpty {
-                Text("品牌加载失败。")
-                    .foregroundStyle(.secondary)
-            } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
-                    ForEach(catalog.brands) { option in
-                        SearchTagChip(
-                            title: option.displayName,
-                            isSelected: draft.brands.contains(option),
-                            onTap: {
-                                if draft.brands.contains(option) {
-                                    draft.brands.remove(option)
-                                } else {
-                                    draft.brands.insert(option)
-                                }
-                            }
-                        )
-                    }
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isBrandSectionExpanded.toggle()
                 }
-                .padding(.vertical, 6)
+            } label: {
+                HStack {
+                    Label(
+                        draft.brands.isEmpty ? "选择品牌" : "已选择 \(draft.brands.count) 个品牌",
+                        systemImage: "building.2"
+                    )
+                    .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isBrandSectionExpanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isBrandSectionExpanded {
+                if catalog.brands.isEmpty {
+                    Text("品牌加载失败。")
+                        .foregroundStyle(.secondary)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
+                        ForEach(catalog.brands) { option in
+                            SearchTagChip(
+                                title: option.displayName,
+                                isSelected: draft.brands.contains(option),
+                                onTap: {
+                                    if draft.brands.contains(option) {
+                                        draft.brands.remove(option)
+                                    } else {
+                                        draft.brands.insert(option)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
         } header: {
             HStack {
@@ -416,25 +442,28 @@ private struct SearchFilterSheet: View {
                     .foregroundStyle(.secondary)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 0) {
                         ForEach(catalog.tagSections) { section in
                             Button {
                                 selectedTagSectionID = section.id
                             } label: {
                                 Text(section.title)
                                     .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 7)
+                                    .lineLimit(1)
+                                    .frame(minWidth: 86)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .foregroundStyle(selectedTagSectionID == section.id ? Color.accentColor : Color.secondary)
                                     .background(
-                                        selectedTagSectionID == section.id
-                                            ? Color.accentColor.opacity(0.18)
-                                            : Color.secondary.opacity(0.10),
-                                        in: Capsule()
+                                        selectedTagSectionID == section.id ? Color.accentColor.opacity(0.14) : Color.clear,
+                                        in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                                     )
                             }
                             .buttonStyle(.plain)
                         }
                     }
+                    .padding(3)
+                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .padding(.vertical, 4)
                 }
 
