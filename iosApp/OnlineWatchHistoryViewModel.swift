@@ -118,6 +118,13 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
                 snapshot = try await feature.loadOldest(page: page)
             }
 
+            if snapshot.authRequired {
+                state = .failed("请先登录后再查看在线历史。")
+                currentPage = 0
+                hasNextPage = false
+                return
+            }
+
             let screenSnapshot = OnlineWatchHistoryScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext

@@ -19,13 +19,14 @@ class OnlineWatchHistoryFeature(
 
     suspend fun load(sort: OnlineWatchHistorySort, page: Int): OnlineWatchHistorySnapshot {
         val userId = homeRepository.getHomePage().userId
-            ?: error("Login is required before loading online watch history.")
+            ?: return OnlineWatchHistorySnapshot.authRequired(page)
         val pageData = historyRepository.getHistories(userId, sort, page)
 
         return OnlineWatchHistorySnapshot(
             page = pageData.page,
             hasNext = pageData.hasNext,
             csrfToken = pageData.csrfToken,
+            authRequired = false,
             videos = pageData.items.mapNotNull { info ->
                 val videoCode = info.videoCode ?: return@mapNotNull null
                 OnlineWatchHistoryItemSnapshot(
@@ -52,11 +53,24 @@ data class OnlineWatchHistorySnapshot(
     val page: Int,
     val hasNext: Boolean,
     val csrfToken: String?,
+    val authRequired: Boolean = false,
     private val videos: List<OnlineWatchHistoryItemSnapshot>,
 ) {
     fun videoCount(): Int = videos.size
 
     fun videoAt(index: Int): OnlineWatchHistoryItemSnapshot? = videos.getOrNull(index)
+
+    companion object {
+        fun authRequired(page: Int): OnlineWatchHistorySnapshot {
+            return OnlineWatchHistorySnapshot(
+                page = page,
+                hasNext = false,
+                csrfToken = null,
+                authRequired = true,
+                videos = emptyList(),
+            )
+        }
+    }
 }
 
 @Serializable

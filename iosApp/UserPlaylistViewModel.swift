@@ -63,6 +63,12 @@ final class UserPlaylistViewModel: ObservableObject {
     private func load(page: Int32, appendingTo existingSnapshot: UserPlaylistScreenSnapshot?) async {
         do {
             let snapshot = try await feature.load(page: page)
+            if snapshot.authRequired {
+                state = .failed("请先登录后再打开播放清单。")
+                currentPage = 0
+                hasNextPage = false
+                return
+            }
             let screenSnapshot = UserPlaylistScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext

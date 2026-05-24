@@ -10,12 +10,13 @@ class UserPlaylistFeature(
 ) {
     suspend fun load(page: Int): UserPlaylistSnapshot {
         val userId = homeRepository.getHomePage().userId
-            ?: error("Login is required before loading playlists.")
+            ?: return UserPlaylistSnapshot.authRequired(page)
         val pageData = playlistRepository.getPlaylists(userId, page)
 
         return UserPlaylistSnapshot(
             page = pageData.page,
             hasNext = pageData.hasNext,
+            authRequired = false,
             playlists = pageData.playlists.map { playlist ->
                 UserPlaylistItemSnapshot(
                     listCode = playlist.listCode,
@@ -32,11 +33,23 @@ class UserPlaylistFeature(
 data class UserPlaylistSnapshot(
     val page: Int,
     val hasNext: Boolean,
+    val authRequired: Boolean = false,
     private val playlists: List<UserPlaylistItemSnapshot>,
 ) {
     fun playlistCount(): Int = playlists.size
 
     fun playlistAt(index: Int): UserPlaylistItemSnapshot? = playlists.getOrNull(index)
+
+    companion object {
+        fun authRequired(page: Int): UserPlaylistSnapshot {
+            return UserPlaylistSnapshot(
+                page = page,
+                hasNext = false,
+                authRequired = true,
+                playlists = emptyList(),
+            )
+        }
+    }
 }
 
 @Serializable

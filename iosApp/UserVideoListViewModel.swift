@@ -106,6 +106,12 @@ final class UserVideoListViewModel: ObservableObject {
     private func load(page: Int32, appendingTo existingSnapshot: UserVideoListScreenSnapshot?) async {
         do {
             let snapshot = try await loadPage(page)
+            if snapshot.authRequired {
+                state = .failed("请先登录后再打开这个列表。")
+                currentPage = 0
+                hasNextPage = false
+                return
+            }
             let screenSnapshot = UserVideoListScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext

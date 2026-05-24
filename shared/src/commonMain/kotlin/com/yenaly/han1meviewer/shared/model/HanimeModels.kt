@@ -62,6 +62,7 @@ data class MySubscriptions(
     val subscriptions: List<SubscriptionItem>,
     val subscriptionVideos: List<SubscriptionVideoItem>,
     val maxPage: Int,
+    val authRequired: Boolean = false,
 )
 
 @Serializable

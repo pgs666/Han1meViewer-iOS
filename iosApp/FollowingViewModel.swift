@@ -63,6 +63,12 @@ final class FollowingViewModel: ObservableObject {
     private func loadFollowing(page: Int32, appendingTo existingSnapshot: FollowingScreenSnapshot?) async {
         do {
             let snapshot = try await followingFeature.loadFollowing(page: page)
+            if snapshot.authRequired {
+                state = .failed("请先登录后再查看关注更新。")
+                currentPage = 0
+                hasNextPage = false
+                return
+            }
             let screenSnapshot = FollowingScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext

@@ -15,7 +15,7 @@ class UserVideoListFeature(
 
     suspend fun load(page: Int): UserVideoListSnapshot {
         val userId = homeRepository.getHomePage().userId
-            ?: error("Login is required before loading this list.")
+            ?: return UserVideoListSnapshot.authRequired(page)
         currentUserId = userId
         val listPage = listRepository.getUserVideoList(userId, type, page)
         csrfToken = listPage.csrfToken ?: csrfToken
@@ -25,7 +25,7 @@ class UserVideoListFeature(
     suspend fun remove(videoCode: String): UserVideoListMutationSnapshot {
         val userId = currentUserId
             ?: homeRepository.getHomePage().userId
-            ?: error("Login is required before modifying this list.")
+            ?: return UserVideoListMutationSnapshot(videoCode = videoCode, authRequired = true)
         listRepository.removeUserVideoListItem(
             userId = userId,
             type = type,
@@ -91,11 +91,24 @@ data class UserVideoListSnapshot(
     val page: Int,
     val hasNext: Boolean,
     val listDescription: String?,
+    val authRequired: Boolean = false,
     private val videos: List<UserVideoListItemSnapshot>,
 ) {
     fun videoCount(): Int = videos.size
 
     fun videoAt(index: Int): UserVideoListItemSnapshot? = videos.getOrNull(index)
+
+    companion object {
+        fun authRequired(page: Int): UserVideoListSnapshot {
+            return UserVideoListSnapshot(
+                page = page,
+                hasNext = false,
+                listDescription = null,
+                authRequired = true,
+                videos = emptyList(),
+            )
+        }
+    }
 }
 
 @Serializable
@@ -112,4 +125,5 @@ data class UserVideoListItemSnapshot(
 @Serializable
 data class UserVideoListMutationSnapshot(
     val videoCode: String,
+    val authRequired: Boolean = false,
 )

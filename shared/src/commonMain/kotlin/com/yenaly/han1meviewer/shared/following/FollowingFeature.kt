@@ -11,6 +11,7 @@ class FollowingFeature(
         return FollowingSnapshot(
             page = page,
             hasNext = page < subscriptions.maxPage,
+            authRequired = subscriptions.authRequired,
             artists = subscriptions.subscriptions.map { artist ->
                 FollowingArtistSnapshot(
                     name = artist.artistName,
@@ -37,6 +38,7 @@ class FollowingFeature(
 data class FollowingSnapshot(
     val page: Int,
     val hasNext: Boolean,
+    val authRequired: Boolean = false,
     private val artists: List<FollowingArtistSnapshot>,
     private val videos: List<FollowingVideoSnapshot>,
 ) {

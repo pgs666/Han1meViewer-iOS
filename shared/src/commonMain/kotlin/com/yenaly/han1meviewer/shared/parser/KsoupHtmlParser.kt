@@ -143,9 +143,19 @@ class KsoupHtmlParser : HtmlParser {
     override fun parseSubscriptions(html: String): MySubscriptions {
         val body = Ksoup.parse(html).body()
         val subscriptionsRoot = body.selectFirst("div.subscriptions-nav")
-            ?: error("Could not find subscriptions list. Login may be required.")
+            ?: return MySubscriptions(
+                subscriptions = emptyList(),
+                subscriptionVideos = emptyList(),
+                maxPage = 1,
+                authRequired = true,
+            )
         val subscriptionVideosRoot = body.selectFirst("div.content-padding-new")
-            ?: error("Could not find subscription videos. Login may be required.")
+            ?: return MySubscriptions(
+                subscriptions = emptyList(),
+                subscriptionVideos = emptyList(),
+                maxPage = 1,
+                authRequired = true,
+            )
 
         val artists = subscriptionsRoot.select("div.subscriptions-artist-card").mapNotNull { card ->
             val avatarUrl = card.select("img").getOrNull(1)?.absUrl("src")
