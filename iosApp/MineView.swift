@@ -105,7 +105,7 @@ struct MineView: View {
                         MineMenuRow(title: "本地历史", systemImage: "clock")
                     }
                     Button {
-                        activeAlert = .notMigrated("下载")
+                        activeAlert = .notMigrated(String(localized: "download"))
                     } label: {
                         MineMenuRow(title: "下载", systemImage: "arrow.down.circle")
                     }
@@ -237,7 +237,7 @@ private struct MineAccountRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayName)
                     .foregroundStyle(.primary)
-                Text(isChecking ? "正在检查登录状态" : (isLoggedIn ? "点击可退出登录" : "使用网页登录并同步 Cookie"))
+                Text(isChecking ? String(localized: "mine.login.checking") : (isLoggedIn ? String(localized: "mine.login.logout_hint") : String(localized: "mine.login.web_hint")))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -247,9 +247,9 @@ private struct MineAccountRow: View {
 
     private var displayName: String {
         guard isLoggedIn else {
-            return "账户登录"
+            return String(localized: "mine.account.login")
         }
-        return profile.username?.isEmpty == false ? profile.username! : "已登录"
+        return profile.username?.isEmpty == false ? profile.username! : String(localized: "mine.account.logged_in")
     }
 
     @ViewBuilder

@@ -16,20 +16,29 @@ final class UserPlaylistViewModel: ObservableObject {
     private let feature: UserPlaylistFeature
     private var currentPage: Int32 = 0
     private var hasNextPage = false
+    private var loadTask: Task<Void, Never>?
+    private var loadMoreTask: Task<Void, Never>?
+    private var requestGeneration = 0
 
     init(feature: UserPlaylistFeature) {
         self.feature = feature
     }
 
+    deinit {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+    }
+
     func load() {
-        guard !isLoading else {
-            return
-        }
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
         currentPage = 0
         hasNextPage = false
         state = .loading
-        Task {
-            await load(page: 1, appendingTo: nil)
+        loadTask = Task { [weak self] in
+            await self?.load(page: 1, appendingTo: nil, generation: generation)
         }
     }
 
@@ -45,9 +54,10 @@ final class UserPlaylistViewModel: ObservableObject {
         }
 
         let nextPage = currentPage + 1
+        let generation = requestGeneration
         state = .loadingMore(snapshot)
-        Task {
-            await load(page: nextPage, appendingTo: snapshot)
+        loadMoreTask = Task { [weak self] in
+            await self?.load(page: nextPage, appendingTo: snapshot, generation: generation)
         }
     }
 
@@ -60,11 +70,12 @@ final class UserPlaylistViewModel: ObservableObject {
         }
     }
 
-    private func load(page: Int32, appendingTo existingSnapshot: UserPlaylistScreenSnapshot?) async {
+    private func load(page: Int32, appendingTo existingSnapshot: UserPlaylistScreenSnapshot?, generation: Int) async {
         do {
             let snapshot = try await feature.load(page: page)
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             if snapshot.authRequired {
-                state = .failed("请先登录后再打开播放清单。")
+                state = .failed(String(localized: "playlist.auth.required"))
                 currentPage = 0
                 hasNextPage = false
                 return
@@ -73,7 +84,10 @@ final class UserPlaylistViewModel: ObservableObject {
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
             state = .loaded(screenSnapshot)
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))

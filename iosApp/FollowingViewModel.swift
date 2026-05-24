@@ -16,20 +16,29 @@ final class FollowingViewModel: ObservableObject {
     private let followingFeature: FollowingFeature
     private var currentPage: Int32 = 0
     private var hasNextPage = false
+    private var loadTask: Task<Void, Never>?
+    private var loadMoreTask: Task<Void, Never>?
+    private var requestGeneration = 0
 
     init(followingFeature: FollowingFeature) {
         self.followingFeature = followingFeature
     }
 
+    deinit {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+    }
+
     func load() {
-        guard !isLoading else {
-            return
-        }
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
         currentPage = 0
         hasNextPage = false
         state = .loading
-        Task {
-            await loadFollowing(page: 1, appendingTo: nil)
+        loadTask = Task { [weak self] in
+            await self?.loadFollowing(page: 1, appendingTo: nil, generation: generation)
         }
     }
 
@@ -45,9 +54,10 @@ final class FollowingViewModel: ObservableObject {
         }
 
         let nextPage = currentPage + 1
+        let generation = requestGeneration
         state = .loadingMore(snapshot)
-        Task {
-            await loadFollowing(page: nextPage, appendingTo: snapshot)
+        loadMoreTask = Task { [weak self] in
+            await self?.loadFollowing(page: nextPage, appendingTo: snapshot, generation: generation)
         }
     }
 
@@ -60,11 +70,12 @@ final class FollowingViewModel: ObservableObject {
         }
     }
 
-    private func loadFollowing(page: Int32, appendingTo existingSnapshot: FollowingScreenSnapshot?) async {
+    private func loadFollowing(page: Int32, appendingTo existingSnapshot: FollowingScreenSnapshot?, generation: Int) async {
         do {
             let snapshot = try await followingFeature.loadFollowing(page: page)
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             if snapshot.authRequired {
-                state = .failed("请先登录后再查看关注更新。")
+                state = .failed(String(localized: "following.auth.required"))
                 currentPage = 0
                 hasNextPage = false
                 return
@@ -73,7 +84,10 @@ final class FollowingViewModel: ObservableObject {
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
             state = .loaded(screenSnapshot)
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))

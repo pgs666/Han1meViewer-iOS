@@ -86,7 +86,8 @@ final class VideoDetailViewModel: ObservableObject {
                 isFavorite: nextValue
             )
             self.updateLoadedSnapshot { $0.updatingFavorite(isFavorite: nextValue) }
-            self.showActionMessage(nextValue ? "Added to favorites" : "Removed from favorites")
+            let messageKey = nextValue ? "video.action.favorite.added" : "video.action.favorite.removed"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
         }
     }
 
@@ -100,7 +101,8 @@ final class VideoDetailViewModel: ObservableObject {
                 isSelected: nextValue
             )
             self.updateLoadedSnapshot { $0.updatingWatchLater(isSelected: nextValue) }
-            self.showActionMessage(nextValue ? "Added to watch later" : "Removed from watch later")
+            let messageKey = nextValue ? "video.action.watch_later.added" : "video.action.watch_later.removed"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
         }
     }
 
@@ -113,7 +115,8 @@ final class VideoDetailViewModel: ObservableObject {
                 isSelected: isSelected
             )
             self.updateLoadedSnapshot { $0.updatingMyListItem(code: item.code, isSelected: isSelected) }
-            self.showActionMessage(isSelected ? "Added to playlist" : "Removed from playlist")
+            let messageKey = isSelected ? "video.action.playlist.added" : "video.action.playlist.removed"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
         }
     }
 
@@ -121,7 +124,7 @@ final class VideoDetailViewModel: ObservableObject {
         guard let artist = snapshot.artist,
               let userId = artist.subscriptionUserId,
               let artistId = artist.subscriptionArtistId else {
-            showActionMessage("Please sign in before subscribing")
+            showActionMessage(String(localized: "video.action.subscription.login_required"))
             return
         }
 
@@ -134,7 +137,8 @@ final class VideoDetailViewModel: ObservableObject {
                 isSubscribed: nextValue
             )
             self.updateLoadedSnapshot { $0.updatingArtistSubscription(isSubscribed: nextValue) }
-            self.showActionMessage(nextValue ? "Subscribed" : "Unsubscribed")
+            let messageKey = nextValue ? "video.action.subscription.added" : "video.action.subscription.removed"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
         }
     }
 

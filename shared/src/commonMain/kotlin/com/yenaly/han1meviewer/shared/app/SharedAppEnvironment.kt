@@ -45,7 +45,7 @@ class SharedAppEnvironment(
     private var cachedCurrentUserId: String? = null
 
     fun webLoginFeature(): WebLoginFeature {
-        return WebLoginFeature(sessionStore)
+        return WebLoginFeature(sessionStore, homeRepository)
     }
 
     fun cloudflareFeature(): CloudflareFeature {

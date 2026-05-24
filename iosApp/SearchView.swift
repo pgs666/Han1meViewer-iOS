@@ -210,7 +210,7 @@ struct SearchView: View {
                             .font(.subheadline.weight(.semibold))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("杩斿洖鎼滅储鍘嗗彶")
+                    .accessibilityLabel("返回搜索历史")
                     .foregroundStyle(.secondary)
                 }
             }
@@ -466,7 +466,7 @@ private struct SearchFilterSheet: View {
             }
         } header: {
             HStack {
-                Text(draft.brands.isEmpty ? "品牌" : "品牌（\(draft.brands.count)）")
+                Text(draft.brands.isEmpty ? String(localized: "品牌") : String(format: String(localized: "search.brands.count"), draft.brands.count))
                 Spacer()
                 if !draft.brands.isEmpty {
                     Button("清除") {
@@ -540,7 +540,7 @@ private struct SearchFilterSheet: View {
             }
         } header: {
             HStack {
-                Text(draft.tags.isEmpty ? "标签" : "标签（\(draft.tags.count)）")
+                Text(draft.tags.isEmpty ? String(localized: "标签") : String(format: String(localized: "search.tags.count"), draft.tags.count))
                 Spacer()
                 if !draft.tags.isEmpty {
                     Button("清除") {

@@ -12,9 +12,15 @@ final class WatchHistoryViewModel: ObservableObject {
     @Published private(set) var state: State = .idle
 
     private let watchHistoryFeature: WatchHistoryFeature
+    private var loadTask: Task<Void, Never>?
+    private var requestGeneration = 0
 
     init(watchHistoryFeature: WatchHistoryFeature) {
         self.watchHistoryFeature = watchHistoryFeature
+    }
+
+    deinit {
+        loadTask?.cancel()
     }
 
     func loadIfNeeded() {
@@ -25,12 +31,20 @@ final class WatchHistoryViewModel: ObservableObject {
     }
 
     func load() {
-        do {
-            let snapshot = watchHistoryFeature.loadRecent()
-            state = .loaded(WatchHistoryScreenSnapshot(snapshot))
-        } catch {
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-            state = .failed(ErrorMessage.userFriendly(error))
+        loadTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let snapshot = watchHistoryFeature.loadRecent()
+                guard !Task.isCancelled, generation == requestGeneration else { return }
+                state = .loaded(WatchHistoryScreenSnapshot(snapshot))
+            } catch {
+                guard !Task.isCancelled, generation == requestGeneration else { return }
+                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+                state = .failed(ErrorMessage.userFriendly(error))
+            }
         }
     }
 

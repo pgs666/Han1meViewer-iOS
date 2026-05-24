@@ -1,5 +1,7 @@
 package com.yenaly.han1meviewer.shared.auth
 
+import com.yenaly.han1meviewer.shared.model.HomePage
+import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.session.MemorySessionStore
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -10,7 +12,7 @@ class WebLoginFeatureTest {
     @Test
     fun importsCookieHeaderIntoSessionStore() = runTest {
         val store = MemorySessionStore()
-        val feature = WebLoginFeature(store)
+        val feature = WebLoginFeature(store, FakeHomeRepository.loggedOut())
 
         val snapshot = feature.importCookieHeader(
             cookieHeader = "XSRF-TOKEN=token; hanime1_session=session-value; cf_clearance=clearance",
@@ -26,7 +28,7 @@ class WebLoginFeatureTest {
     @Test
     fun reportsCurrentLoginSession() = runTest {
         val store = MemorySessionStore()
-        val feature = WebLoginFeature(store)
+        val feature = WebLoginFeature(store, FakeHomeRepository.loggedIn())
 
         assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
 
@@ -41,7 +43,7 @@ class WebLoginFeatureTest {
     @Test
     fun logoutClearsCurrentLoginSession() = runTest {
         val store = MemorySessionStore()
-        val feature = WebLoginFeature(store)
+        val feature = WebLoginFeature(store, FakeHomeRepository.loggedIn())
 
         feature.importConfirmedLoginCookieHeader(
             cookieHeader = "hanime1_session=session-value",
@@ -58,7 +60,7 @@ class WebLoginFeatureTest {
     @Test
     fun plainSessionCookieDoesNotReportLoggedIn() = runTest {
         val store = MemorySessionStore()
-        val feature = WebLoginFeature(store)
+        val feature = WebLoginFeature(store, FakeHomeRepository.loggedOut())
 
         feature.importCookieHeader(
             cookieHeader = "hanime1_session=anonymous-session",
@@ -66,5 +68,60 @@ class WebLoginFeatureTest {
         )
 
         assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
+    }
+
+    @Test
+    fun confirmedImportDoesNotMarkLoggedInWhenHomeVerificationFails() = runTest {
+        val store = MemorySessionStore()
+        val feature = WebLoginFeature(store, FakeHomeRepository.loggedOut())
+
+        val snapshot = feature.importConfirmedLoginCookieHeader(
+            cookieHeader = "hanime1_session=session-value",
+            domain = "hanime1.me",
+        )
+
+        assertEquals(false, snapshot.isLoggedIn)
+        assertTrue(store.loadCookies().isEmpty())
+    }
+
+    @Test
+    fun currentSessionClearsExpiredConfirmedMarker() = runTest {
+        val store = MemorySessionStore()
+        val repository = FakeHomeRepository.loggedIn()
+        val feature = WebLoginFeature(store, repository)
+
+        feature.importConfirmedLoginCookieHeader(
+            cookieHeader = "hanime1_session=session-value",
+            domain = "hanime1.me",
+        )
+        repository.homePage = homePage(userId = null, username = null)
+
+        assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
+        assertTrue(store.loadCookies().isEmpty())
+    }
+
+    private class FakeHomeRepository(
+        var homePage: HomePage,
+    ) : HomeRepository {
+        override suspend fun getHomePage(): HomePage = homePage
+
+        companion object {
+            fun loggedIn(): FakeHomeRepository = FakeHomeRepository(homePage(userId = "123", username = "pgs"))
+
+            fun loggedOut(): FakeHomeRepository = FakeHomeRepository(homePage(userId = null, username = null))
+        }
+    }
+
+    private companion object {
+        fun homePage(userId: String?, username: String?): HomePage {
+            return HomePage(
+                csrfToken = null,
+                avatarUrl = null,
+                username = username,
+                banner = null,
+                sections = emptyList(),
+                userId = userId,
+            )
+        }
     }
 }

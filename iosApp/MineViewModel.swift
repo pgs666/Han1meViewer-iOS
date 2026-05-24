@@ -11,10 +11,20 @@ final class MineViewModel: ObservableObject {
     private let webLoginFeature: WebLoginFeature
     private let homeFeature: HomeFeature
     private var didLoadLoginState = false
+    private var sessionTask: Task<Void, Never>?
+    private var profileTask: Task<Void, Never>?
+    private var logoutTask: Task<Void, Never>?
+    private var requestGeneration = 0
 
     init(webLoginFeature: WebLoginFeature, homeFeature: HomeFeature) {
         self.webLoginFeature = webLoginFeature
         self.homeFeature = homeFeature
+    }
+
+    deinit {
+        sessionTask?.cancel()
+        profileTask?.cancel()
+        logoutTask?.cancel()
     }
 
     func refreshLoginState(force: Bool = false) {
@@ -28,17 +38,26 @@ final class MineViewModel: ObservableObject {
         didLoadLoginState = true
         isCheckingLogin = true
         errorMessage = nil
-        Task {
+        sessionTask?.cancel()
+        profileTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        sessionTask = Task { [weak self] in
+            guard let self else { return }
             do {
                 let session = try await webLoginFeature.currentSessionSnapshot()
+                guard !Task.isCancelled, generation == requestGeneration else { return }
                 isLoggedIn = session.isLoggedIn
                 if session.isLoggedIn {
-                    await loadProfile()
+                    await loadProfile(generation: generation)
                 } else {
                     profile = MineProfileSnapshot()
                 }
                 isCheckingLogin = false
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled, generation == requestGeneration else { return }
                 CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 errorMessage = ErrorMessage.userFriendly(error)
                 isCheckingLogin = false
@@ -49,8 +68,11 @@ final class MineViewModel: ObservableObject {
     func markLoggedIn() {
         didLoadLoginState = true
         isLoggedIn = true
-        Task {
-            await loadProfile()
+        profileTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        profileTask = Task { [weak self] in
+            await self?.loadProfile(generation: generation)
         }
     }
 
@@ -61,16 +83,25 @@ final class MineViewModel: ObservableObject {
 
         isCheckingLogin = true
         errorMessage = nil
-        Task {
+        sessionTask?.cancel()
+        profileTask?.cancel()
+        logoutTask?.cancel()
+        requestGeneration += 1
+        logoutTask = Task { [weak self] in
+            guard let self else { return }
             do {
                 _ = try await webLoginFeature.logout()
                 await clearWebViewCookies()
+                guard !Task.isCancelled else { return }
                 didLoadLoginState = true
                 isLoggedIn = false
                 profile = MineProfileSnapshot()
                 isCheckingLogin = false
                 onSuccess()
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 errorMessage = ErrorMessage.userFriendly(error)
                 isCheckingLogin = false
@@ -78,14 +109,18 @@ final class MineViewModel: ObservableObject {
         }
     }
 
-    private func loadProfile() async {
+    private func loadProfile(generation: Int) async {
         do {
             let home = try await homeFeature.loadHome()
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             profile = MineProfileSnapshot(
                 username: home.username,
                 avatarUrl: home.avatarUrl
             )
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             errorMessage = ErrorMessage.userFriendly(error)
         }

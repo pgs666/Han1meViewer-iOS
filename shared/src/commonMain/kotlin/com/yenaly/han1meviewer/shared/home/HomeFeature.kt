@@ -28,7 +28,7 @@ class HomeFeature(
             } else {
                 HomeSectionSnapshot(
                     key = section.key,
-                    title = section.displayTitle(),
+                    title = section.key,
                     videos = videos.take(MAX_SECTION_VIDEOS),
                 )
             }
@@ -46,26 +46,8 @@ class HomeFeature(
         )
     }
 
-    private fun com.yenaly.han1meviewer.shared.model.HomeSection.displayTitle(): String {
-        return HOME_SECTION_TITLES[key] ?: title
-    }
-
     private companion object {
         const val MAX_SECTION_VIDEOS = 12
-        val HOME_SECTION_TITLES = mapOf(
-            "latestRelease" to "最新上市",
-            "latestHanime" to "最新上传",
-            "ecchiAnime" to "里番",
-            "shortEpisodeAnime" to "泡面番",
-            "motionAnime" to "Motion Anime",
-            "threeDCG" to "3D CG",
-            "twoPointFiveDAnime" to "2.5D",
-            "twoDAnime" to "2D",
-            "aiGenerated" to "AI 生成",
-            "mmd" to "MMD",
-            "cosplay" to "Cosplay",
-            "watchingNow" to "他们在看",
-        )
     }
 }
 

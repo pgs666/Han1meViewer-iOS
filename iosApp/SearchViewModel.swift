@@ -21,9 +21,17 @@ final class SearchViewModel: ObservableObject {
     private var currentPage: Int32 = 0
     private var hasNextPage = false
     private var didLoadHistory = false
+    private var searchTask: Task<Void, Never>?
+    private var loadMoreTask: Task<Void, Never>?
+    private var requestGeneration = 0
 
     init(searchFeature: SearchFeature) {
         self.searchFeature = searchFeature
+    }
+
+    deinit {
+        searchTask?.cancel()
+        loadMoreTask?.cancel()
     }
 
     func loadHistoryIfNeeded() {
@@ -65,9 +73,10 @@ final class SearchViewModel: ObservableObject {
     func search(keyword: String, filters: SearchFilterState? = nil, recordHistory: Bool = true) {
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         let nextFilters = filters ?? self.filters
-        guard !isLoading else {
-            return
-        }
+        searchTask?.cancel()
+        loadMoreTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
 
         currentKeyword = trimmedKeyword
         currentFilters = nextFilters
@@ -75,13 +84,14 @@ final class SearchViewModel: ObservableObject {
         currentPage = 0
         hasNextPage = false
         state = .loading
-        Task {
-            await loadSearch(
+        searchTask = Task { [weak self] in
+            await self?.loadSearch(
                 keyword: trimmedKeyword,
                 filters: nextFilters,
                 page: 1,
                 appendingTo: nil,
-                recordHistory: recordHistory
+                recordHistory: recordHistory,
+                generation: generation
             )
         }
     }
@@ -107,14 +117,16 @@ final class SearchViewModel: ObservableObject {
         }
 
         let nextPage = currentPage + 1
+        let generation = requestGeneration
         state = .loadingMore(snapshot)
-        Task {
-            await loadSearch(
+        loadMoreTask = Task { [weak self] in
+            await self?.loadSearch(
                 keyword: currentKeyword,
                 filters: currentFilters,
                 page: nextPage,
                 appendingTo: snapshot,
-                recordHistory: false
+                recordHistory: false,
+                generation: generation
             )
         }
     }
@@ -133,7 +145,8 @@ final class SearchViewModel: ObservableObject {
         filters: SearchFilterState,
         page: Int32,
         appendingTo existingSnapshot: SearchScreenSnapshot?,
-        recordHistory: Bool
+        recordHistory: Bool,
+        generation: Int
     ) async {
         do {
             let snapshot = try await searchFeature.searchAdvanced(
@@ -149,6 +162,7 @@ final class SearchViewModel: ObservableObject {
                 page: page,
                 recordHistory: recordHistory
             )
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
@@ -156,7 +170,10 @@ final class SearchViewModel: ObservableObject {
                 loadHistory()
             }
             state = .loaded(screenSnapshot)
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))

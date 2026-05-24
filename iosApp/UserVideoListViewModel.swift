@@ -18,6 +18,10 @@ final class UserVideoListViewModel: ObservableObject {
     private let removeVideo: ((String) async throws -> UserVideoListMutationSnapshot)?
     private var currentPage: Int32 = 0
     private var hasNextPage = false
+    private var loadTask: Task<Void, Never>?
+    private var loadMoreTask: Task<Void, Never>?
+    private var mutationTask: Task<Void, Never>?
+    private var requestGeneration = 0
 
     init(feature: UserVideoListFeature) {
         self.loadPage = { page in
@@ -39,15 +43,22 @@ final class UserVideoListViewModel: ObservableObject {
         removeVideo != nil
     }
 
+    deinit {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        mutationTask?.cancel()
+    }
+
     func load() {
-        guard !isLoading else {
-            return
-        }
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
         currentPage = 0
         hasNextPage = false
         state = .loading
-        Task {
-            await load(page: 1, appendingTo: nil)
+        loadTask = Task { [weak self] in
+            await self?.load(page: 1, appendingTo: nil, generation: generation)
         }
     }
 
@@ -63,9 +74,10 @@ final class UserVideoListViewModel: ObservableObject {
         }
 
         let nextPage = currentPage + 1
+        let generation = requestGeneration
         state = .loadingMore(snapshot)
-        Task {
-            await load(page: nextPage, appendingTo: snapshot)
+        loadMoreTask = Task { [weak self] in
+            await self?.load(page: nextPage, appendingTo: snapshot, generation: generation)
         }
     }
 
@@ -81,14 +93,16 @@ final class UserVideoListViewModel: ObservableObject {
         state = .loaded(snapshot.removing(videoCodes: videoCodes))
         actionErrorMessage = nil
 
-        Task {
+        mutationTask?.cancel()
+        mutationTask = Task { [weak self] in
+            guard let self else { return }
             for videoCode in videoCodes {
                 do {
                     _ = try await removeVideo(videoCode)
                 } catch {
                     CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                     actionErrorMessage = ErrorMessage.userFriendly(error)
-                    await load(page: 1, appendingTo: nil)
+                    load()
                     return
                 }
             }
@@ -104,11 +118,12 @@ final class UserVideoListViewModel: ObservableObject {
         }
     }
 
-    private func load(page: Int32, appendingTo existingSnapshot: UserVideoListScreenSnapshot?) async {
+    private func load(page: Int32, appendingTo existingSnapshot: UserVideoListScreenSnapshot?, generation: Int) async {
         do {
             let snapshot = try await loadPage(page)
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             if snapshot.authRequired {
-                state = .failed("请先登录后再打开这个列表。")
+                state = .failed(String(localized: "user_list.auth.required"))
                 currentPage = 0
                 hasNextPage = false
                 return
@@ -117,7 +132,10 @@ final class UserVideoListViewModel: ObservableObject {
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
             state = .loaded(screenSnapshot)
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))

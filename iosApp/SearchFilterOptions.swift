@@ -145,25 +145,25 @@ struct SearchFilterState: Equatable {
     var summaryItems: [String] {
         var items: [String] = []
         if let genre, let key = genre.searchKey, !key.isEmpty, key != "全部" {
-            items.append("类型: \(genre.displayName)")
+            items.append(String(format: String(localized: "search.summary.genre"), genre.displayName))
         }
         if let sort, sort.searchKey?.isEmpty == false {
-            items.append("排序: \(sort.displayName)")
+            items.append(String(format: String(localized: "search.summary.sort"), sort.displayName))
         }
         if let releaseDate, releaseDate.searchKey?.isEmpty == false {
-            items.append("日期: \(releaseDate.displayName)")
+            items.append(String(format: String(localized: "search.summary.release_date"), releaseDate.displayName))
         }
         if let duration, duration.searchKey?.isEmpty == false {
-            items.append("时长: \(duration.displayName)")
+            items.append(String(format: String(localized: "search.summary.duration"), duration.displayName))
         }
         if !tags.isEmpty {
-            items.append("标签: \(tags.count)")
+            items.append(String(format: String(localized: "search.summary.tags"), tags.count))
         }
         if !brands.isEmpty {
-            items.append("品牌: \(brands.count)")
+            items.append(String(format: String(localized: "search.summary.brands"), brands.count))
         }
         if broad {
-            items.append("模糊")
+            items.append(String(localized: "search.summary.broad"))
         }
         return items
     }

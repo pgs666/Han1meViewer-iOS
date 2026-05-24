@@ -13,9 +13,15 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var state: State = .idle
 
     private let homeFeature: HomeFeature
+    private var loadTask: Task<Void, Never>?
+    private var loadGeneration = 0
 
     init(homeFeature: HomeFeature) {
         self.homeFeature = homeFeature
+    }
+
+    deinit {
+        loadTask?.cancel()
     }
 
     func loadIfNeeded() {
@@ -26,20 +32,24 @@ final class HomeViewModel: ObservableObject {
     }
 
     func load() {
-        guard case .loading = state else {
-            state = .loading
-            Task {
-                await loadHome()
-            }
-            return
+        loadTask?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
+        state = .loading
+        loadTask = Task { [weak self] in
+            await self?.loadHome(generation: generation)
         }
     }
 
-    private func loadHome() async {
+    private func loadHome(generation: Int) async {
         do {
             let snapshot = try await homeFeature.loadHome()
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             state = .loaded(HomeScreenSnapshot(snapshot))
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
@@ -91,7 +101,7 @@ struct HomeScreenSnapshot {
 
             return HomeSectionRow(
                 key: section.key,
-                title: section.title,
+                title: HomeSectionRow.localizedTitle(for: section.key),
                 videos: videos
             )
         }
@@ -115,6 +125,37 @@ struct HomeSectionRow: Identifiable {
     let videos: [HomeVideoRow]
 
     var id: String { key }
+
+    static func localizedTitle(for key: String) -> String {
+        switch key {
+        case "latestRelease":
+            return String(localized: "home.section.latest_release")
+        case "latestHanime":
+            return String(localized: "home.section.latest_hanime")
+        case "ecchiAnime":
+            return String(localized: "home.section.ecchi_anime")
+        case "shortEpisodeAnime":
+            return String(localized: "home.section.short_episode_anime")
+        case "motionAnime":
+            return String(localized: "home.section.motion_anime")
+        case "threeDCG":
+            return String(localized: "home.section.three_d_cg")
+        case "twoPointFiveDAnime":
+            return String(localized: "home.section.two_point_five_d")
+        case "twoDAnime":
+            return String(localized: "home.section.two_d")
+        case "aiGenerated":
+            return String(localized: "home.section.ai_generated")
+        case "mmd":
+            return String(localized: "home.section.mmd")
+        case "cosplay":
+            return String(localized: "home.section.cosplay")
+        case "watchingNow":
+            return String(localized: "home.section.watching_now")
+        default:
+            return key
+        }
+    }
 }
 
 struct HomeVideoRow: Identifiable {

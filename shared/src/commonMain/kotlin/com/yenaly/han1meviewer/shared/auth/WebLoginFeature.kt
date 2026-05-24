@@ -1,11 +1,13 @@
 package com.yenaly.han1meviewer.shared.auth
 
 import com.yenaly.han1meviewer.shared.model.SessionCookie
+import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import kotlinx.serialization.Serializable
 
 class WebLoginFeature(
     private val sessionStore: SessionStore,
+    private val homeRepository: HomeRepository,
 ) {
     @Throws(Exception::class)
     suspend fun importCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
@@ -22,33 +24,56 @@ class WebLoginFeature(
 
     @Throws(Exception::class)
     suspend fun importConfirmedLoginCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
-        val cookies = parseCookieHeader(cookieHeader, domain) + SessionCookie(
-            name = confirmedLoginCookieName,
-            value = "true",
-            domain = appCookieDomain,
+        sessionStore.saveCookies(parseCookieHeader(cookieHeader, domain))
+        val snapshot = try {
+            verifyCurrentSession()
+        } catch (error: Throwable) {
+            sessionStore.clear()
+            throw error
+        }
+        if (!snapshot.isLoggedIn) {
+            sessionStore.clear()
+            return snapshot
+        }
+        sessionStore.saveCookies(
+            sessionStore.loadCookies() + SessionCookie(
+                name = confirmedLoginCookieName,
+                value = "true",
+                domain = appCookieDomain,
+            )
         )
-
-        sessionStore.saveCookies(cookies)
 
         return AuthSnapshot(
             isLoggedIn = true,
             message = "Web login confirmed",
-            username = null,
+            username = snapshot.username,
         )
     }
 
     @Throws(Exception::class)
     suspend fun currentSessionSnapshot(): AuthSnapshot {
-        val isLoggedIn = sessionStore.loadCookies().hasLoginSession()
-        return AuthSnapshot(
-            isLoggedIn = isLoggedIn,
-            message = if (isLoggedIn) {
-                "Login session found"
-            } else {
-                "No login session found"
-            },
-            username = null,
-        )
+        if (!sessionStore.loadCookies().hasLoginSession()) {
+            return AuthSnapshot(
+                isLoggedIn = false,
+                message = "No login session found",
+                username = null,
+            )
+        }
+
+        return try {
+            val snapshot = verifyCurrentSession()
+            if (!snapshot.isLoggedIn) {
+                sessionStore.clear()
+            }
+            snapshot
+        } catch (error: Throwable) {
+            sessionStore.clear()
+            AuthSnapshot(
+                isLoggedIn = false,
+                message = error.message ?: "Login session could not be verified",
+                username = null,
+            )
+        }
     }
 
     @Throws(Exception::class)
@@ -67,6 +92,20 @@ class WebLoginFeature(
                 cookie.value == "true" &&
                 cookie.domain == appCookieDomain
         }
+    }
+
+    private suspend fun verifyCurrentSession(): AuthSnapshot {
+        val homePage = homeRepository.getHomePage()
+        val isLoggedIn = !homePage.userId.isNullOrBlank() || !homePage.username.isNullOrBlank()
+        return AuthSnapshot(
+            isLoggedIn = isLoggedIn,
+            message = if (isLoggedIn) {
+                "Login session verified"
+            } else {
+                "Login session expired"
+            },
+            username = homePage.username,
+        )
     }
 
     private fun parseCookieHeader(cookieHeader: String, domain: String): List<SessionCookie> {

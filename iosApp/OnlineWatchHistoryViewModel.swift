@@ -20,9 +20,9 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         var title: String {
             switch self {
             case .latest:
-                return "最近观看"
+                return String(localized: "online_history.sort.latest")
             case .oldest:
-                return "最早观看"
+                return String(localized: "online_history.sort.oldest")
             }
         }
     }
@@ -34,20 +34,31 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
     private let feature: OnlineWatchHistoryFeature
     private var currentPage: Int32 = 0
     private var hasNextPage = false
+    private var loadTask: Task<Void, Never>?
+    private var loadMoreTask: Task<Void, Never>?
+    private var mutationTask: Task<Void, Never>?
+    private var requestGeneration = 0
 
     init(feature: OnlineWatchHistoryFeature) {
         self.feature = feature
     }
 
+    deinit {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        mutationTask?.cancel()
+    }
+
     func load() {
-        guard !isLoading else {
-            return
-        }
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
         currentPage = 0
         hasNextPage = false
         state = .loading
-        Task {
-            await load(page: 1, appendingTo: nil)
+        loadTask = Task { [weak self] in
+            await self?.load(page: 1, appendingTo: nil, generation: generation)
         }
     }
 
@@ -71,9 +82,10 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         }
 
         let nextPage = currentPage + 1
+        let generation = requestGeneration
         state = .loadingMore(snapshot)
-        Task {
-            await load(page: nextPage, appendingTo: snapshot)
+        loadMoreTask = Task { [weak self] in
+            await self?.load(page: nextPage, appendingTo: snapshot, generation: generation)
         }
     }
 
@@ -86,14 +98,16 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         state = .loaded(snapshot.removing(videoCodes: videoCodes))
         actionErrorMessage = nil
 
-        Task {
+        mutationTask?.cancel()
+        mutationTask = Task { [weak self] in
+            guard let self else { return }
             for videoCode in videoCodes {
                 do {
                     _ = try await feature.remove(videoCode: videoCode, csrfToken: snapshot.csrfToken)
                 } catch {
                     CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                     actionErrorMessage = ErrorMessage.userFriendly(error)
-                    await load(page: 1, appendingTo: nil)
+                    load()
                     return
                 }
             }
@@ -109,7 +123,7 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         }
     }
 
-    private func load(page: Int32, appendingTo existingSnapshot: OnlineWatchHistoryScreenSnapshot?) async {
+    private func load(page: Int32, appendingTo existingSnapshot: OnlineWatchHistoryScreenSnapshot?, generation: Int) async {
         do {
             let snapshot: OnlineWatchHistorySnapshot
             switch sortMode {
@@ -119,8 +133,9 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
                 snapshot = try await feature.loadOldest(page: page)
             }
 
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             if snapshot.authRequired {
-                state = .failed("请先登录后再查看在线历史。")
+                state = .failed(String(localized: "online_history.auth.required"))
                 currentPage = 0
                 hasNextPage = false
                 return
@@ -130,7 +145,10 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
             state = .loaded(screenSnapshot)
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, generation == requestGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))

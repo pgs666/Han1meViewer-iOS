@@ -163,7 +163,7 @@ private struct UserPlaylistRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(playlist.title)
                     .lineLimit(2)
-                Text("\(playlist.total) 个视频")
+                Text(String(format: String(localized: "playlist.video_count"), playlist.total))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

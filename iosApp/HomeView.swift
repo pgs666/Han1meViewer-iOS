@@ -251,7 +251,7 @@ private struct HomeVideoCard: View {
 private extension HomeVideoRow {
     var artistLabel: String {
         guard let artist, !artist.isEmpty else {
-            return "作者"
+            return String(localized: "common.artist")
         }
         return artist
     }

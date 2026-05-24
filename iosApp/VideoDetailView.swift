@@ -146,9 +146,9 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .introduction:
-            return "简介"
+            return String(localized: "简介")
         case .comments:
-            return "评论"
+            return String(localized: "评论")
         }
     }
 }
@@ -507,7 +507,7 @@ private struct MetadataRow: View {
     var body: some View {
         HStack(spacing: 8) {
             if let views = snapshot.views, !views.isEmpty {
-                Text("\(views) 次观看")
+                Text(String(format: String(localized: "video.views.count"), views))
             }
             if snapshot.views?.isEmpty == false && snapshot.uploadDate?.isEmpty == false {
                 Divider()
@@ -534,7 +534,7 @@ private struct ExpandableDescription: View {
                 .lineLimit(expanded ? nil : 4)
                 .textSelection(.enabled)
 
-            Button(expanded ? "收起" : "展开") {
+            Button(expanded ? String(localized: "收起") : String(localized: "展开")) {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     expanded.toggle()
                 }
@@ -582,7 +582,7 @@ private struct ActionButtonRow: View {
                     systemImage: "list.bullet",
                     action: {
                         if snapshot.myListItems.isEmpty {
-                            viewModel.showActionMessage("No playlists available")
+                            viewModel.showActionMessage(String(localized: "video.action.playlist.empty"))
                         } else {
                             isShowingMyList = true
                         }
@@ -636,7 +636,7 @@ private struct ActionButtonRow: View {
         }
         .confirmationDialog("播放列表", isPresented: $isShowingMyList) {
             ForEach(snapshot.myListItems) { item in
-                Button(item.isSelected ? "移除 \(item.title)" : "加入 \(item.title)") {
+                Button(String(format: NSLocalizedString(item.isSelected ? "video.playlist.remove_item" : "video.playlist.add_item", comment: ""), item.title)) {
                     viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: !item.isSelected)
                 }
             }
