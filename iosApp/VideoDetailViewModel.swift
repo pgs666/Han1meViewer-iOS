@@ -59,7 +59,17 @@ struct VideoDetailScreenSnapshot {
     let defaultSourceLabel: String?
     let defaultSourceUrl: String?
     let uploadDate: String?
+    let coverUrl: String?
+    let artist: VideoArtistRow?
+    let favTimes: Int?
+    let isFav: Bool
+    let isWatchLater: Bool
+    let originalComic: String?
+    let tags: [String]
     let playbackSources: [VideoPlaybackSourceRow]
+    let playlistName: String?
+    let playlistVideos: [VideoRelatedRow]
+    let myListItems: [VideoMyListRow]
     let relatedVideos: [VideoRelatedRow]
 
     init(_ snapshot: VideoDetailSnapshot) {
@@ -73,6 +83,22 @@ struct VideoDetailScreenSnapshot {
         defaultSourceLabel = snapshot.defaultSourceLabel
         defaultSourceUrl = snapshot.defaultSourceUrl
         uploadDate = snapshot.uploadDate
+        coverUrl = snapshot.coverUrl
+        favTimes = snapshot.favTimes?.intValue
+        isFav = snapshot.isFav
+        isWatchLater = snapshot.isWatchLater
+        originalComic = snapshot.originalComic
+
+        if let name = snapshot.artistName, !name.isEmpty {
+            artist = VideoArtistRow(
+                name: name,
+                avatarUrl: snapshot.artistAvatarUrl,
+                genre: snapshot.artistGenre,
+                isSubscribed: snapshot.isArtistSubscribed
+            )
+        } else {
+            artist = nil
+        }
 
         let playbackSourceCount = Int(snapshot.playbackSourceCount())
         playbackSources = (0..<playbackSourceCount).compactMap { index in
@@ -87,22 +113,47 @@ struct VideoDetailScreenSnapshot {
             )
         }
 
+        let tagCount = Int(snapshot.tagCount())
+        tags = (0..<tagCount).compactMap { index in
+            snapshot.tagAt(index: Int32(index))
+        }
+
+        let playlistCount = Int(snapshot.playlistVideoCount())
+        playlistName = snapshot.playlistName
+        playlistVideos = (0..<playlistCount).compactMap { index in
+            guard let item = snapshot.playlistVideoAt(index: Int32(index)) else {
+                return nil
+            }
+            return VideoRelatedRow(item)
+        }
+
+        let myListCount = Int(snapshot.myListItemCount())
+        myListItems = (0..<myListCount).compactMap { index in
+            guard let item = snapshot.myListItemAt(index: Int32(index)) else {
+                return nil
+            }
+            return VideoMyListRow(
+                code: item.code,
+                title: item.title,
+                isSelected: item.isSelected
+            )
+        }
+
         let count = Int(snapshot.relatedVideoCount())
         relatedVideos = (0..<count).compactMap { index in
             guard let item = snapshot.relatedVideoAt(index: Int32(index)) else {
                 return nil
             }
-            return VideoRelatedRow(
-                videoCode: item.videoCode,
-                title: item.title,
-                coverUrl: item.coverUrl,
-                duration: item.duration,
-                views: item.views,
-                artist: item.artist,
-                uploadTime: item.uploadTime
-            )
+            return VideoRelatedRow(item)
         }
     }
+}
+
+struct VideoArtistRow: Hashable {
+    let name: String
+    let avatarUrl: String?
+    let genre: String?
+    let isSubscribed: Bool
 }
 
 struct VideoPlaybackSourceRow: Identifiable, Hashable {
@@ -122,8 +173,20 @@ struct VideoRelatedRow: Identifiable {
     let views: String?
     let artist: String?
     let uploadTime: String?
+    let isPlaying: Bool
 
     var id: String { videoCode }
+
+    init(_ item: VideoRelatedSnapshot) {
+        videoCode = item.videoCode
+        title = item.title
+        coverUrl = item.coverUrl
+        duration = item.duration
+        views = item.views
+        artist = item.artist
+        uploadTime = item.uploadTime
+        isPlaying = item.isPlaying
+    }
 
     var metadata: String {
         [artist, uploadTime, duration, views]
@@ -133,4 +196,12 @@ struct VideoRelatedRow: Identifiable {
             }
             .joined(separator: " / ")
     }
+}
+
+struct VideoMyListRow: Identifiable, Hashable {
+    let code: String
+    let title: String
+    let isSelected: Bool
+
+    var id: String { code }
 }

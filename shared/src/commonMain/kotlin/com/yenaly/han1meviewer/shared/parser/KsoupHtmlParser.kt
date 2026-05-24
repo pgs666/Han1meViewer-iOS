@@ -8,6 +8,8 @@ import com.yenaly.han1meviewer.shared.model.HanimeVideo
 import com.yenaly.han1meviewer.shared.model.HomeBanner
 import com.yenaly.han1meviewer.shared.model.HomePage
 import com.yenaly.han1meviewer.shared.model.HomeSection
+import com.yenaly.han1meviewer.shared.model.Artist
+import com.yenaly.han1meviewer.shared.model.ArtistSubscription
 import com.yenaly.han1meviewer.shared.model.MySubscriptions
 import com.yenaly.han1meviewer.shared.model.PageResult
 import com.yenaly.han1meviewer.shared.model.PlaybackSource
@@ -17,6 +19,9 @@ import com.yenaly.han1meviewer.shared.model.SubscriptionVideoItem
 import com.yenaly.han1meviewer.shared.model.UserPlaylist
 import com.yenaly.han1meviewer.shared.model.UserPlaylistPage
 import com.yenaly.han1meviewer.shared.model.UserVideoListPage
+import com.yenaly.han1meviewer.shared.model.VideoMyList
+import com.yenaly.han1meviewer.shared.model.VideoMyListItem
+import com.yenaly.han1meviewer.shared.model.VideoPlaylist
 import kotlinx.datetime.LocalDate
 
 class KsoupHtmlParser : HtmlParser {
@@ -119,7 +124,82 @@ class KsoupHtmlParser : HtmlParser {
             .map { it.text().substringBefore(" (").removePrefix("#").trim() }
             .filter { it.isNotEmpty() }
 
-        val related = body.selectFirst("#related-tabcontent").toHanimeInfoList()
+        val myListItems = body.select("div[class~=playlist-checkbox-wrapper]").mapNotNull { wrapper ->
+            val input = wrapper.selectFirst("input") ?: return@mapNotNull null
+            val code = input.attr("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val listTitle = wrapper.selectFirst("span")?.ownText()?.trim()?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            VideoMyListItem(
+                code = code,
+                title = listTitle,
+                isSelected = input.hasAttr("checked"),
+            )
+        }
+        val myList = VideoMyList(
+            isWatchLater = body.selectFirst("#playlist-save-checkbox input")?.hasAttr("checked") == true,
+            items = myListItems,
+        )
+
+        val playlist = body.selectFirst("div#video-playlist-wrapper")?.let { wrapper ->
+            val playlistVideos = wrapper.select("#playlist-scroll > div").mapNotNull { item ->
+                val detailUrl = item.selectFirst("div > a")?.absUrl("href")
+                    ?.ifBlank { item.selectFirst("div > a")?.attr("href") }
+                    ?: return@mapNotNull null
+                val playlistVideoCode = detailUrl.toVideoCode() ?: return@mapNotNull null
+                val panel = item.selectFirst("div[class^=card-mobile-panel]")
+                val coverElement = panel?.select("div > div > div > img")?.getOrNull(1)
+                    ?: panel?.selectFirst("img")
+                val coverUrl = coverElement?.absUrl("src")?.ifBlank { coverElement.attr("src") }
+                val itemTitle = coverElement?.attr("alt")?.trim()
+                    ?: panel?.selectFirst("div.title, h4.video-title")?.text()?.trim()
+                    ?: return@mapNotNull null
+                val durationParts = panel?.select("div[class*=card-mobile-duration]")
+                HanimeInfo(
+                    title = itemTitle,
+                    videoCode = playlistVideoCode,
+                    coverUrl = coverUrl,
+                    detailUrl = detailUrl,
+                    duration = durationParts?.firstOrNull()?.text()?.trim()?.ifBlank { null },
+                    views = durationParts?.getOrNull(2)?.text()?.substringBefore("次")?.trim()?.ifBlank { null },
+                    isPlaying = panel?.text()?.contains("播放") == true,
+                    itemType = HanimeItemType.Normal,
+                )
+            }
+            VideoPlaylist(
+                name = wrapper.selectFirst("div > div > h4")?.text()?.trim(),
+                videos = playlistVideos,
+            )
+        }
+
+        val related = body.selectFirst("#related-tabcontent").toRelatedHanimeInfoList()
+        val artist = body.selectFirst("#video-artist-name")?.let { nameElement ->
+            val artistName = nameElement.text().trim().takeIf { it.isNotBlank() } ?: return@let null
+            val artistGenre = nameElement.nextElementSibling()?.text()?.trim()?.takeIf { it.isNotBlank() }
+                ?: return@let null
+            val subscribeForm = body.selectFirst("#video-subscribe-form")
+            val subscription = subscribeForm?.let { form ->
+                val userId = form.selectFirst("input[name=subscribe-user-id]")?.attr("value")
+                val artistId = form.selectFirst("input[name=subscribe-artist-id]")?.attr("value")
+                val status = form.selectFirst("input[name=subscribe-status]")?.attr("value")
+                if (userId != null && artistId != null && status != null) {
+                    ArtistSubscription(
+                        userId = userId,
+                        artistId = artistId,
+                        isSubscribed = status == "1",
+                    )
+                } else {
+                    null
+                }
+            }
+            Artist(
+                name = artistName,
+                avatarUrl = body
+                    .select("div.video-details-wrapper > div > a > div > img[style*='position: absolute'][style*='border-radius: 50%']")
+                    .attr("src"),
+                genre = artistGenre,
+                subscription = subscription,
+            )
+        }
 
         return HanimeVideo(
             videoCode = videoCode,
@@ -131,7 +211,10 @@ class KsoupHtmlParser : HtmlParser {
             views = views,
             tags = tags,
             sources = sources,
+            myList = myList,
+            playlist = playlist,
             relatedHanimes = related,
+            artist = artist,
             favTimes = body.selectFirst("input[name=likes-count]")?.attr("value")?.toIntOrNull(),
             isFav = body.selectFirst("[name=like-status]")?.attr("value").isNullOrEmpty().not(),
             csrfToken = body.selectFirst("input[name=_token]")?.attr("value"),
@@ -260,6 +343,45 @@ class KsoupHtmlParser : HtmlParser {
     private fun Element?.toHanimeInfoList(
         selector: String = "div[class^=horizontal-card]",
     ): List<HanimeInfo> = this?.select(selector)?.mapNotNull { it.toNormalHanimeInfo() }.orEmpty()
+
+    private fun Element?.toRelatedHanimeInfoList(): List<HanimeInfo> {
+        if (this == null) return emptyList()
+        val normalItems = toHanimeInfoList()
+        if (normalItems.isNotEmpty()) return normalItems
+
+        return children()
+            .flatMap { child ->
+                child.select("a").mapNotNull { link ->
+                    val simplified = link.toSimplifiedHanimeInfo()
+                    if (simplified != null) {
+                        simplified
+                    } else {
+                        link.selectFirst(".home-rows-videos-div")
+                            ?.let { wrapper ->
+                                val detailUrl = link.absUrl("href").ifBlank { link.attr("href") }
+                                val videoCode = detailUrl.toVideoCode()
+                                val coverUrl = wrapper.selectFirst("img")?.absUrl("src")
+                                    ?.ifBlank { wrapper.selectFirst("img")?.attr("src") }
+                                val title = wrapper.selectFirst("div.home-rows-videos-title, div[class$=title]")
+                                    ?.text()
+                                    ?.trim()
+                                if (videoCode != null && coverUrl != null && title != null) {
+                                    HanimeInfo(
+                                        title = title,
+                                        videoCode = videoCode,
+                                        coverUrl = coverUrl,
+                                        detailUrl = detailUrl,
+                                        itemType = HanimeItemType.Simplified,
+                                    )
+                                } else {
+                                    null
+                                }
+                            }
+                    }
+                }
+            }
+            .distinctBy { it.videoCode }
+    }
 
     private fun Element.toNormalHanimeInfo(): HanimeInfo? {
         val title = selectFirst("div.title, h4.video-title")?.text()?.trim()
