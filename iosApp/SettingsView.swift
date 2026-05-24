@@ -44,12 +44,6 @@ struct SettingsView: View {
             } footer: {
                 Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
             }
-
-            Section("范围") {
-                Label("下载、签到和播放器重构不在当前设置页处理。", systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
         .navigationTitle("设置")
         .confirmationDialog(
