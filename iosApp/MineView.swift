@@ -60,11 +60,6 @@ struct MineView: View {
                     } label: {
                         MineMenuRow(title: "设置", systemImage: "gearshape")
                     }
-                    Button {
-                        activeAlert = .notMigrated("每日签到")
-                    } label: {
-                        MineMenuRow(title: "每日签到", systemImage: "hand.thumbsup")
-                    }
                 }
 
                 Section("我的列表") {

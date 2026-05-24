@@ -35,6 +35,7 @@ Work toward an end-to-end MVP path:
 - Prefer replacing temporary scaffolding when it blocks feature migration or creates confusing user behavior.
 - Preserve user data compatibility only after the iOS app has a real released baseline.
 - Keep iOS deployment target decisions separate from app-internal prototype compatibility.
+- Do not port or reintroduce the Android daily check-in/check-in feature in the iOS app.
 
 ## Logging Requirements
 
