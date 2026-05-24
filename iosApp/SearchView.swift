@@ -100,41 +100,23 @@ struct SearchView: View {
     }
 
     private var idleContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                if !viewModel.filters.summaryItems.isEmpty {
-                    filterSummary
+        Group {
+            if viewModel.history.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 36, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("暂无搜索历史")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("浏览分类")
-                            .font(.title2.weight(.bold))
-                        Spacer()
-                    }
-
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 14),
-                            GridItem(.flexible(), spacing: 14),
-                        ],
-                        spacing: 14
-                    ) {
-                        ForEach(browseCards) { card in
-                            Button {
-                                isShowingFilters = true
-                            } label: {
-                                SearchBrowseCard(card: card)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                if !viewModel.history.isEmpty {
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
+            } else {
+                ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("最近搜索")
+                            Text("搜索历史")
                                 .font(.title2.weight(.bold))
                             Spacer()
                             Button("清空") {
@@ -168,38 +150,10 @@ struct SearchView: View {
                             }
                         }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 18)
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 18)
-        }
-        .background(Color(.systemBackground))
-    }
-
-    private var filterSummary: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("已选筛选")
-                    .font(.title3.weight(.bold))
-                Spacer()
-                Button("清除") {
-                    viewModel.resetFilters()
-                    viewModel.search(keyword: keyword, filters: SearchFilterState())
-                }
-                .font(.caption)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(viewModel.filters.summaryItems, id: \.self) { item in
-                        Text(item)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 7)
-                            .background(Color.red.opacity(0.12), in: Capsule())
-                            .foregroundStyle(.primary)
-                    }
-                }
+                .background(Color(.systemBackground))
             }
         }
     }
@@ -282,52 +236,6 @@ struct SearchView: View {
         }
     }
 
-    private var browseCards: [SearchBrowseCardModel] {
-        [
-            SearchBrowseCardModel(title: "类型", systemImage: "square.grid.2x2.fill", colors: [.red, .pink]),
-            SearchBrowseCardModel(title: "排序", systemImage: "arrow.up.arrow.down", colors: [.pink, .purple]),
-            SearchBrowseCardModel(title: "影片属性", systemImage: "sparkles", colors: [.orange, .yellow]),
-            SearchBrowseCardModel(title: "标签", systemImage: "tag.fill", colors: [.red, .orange]),
-            SearchBrowseCardModel(title: "发布日期", systemImage: "calendar", colors: [.blue, .cyan]),
-            SearchBrowseCardModel(title: "影片时长", systemImage: "clock.fill", colors: [.indigo, .blue]),
-            SearchBrowseCardModel(title: "人物关系", systemImage: "person.2.fill", colors: [.purple, .pink]),
-            SearchBrowseCardModel(title: "情景场所", systemImage: "map.fill", colors: [.green, .teal]),
-        ]
-    }
-}
-
-private struct SearchBrowseCardModel: Identifiable {
-    let title: String
-    let systemImage: String
-    let colors: [Color]
-
-    var id: String { title }
-}
-
-private struct SearchBrowseCard: View {
-    let card: SearchBrowseCardModel
-
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            LinearGradient(
-                colors: card.colors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            Image(systemName: card.systemImage)
-                .font(.system(size: 58, weight: .bold))
-                .foregroundColor(.white.opacity(0.28))
-                .rotationEffect(.degrees(-8))
-                .offset(x: 44, y: -22)
-            Text(card.title)
-                .font(.title3.weight(.bold))
-                .foregroundColor(.white)
-                .lineLimit(2)
-                .padding(16)
-        }
-        .frame(height: 112)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
 }
 
 private struct SearchFilterSheet: View {
