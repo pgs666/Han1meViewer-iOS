@@ -1,4 +1,4 @@
-import AVKit
+﻿import AVKit
 import SwiftUI
 import Han1meShared
 
@@ -634,9 +634,9 @@ private struct ActionButtonRow: View {
             }
             .padding(.horizontal, 2)
         }
-        .confirmationDialog("Playlists", isPresented: $isShowingMyList) {
+        .confirmationDialog("播放列表", isPresented: $isShowingMyList) {
             ForEach(snapshot.myListItems) { item in
-                Button(item.isSelected ? "Remove \(item.title)" : "Add \(item.title)") {
+                Button(item.isSelected ? "移除 \(item.title)" : "加入 \(item.title)") {
                     viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: !item.isSelected)
                 }
             }
@@ -754,7 +754,7 @@ private struct TabletRelatedSidebar: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                Text("鐩稿叧褰辩墖")
+                Text("相关影片")
                     .font(.headline)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
