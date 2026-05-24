@@ -30,27 +30,20 @@ struct SearchView: View {
             }
             .background(SearchTextFieldReturnKeyEnabler())
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    ZStack(alignment: .topTrailing) {
-                        Button {
-                            isShowingFilters = true
-                        } label: {
-                            Image(systemName: "slider.horizontal.3")
-                        }
-
-                        if viewModel.filters.activeCount > 0 {
-                            Text("\(viewModel.filters.activeCount)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundColor(.white)
-                                .frame(minWidth: 18, minHeight: 18)
-                                .padding(.horizontal, viewModel.filters.activeCount > 9 ? 4 : 0)
-                                .background(Capsule().fill(Color.red))
-                                .offset(x: 7, y: -7)
-                                .allowsHitTesting(false)
-                        }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isShowingFilters = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.body.weight(.semibold))
+                            .overlay(alignment: .topTrailing) {
+                                if viewModel.filters.activeCount > 0 {
+                                    SearchFilterBadge(count: viewModel.filters.activeCount)
+                                        .offset(x: 9, y: -9)
+                                }
+                            }
                     }
-                    .padding(.top, 7)
-                    .padding(.trailing, 7)
+                    .accessibilityLabel("筛选")
                 }
             }
             .onAppear {
@@ -274,6 +267,22 @@ struct SearchView: View {
         }
     }
 
+}
+
+private struct SearchFilterBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text("\(count)")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(.white)
+            .monospacedDigit()
+            .frame(minWidth: 17, minHeight: 17)
+            .padding(.horizontal, count > 9 ? 4 : 0)
+            .background(Capsule().fill(Color.red))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 }
 
 private struct SearchTextFieldReturnKeyEnabler: UIViewRepresentable {
