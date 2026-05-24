@@ -91,11 +91,6 @@ struct MineView: View {
                     } label: {
                         MineMenuRow(title: "播放清单", systemImage: "list.bullet.rectangle")
                     }
-                    NavigationLink {
-                        FollowingView(environment: environment)
-                    } label: {
-                        MineMenuRow(title: "我的订阅", systemImage: "person.2")
-                    }
                 }
 
                 Section("视频") {

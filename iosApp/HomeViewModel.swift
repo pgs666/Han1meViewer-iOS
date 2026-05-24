@@ -18,6 +18,13 @@ final class HomeViewModel: ObservableObject {
         self.homeFeature = homeFeature
     }
 
+    func loadIfNeeded() {
+        guard case .idle = state else {
+            return
+        }
+        load()
+    }
+
     func load() {
         guard case .loading = state else {
             state = .loading

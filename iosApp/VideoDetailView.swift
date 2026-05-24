@@ -16,7 +16,7 @@ struct VideoDetailView: View {
         content
         .navigationTitle("\u{8BE6}\u{60C5}")
         .task {
-            viewModel.load(videoCode: videoCode)
+            viewModel.loadIfNeeded(videoCode: videoCode)
         }
         .refreshable {
             viewModel.load(videoCode: videoCode)

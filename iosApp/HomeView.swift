@@ -15,7 +15,7 @@ struct HomeView: View {
             content
                 .navigationTitle("Home")
                 .task {
-                    viewModel.load()
+                    viewModel.loadIfNeeded()
                 }
                 .refreshable {
                     viewModel.load()

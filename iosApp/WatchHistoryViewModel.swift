@@ -17,6 +17,13 @@ final class WatchHistoryViewModel: ObservableObject {
         self.watchHistoryFeature = watchHistoryFeature
     }
 
+    func loadIfNeeded() {
+        guard case .idle = state else {
+            return
+        }
+        load()
+    }
+
     func load() {
         do {
             let snapshot = watchHistoryFeature.loadRecent()

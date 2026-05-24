@@ -14,7 +14,7 @@ struct WatchHistoryView: View {
         content
             .navigationTitle("观看历史")
             .onAppear {
-                viewModel.load()
+                viewModel.loadIfNeeded()
             }
     }
 

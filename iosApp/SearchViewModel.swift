@@ -18,22 +18,32 @@ final class SearchViewModel: ObservableObject {
     private var currentKeyword = ""
     private var currentPage: Int32 = 0
     private var hasNextPage = false
+    private var didLoadHistory = false
 
     init(searchFeature: SearchFeature) {
         self.searchFeature = searchFeature
     }
 
-    func loadHistory() {
+    func loadHistoryIfNeeded() {
+        guard !didLoadHistory else {
+            return
+        }
+        loadHistory()
+    }
+
+    private func loadHistory() {
         let snapshot = searchFeature.recentHistory(limit: 12)
         let count = Int(snapshot.keywordCount())
         history = (0..<count).compactMap { index in
             snapshot.keywordAt(index: Int32(index))
         }
+        didLoadHistory = true
     }
 
     func clearHistory() {
         _ = searchFeature.clearHistory()
         history = []
+        didLoadHistory = true
     }
 
     func search(keyword: String) {

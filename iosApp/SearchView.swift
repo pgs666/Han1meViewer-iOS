@@ -21,7 +21,7 @@ struct SearchView: View {
             .padding(.top, 12)
             .navigationTitle("搜索")
             .onAppear {
-                viewModel.loadHistory()
+                viewModel.loadHistoryIfNeeded()
             }
         }
         .navigationViewStyle(.stack)

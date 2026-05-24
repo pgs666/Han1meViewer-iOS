@@ -13,13 +13,22 @@ final class VideoDetailViewModel: ObservableObject {
     @Published private(set) var state: State = .idle
 
     private let videoFeature: VideoFeature
+    private var loadedVideoCode: String?
 
     init(videoFeature: VideoFeature) {
         self.videoFeature = videoFeature
     }
 
+    func loadIfNeeded(videoCode: String) {
+        if loadedVideoCode == videoCode {
+            return
+        }
+        load(videoCode: videoCode)
+    }
+
     func load(videoCode: String) {
         guard case .loading = state else {
+            loadedVideoCode = videoCode
             state = .loading
             Task {
                 await loadVideo(videoCode: videoCode)

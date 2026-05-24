@@ -10,17 +10,22 @@ final class MineViewModel: ObservableObject {
 
     private let webLoginFeature: WebLoginFeature
     private let homeFeature: HomeFeature
+    private var didLoadLoginState = false
 
     init(webLoginFeature: WebLoginFeature, homeFeature: HomeFeature) {
         self.webLoginFeature = webLoginFeature
         self.homeFeature = homeFeature
     }
 
-    func refreshLoginState() {
+    func refreshLoginState(force: Bool = false) {
         guard !isCheckingLogin else {
             return
         }
+        guard force || !didLoadLoginState else {
+            return
+        }
 
+        didLoadLoginState = true
         isCheckingLogin = true
         errorMessage = nil
         Task {
@@ -41,6 +46,7 @@ final class MineViewModel: ObservableObject {
     }
 
     func markLoggedIn() {
+        didLoadLoginState = true
         isLoggedIn = true
         Task {
             await loadProfile()
@@ -58,6 +64,7 @@ final class MineViewModel: ObservableObject {
             do {
                 _ = try await webLoginFeature.logout()
                 await clearWebViewCookies()
+                didLoadLoginState = true
                 isLoggedIn = false
                 profile = MineProfileSnapshot()
                 isCheckingLogin = false
