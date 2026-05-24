@@ -71,13 +71,7 @@ private struct HomeVideoListRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: video.coverUrl.flatMap(URL.init(string:))) { image in
-                image
-                    .resizable()
-                    .scaledToFill()
-            } placeholder: {
-                Color.gray.opacity(0.18)
-            }
+            CachedRemoteImage(urlString: video.coverUrl)
             .frame(width: 96, height: 54)
             .clipShape(RoundedRectangle(cornerRadius: 6))
 

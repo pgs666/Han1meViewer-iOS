@@ -8,7 +8,10 @@ settings:
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ""
     CODE_SIGNING_ALLOWED: "NO"
-packages: {}
+packages:
+  Nuke:
+    url: https://github.com/kean/Nuke.git
+    from: "12.8.0"
 targets:
   Han1meViewer:
     type: application
@@ -32,6 +35,8 @@ targets:
           - $(inherited)
           - "@executable_path/Frameworks"
     dependencies:
+      - package: Nuke
+        product: NukeUI
       - framework: shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/Han1meShared.framework
         embed: true
         codeSign: false
