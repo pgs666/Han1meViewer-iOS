@@ -29,6 +29,7 @@ class HomeFeature(
         }
         return HomeFeedSnapshot(
             username = homePage.username,
+            avatarUrl = homePage.avatarUrl,
             bannerTitle = homePage.banner?.title,
             sectionCount = sections.size,
             itemCount = sections.sumOf { section -> section.videoCount() },
@@ -62,6 +63,7 @@ class HomeFeature(
 @Serializable
 data class HomeFeedSnapshot(
     val username: String?,
+    val avatarUrl: String?,
     val bannerTitle: String?,
     val sectionCount: Int,
     val itemCount: Int,
