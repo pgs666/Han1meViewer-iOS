@@ -1,6 +1,6 @@
 # Agent Working Rules
 
-Last updated: 2026-05-22 10:29:02 +08:00
+Last updated: 2026-05-24 10:21:00 +08:00
 
 This file summarizes the user's standing requirements for future agent work in this repository.
 
@@ -17,6 +17,8 @@ This file summarizes the user's standing requirements for future agent work in t
 
 ## Current Priority
 
+The app is not finished yet, so compatibility with earlier temporary iOS migration code is not a priority. The primary goal is to gradually port features from Android and keep proving them through working vertical slices.
+
 Work toward an end-to-end MVP path:
 
 1. iOS app builds.
@@ -26,6 +28,13 @@ Work toward an end-to-end MVP path:
 5. HomeView displays real parsed data.
 6. Then continue to video detail and AVPlayer playback.
 7. Login and persistent session should be implemented when needed by the vertical slice.
+
+## Compatibility Stance
+
+- Do not add complexity to preserve compatibility with unfinished prototype behavior.
+- Prefer replacing temporary scaffolding when it blocks feature migration or creates confusing user behavior.
+- Preserve user data compatibility only after the iOS app has a real released baseline.
+- Keep iOS deployment target decisions separate from app-internal prototype compatibility.
 
 ## Logging Requirements
 
