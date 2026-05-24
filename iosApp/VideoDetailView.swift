@@ -251,6 +251,7 @@ private struct AndroidStylePlayerHeader: View {
 
     private func configurePlayer(preservePosition: Bool) {
         guard let source = selectedSource, let url = URL(string: source.url) else {
+            player?.pause()
             player = nil
             return
         }
@@ -259,6 +260,7 @@ private struct AndroidStylePlayerHeader: View {
         let previousTime = preservePosition ? previousPlayer?.currentTime() : nil
         let shouldResume = previousPlayer?.timeControlStatus == .playing
         let nextPlayer = AVPlayer(url: url)
+        previousPlayer?.pause()
         player = nextPlayer
 
         if let previousTime {

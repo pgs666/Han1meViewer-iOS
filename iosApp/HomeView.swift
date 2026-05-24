@@ -61,7 +61,7 @@ struct HomeView: View {
                         HomeBannerView(
                             banner: banner,
                             videoFeature: environment.videoFeature(),
-                            isCompact: horizontalSizeClass == .regular
+                            usesCompactBanner: horizontalSizeClass == .regular
                         )
                         .padding(.horizontal, 16)
                         .padding(.bottom, horizontalSizeClass == .regular ? 10 : 0)
@@ -85,7 +85,7 @@ struct HomeView: View {
 private struct HomeBannerView: View {
     let banner: HomeBannerRow
     let videoFeature: VideoFeature
-    let isCompact: Bool
+    let usesCompactBanner: Bool
 
     var body: some View {
         Group {
@@ -100,13 +100,13 @@ private struct HomeBannerView: View {
                 bannerContent
             }
         }
-        .frame(maxWidth: .infinity, alignment: isCompact ? .leading : .center)
+        .frame(maxWidth: .infinity, alignment: usesCompactBanner ? .leading : .center)
     }
 
     private var bannerContent: some View {
         bannerFrame
-            .aspectRatio(isCompact ? 3.2 : 16.0 / 9.0, contentMode: .fit)
-            .frame(maxWidth: isCompact ? 440 : .infinity, alignment: isCompact ? .leading : .center)
+            .aspectRatio(usesCompactBanner ? 3.2 : 16.0 / 9.0, contentMode: .fit)
+            .frame(maxWidth: usesCompactBanner ? 440 : .infinity, alignment: usesCompactBanner ? .leading : .center)
     }
 
     private var bannerFrame: some View {

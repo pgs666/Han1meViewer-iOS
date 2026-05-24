@@ -127,8 +127,9 @@ private struct WebLoginView: UIViewRepresentable {
         }
 
         func loadLoginPage(in webView: WKWebView) {
+            didCompleteLogin = false
             guard let url = URL(string: "https://hanime1.me/login") else {
-                status = .failed("登录地址无效")
+                status = .failed(String(localized: "登录地址无效"))
                 return
             }
             status = .loading

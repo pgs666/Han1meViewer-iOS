@@ -191,9 +191,10 @@ private struct CloudflareWebView: UIViewRepresentable {
             guard !didResolve, !isImporting else {
                 return
             }
+            isImporting = true
 
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
-                guard let self = self, !self.didResolve, !self.isImporting else {
+                guard let self = self, !self.didResolve else {
                     return
                 }
 
@@ -202,6 +203,7 @@ private struct CloudflareWebView: UIViewRepresentable {
                 }
 
                 guard hanimeCookies.contains(where: { $0.name == "cf_clearance" }) else {
+                    self.isImporting = false
                     return
                 }
 
@@ -210,10 +212,10 @@ private struct CloudflareWebView: UIViewRepresentable {
                     .joined(separator: "; ")
 
                 guard !cookieHeader.isEmpty else {
+                    self.isImporting = false
                     return
                 }
 
-                self.isImporting = true
                 Task { @MainActor in
                     self.status = .importing
                     do {

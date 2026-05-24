@@ -83,6 +83,7 @@
     "我的列表" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "My Lists" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我的列表" } } } },
     "视频" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Video" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "视频" } } } },
     "账号登录" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Account Login" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账号登录" } } } },
+    "登录地址无效" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The login address is invalid" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登录地址无效" } } } },
     "请在网页中完成登录" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sign in on the web page" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在网页中完成登录" } } } },
     "正在载入登录页" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading login page" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在载入登录页" } } } },
     "已同步登录 Cookie" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Login cookies synced" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已同步登录 Cookie" } } } },
