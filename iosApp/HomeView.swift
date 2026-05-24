@@ -34,7 +34,8 @@ struct HomeView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
-            ScrollView {
+            GeometryReader { proxy in
+                ScrollView {
                 VStack(spacing: 12) {
                     Image(systemName: "wifi.exclamationmark")
                         .font(.largeTitle)
@@ -48,10 +49,11 @@ struct HomeView: View {
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: UIScreen.main.bounds.height * 0.65)
+                .frame(minHeight: proxy.size.height * 0.65)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGroupedBackground))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground))
         case .loaded(let snapshot):
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
@@ -102,15 +104,9 @@ private struct HomeBannerView: View {
     }
 
     private var bannerContent: some View {
-        GeometryReader { proxy in
-            let width = min(proxy.size.width, isCompact ? 440 : proxy.size.width)
-            let height = width / (isCompact ? 3.2 : 16.0 / 9.0)
-
-            bannerFrame
-                .frame(width: width, height: height)
-                .frame(maxWidth: .infinity, alignment: isCompact ? .leading : .center)
-        }
-        .frame(height: isCompact ? 138 : (UIScreen.main.bounds.width - 32) / (16.0 / 9.0))
+        bannerFrame
+            .aspectRatio(isCompact ? 3.2 : 16.0 / 9.0, contentMode: .fit)
+            .frame(maxWidth: isCompact ? 440 : .infinity, alignment: isCompact ? .leading : .center)
     }
 
     private var bannerFrame: some View {
