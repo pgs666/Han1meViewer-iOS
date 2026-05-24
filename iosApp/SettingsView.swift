@@ -32,13 +32,15 @@ struct SettingsView: View {
                 Text("这里只清除 iOS 本地数据，不会修改网站账号里的在线记录。")
             }
 
-            Section("缓存") {
+            Section {
                 Button(role: .destructive) {
                     refreshCacheSize()
                     activeConfirmation = .clearCache
                 } label: {
                     SettingsNavigationRow(title: "清除缓存（\(cacheSizeText)）", systemImage: "trash")
                 }
+            } header: {
+                Text("缓存")
             } footer: {
                 Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
             }
