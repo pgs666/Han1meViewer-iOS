@@ -35,6 +35,18 @@ class VideoFeature(
             defaultSourceLabel = defaultSource?.label,
             defaultSourceUrl = defaultSource?.url,
             uploadDate = video.uploadTime?.toString(),
+            relatedVideos = video.relatedHanimes.mapNotNull { item ->
+                val relatedVideoCode = item.videoCode ?: return@mapNotNull null
+                VideoRelatedSnapshot(
+                    videoCode = relatedVideoCode,
+                    title = item.title,
+                    coverUrl = item.coverUrl,
+                    duration = item.duration,
+                    views = item.views,
+                    artist = item.currentArtist,
+                    uploadTime = item.uploadTime,
+                )
+            },
         )
     }
 }
@@ -52,7 +64,23 @@ data class VideoDetailSnapshot(
     val defaultSourceLabel: String?,
     val defaultSourceUrl: String?,
     val uploadDate: String?,
+    private val relatedVideos: List<VideoRelatedSnapshot>,
 ) {
     val hasPlayableSource: Boolean
         get() = !defaultSourceUrl.isNullOrBlank()
+
+    fun relatedVideoCount(): Int = relatedVideos.size
+
+    fun relatedVideoAt(index: Int): VideoRelatedSnapshot? = relatedVideos.getOrNull(index)
 }
+
+@Serializable
+data class VideoRelatedSnapshot(
+    val videoCode: String,
+    val title: String,
+    val coverUrl: String?,
+    val duration: String?,
+    val views: String?,
+    val artist: String?,
+    val uploadTime: String?,
+)

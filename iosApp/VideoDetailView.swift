@@ -3,10 +3,12 @@ import Han1meShared
 
 struct VideoDetailView: View {
     let videoCode: String
+    private let videoFeature: VideoFeature
     @StateObject private var viewModel: VideoDetailViewModel
 
     init(videoCode: String, videoFeature: VideoFeature) {
         self.videoCode = videoCode
+        self.videoFeature = videoFeature
         _viewModel = StateObject(wrappedValue: VideoDetailViewModel(videoFeature: videoFeature))
     }
 
@@ -83,7 +85,46 @@ struct VideoDetailView: View {
                         Text(videoDescription)
                     }
                 }
+
+                if !snapshot.relatedVideos.isEmpty {
+                    Section("相关影片") {
+                        ForEach(snapshot.relatedVideos) { video in
+                            NavigationLink {
+                                VideoDetailView(
+                                    videoCode: video.videoCode,
+                                    videoFeature: videoFeature
+                                )
+                            } label: {
+                                VideoRelatedRowView(video: video)
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+private struct VideoRelatedRowView: View {
+    let video: VideoRelatedRow
+
+    var body: some View {
+        HStack(spacing: 12) {
+            CachedRemoteImage(urlString: video.coverUrl)
+                .frame(width: 96, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(video.title)
+                    .lineLimit(2)
+                if !video.metadata.isEmpty {
+                    Text(video.metadata)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
