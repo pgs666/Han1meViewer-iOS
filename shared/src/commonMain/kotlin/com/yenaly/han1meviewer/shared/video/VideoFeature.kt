@@ -1,15 +1,27 @@
 package com.yenaly.han1meviewer.shared.video
 
+import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
 import com.yenaly.han1meviewer.shared.repository.VideoRepository
 import kotlinx.serialization.Serializable
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 class VideoFeature(
     private val repository: VideoRepository,
+    private val watchHistoryStore: WatchHistoryStore? = null,
 ) {
+    @OptIn(ExperimentalTime::class)
     suspend fun loadVideo(videoCode: String): VideoDetailSnapshot {
         val video = repository.getVideo(videoCode)
         val defaultSource = video.sources.firstOrNull { source -> source.isDefault }
             ?: video.sources.firstOrNull()
+
+        watchHistoryStore?.record(
+            videoCode = video.videoCode,
+            title = video.title.ifBlank { "Untitled" },
+            coverUrl = video.coverUrl,
+            watchedAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
+        )
 
         return VideoDetailSnapshot(
             videoCode = video.videoCode,

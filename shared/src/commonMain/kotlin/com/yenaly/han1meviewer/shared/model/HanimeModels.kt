@@ -83,6 +83,15 @@ data class SubscriptionVideoItem(
 )
 
 @Serializable
+data class WatchHistoryItem(
+    val videoCode: String,
+    val title: String,
+    val coverUrl: String?,
+    val watchedAtEpochMillis: Long,
+    val playbackPositionMillis: Long,
+)
+
+@Serializable
 data class HanimeVideo(
     val videoCode: String,
     val title: String,

@@ -3,11 +3,17 @@ import WebKit
 import Han1meShared
 
 struct MineView: View {
-    let webLoginFeature: WebLoginFeature
+    private let environment: SharedAppEnvironment
+    private let webLoginFeature: WebLoginFeature
 
     @State private var isLoggedIn = false
     @State private var isCheckingLogin = false
     @State private var activeAlert: MineAlert?
+
+    init(environment: SharedAppEnvironment) {
+        self.environment = environment
+        self.webLoginFeature = environment.webLoginFeature()
+    }
 
     var body: some View {
         NavigationView {
@@ -53,7 +59,11 @@ struct MineView: View {
                 }
 
                 Section("视频") {
-                    MineMenuRow(title: "观看历史", systemImage: "clock.arrow.circlepath")
+                    NavigationLink {
+                        WatchHistoryView(environment: environment)
+                    } label: {
+                        MineMenuRow(title: "观看历史", systemImage: "clock.arrow.circlepath")
+                    }
                     MineMenuRow(title: "下载", systemImage: "arrow.down.circle")
                 }
             }
