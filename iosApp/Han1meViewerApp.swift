@@ -42,9 +42,6 @@ struct Han1meViewerApp: App {
         }
         .tint(.red)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
-            NowPlayingAccessory()
-        }
     }
 
     private var legacyTabView: some View {
@@ -82,52 +79,4 @@ private enum MainTab: Hashable {
     case following
     case mine
     case search
-}
-
-@available(iOS 26.0, *)
-private struct NowPlayingAccessory: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.red.opacity(0.78),
-                            Color.pink.opacity(0.58),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay {
-                    Image(systemName: "play.rectangle.fill")
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 44, height: 44)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Han1meViewer")
-                    .font(.headline)
-                    .lineLimit(1)
-                Text("继续浏览")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button {
-            } label: {
-                Image(systemName: "play.fill")
-                    .font(.title2)
-            }
-
-            Button {
-            } label: {
-                Image(systemName: "forward.fill")
-                    .font(.title2)
-            }
-        }
-    }
 }
