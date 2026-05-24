@@ -11,6 +11,8 @@ final class VideoDetailViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    @Published var actionMessage: VideoActionMessage?
+    @Published private(set) var runningActionIDs: Set<String> = []
 
     private let videoFeature: VideoFeature
     private var loadedVideoCode: String?
@@ -46,6 +48,82 @@ final class VideoDetailViewModel: ObservableObject {
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }
+
+    func isActionRunning(_ id: String) -> Bool {
+        runningActionIDs.contains(id)
+    }
+
+    func showActionMessage(_ message: String) {
+        actionMessage = VideoActionMessage(message: message)
+    }
+
+    func toggleFavorite(snapshot: VideoDetailScreenSnapshot) {
+        runAction(id: "favorite") {
+            let nextValue = !snapshot.isFav
+            try await self.videoFeature.setFavorite(
+                videoCode: snapshot.videoCode,
+                currentUserId: snapshot.currentUserId,
+                csrfToken: snapshot.csrfToken,
+                isFavorite: nextValue
+            )
+            self.updateLoadedSnapshot { $0.updatingFavorite(isFavorite: nextValue) }
+            self.showActionMessage(nextValue ? "Added to favorites" : "Removed from favorites")
+        }
+    }
+
+    func toggleWatchLater(snapshot: VideoDetailScreenSnapshot) {
+        runAction(id: "watchLater") {
+            let nextValue = !snapshot.isWatchLater
+            try await self.videoFeature.setMyListItem(
+                listCode: "save",
+                videoCode: snapshot.videoCode,
+                csrfToken: snapshot.csrfToken,
+                isSelected: nextValue
+            )
+            self.updateLoadedSnapshot { $0.updatingWatchLater(isSelected: nextValue) }
+            self.showActionMessage(nextValue ? "Added to watch later" : "Removed from watch later")
+        }
+    }
+
+    func setMyListItem(snapshot: VideoDetailScreenSnapshot, item: VideoMyListRow, isSelected: Bool) {
+        runAction(id: "myList-\(item.code)") {
+            try await self.videoFeature.setMyListItem(
+                listCode: item.code,
+                videoCode: snapshot.videoCode,
+                csrfToken: snapshot.csrfToken,
+                isSelected: isSelected
+            )
+            self.updateLoadedSnapshot { $0.updatingMyListItem(code: item.code, isSelected: isSelected) }
+            self.showActionMessage(isSelected ? "Added to playlist" : "Removed from playlist")
+        }
+    }
+
+    private func runAction(id: String, operation: @escaping () async throws -> Void) {
+        guard !runningActionIDs.contains(id) else { return }
+        runningActionIDs.insert(id)
+        Task {
+            defer {
+                runningActionIDs.remove(id)
+            }
+
+            do {
+                try await operation()
+            } catch {
+                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+                actionMessage = VideoActionMessage(message: ErrorMessage.userFriendly(error))
+            }
+        }
+    }
+
+    private func updateLoadedSnapshot(_ transform: (VideoDetailScreenSnapshot) -> VideoDetailScreenSnapshot) {
+        guard case .loaded(let snapshot) = state else { return }
+        state = .loaded(transform(snapshot))
+    }
+}
+
+struct VideoActionMessage: Identifiable {
+    let id = UUID()
+    let message: String
 }
 
 struct VideoDetailScreenSnapshot {
@@ -63,6 +141,8 @@ struct VideoDetailScreenSnapshot {
     let artist: VideoArtistRow?
     let favTimes: Int?
     let isFav: Bool
+    let csrfToken: String?
+    let currentUserId: String?
     let isWatchLater: Bool
     let originalComic: String?
     let tags: [String]
@@ -86,6 +166,8 @@ struct VideoDetailScreenSnapshot {
         coverUrl = snapshot.coverUrl
         favTimes = snapshot.favTimes?.intValue
         isFav = snapshot.isFav
+        csrfToken = snapshot.csrfToken
+        currentUserId = snapshot.currentUserId
         isWatchLater = snapshot.isWatchLater
         originalComic = snapshot.originalComic
 
@@ -147,6 +229,115 @@ struct VideoDetailScreenSnapshot {
             return VideoRelatedRow(item)
         }
     }
+
+    private init(
+        videoCode: String,
+        title: String,
+        chineseTitle: String?,
+        videoDescription: String?,
+        views: String?,
+        tagSummary: String,
+        sourceCount: Int32,
+        defaultSourceLabel: String?,
+        defaultSourceUrl: String?,
+        uploadDate: String?,
+        coverUrl: String?,
+        artist: VideoArtistRow?,
+        favTimes: Int?,
+        isFav: Bool,
+        csrfToken: String?,
+        currentUserId: String?,
+        isWatchLater: Bool,
+        originalComic: String?,
+        tags: [String],
+        playbackSources: [VideoPlaybackSourceRow],
+        playlistName: String?,
+        playlistVideos: [VideoRelatedRow],
+        myListItems: [VideoMyListRow],
+        relatedVideos: [VideoRelatedRow]
+    ) {
+        self.videoCode = videoCode
+        self.title = title
+        self.chineseTitle = chineseTitle
+        self.videoDescription = videoDescription
+        self.views = views
+        self.tagSummary = tagSummary
+        self.sourceCount = sourceCount
+        self.defaultSourceLabel = defaultSourceLabel
+        self.defaultSourceUrl = defaultSourceUrl
+        self.uploadDate = uploadDate
+        self.coverUrl = coverUrl
+        self.artist = artist
+        self.favTimes = favTimes
+        self.isFav = isFav
+        self.csrfToken = csrfToken
+        self.currentUserId = currentUserId
+        self.isWatchLater = isWatchLater
+        self.originalComic = originalComic
+        self.tags = tags
+        self.playbackSources = playbackSources
+        self.playlistName = playlistName
+        self.playlistVideos = playlistVideos
+        self.myListItems = myListItems
+        self.relatedVideos = relatedVideos
+    }
+
+    func updatingFavorite(isFavorite: Bool) -> VideoDetailScreenSnapshot {
+        let nextFavTimes: Int?
+        if let favTimes {
+            nextFavTimes = max(0, favTimes + (isFavorite ? 1 : -1))
+        } else {
+            nextFavTimes = nil
+        }
+
+        return copy(isFav: isFavorite, favTimes: nextFavTimes)
+    }
+
+    func updatingWatchLater(isSelected: Bool) -> VideoDetailScreenSnapshot {
+        copy(isWatchLater: isSelected)
+    }
+
+    func updatingMyListItem(code: String, isSelected: Bool) -> VideoDetailScreenSnapshot {
+        copy(
+            myListItems: myListItems.map { item in
+                item.code == code ? item.updatingSelection(isSelected) : item
+            }
+        )
+    }
+
+    private func copy(
+        favTimes: Int? = nil,
+        isFav: Bool? = nil,
+        isWatchLater: Bool? = nil,
+        myListItems: [VideoMyListRow]? = nil
+    ) -> VideoDetailScreenSnapshot {
+        VideoDetailScreenSnapshot(
+            videoCode: videoCode,
+            title: title,
+            chineseTitle: chineseTitle,
+            videoDescription: videoDescription,
+            views: views,
+            tagSummary: tagSummary,
+            sourceCount: sourceCount,
+            defaultSourceLabel: defaultSourceLabel,
+            defaultSourceUrl: defaultSourceUrl,
+            uploadDate: uploadDate,
+            coverUrl: coverUrl,
+            artist: artist,
+            favTimes: favTimes ?? self.favTimes,
+            isFav: isFav ?? self.isFav,
+            csrfToken: csrfToken,
+            currentUserId: currentUserId,
+            isWatchLater: isWatchLater ?? self.isWatchLater,
+            originalComic: originalComic,
+            tags: tags,
+            playbackSources: playbackSources,
+            playlistName: playlistName,
+            playlistVideos: playlistVideos,
+            myListItems: myListItems ?? self.myListItems,
+            relatedVideos: relatedVideos
+        )
+    }
 }
 
 struct VideoArtistRow: Hashable {
@@ -204,4 +395,8 @@ struct VideoMyListRow: Identifiable, Hashable {
     let isSelected: Bool
 
     var id: String { code }
+
+    func updatingSelection(_ isSelected: Bool) -> VideoMyListRow {
+        VideoMyListRow(code: code, title: title, isSelected: isSelected)
+    }
 }

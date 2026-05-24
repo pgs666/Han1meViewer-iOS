@@ -7,6 +7,7 @@ struct VideoDetailView: View {
     private let videoFeature: VideoFeature
     @StateObject private var viewModel: VideoDetailViewModel
     @State private var selectedTab = VideoPageTab.introduction
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(videoCode: String, videoFeature: VideoFeature) {
         self.videoCode = videoCode
@@ -23,6 +24,9 @@ struct VideoDetailView: View {
             }
             .refreshable {
                 viewModel.load(videoCode: videoCode)
+            }
+            .alert(item: $viewModel.actionMessage) { message in
+                Alert(title: Text(message.message))
             }
     }
 
@@ -47,7 +51,11 @@ struct VideoDetailView: View {
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let snapshot):
-            ScrollView {
+            GeometryReader { proxy in
+                if horizontalSizeClass == .regular && proxy.size.width >= 900 {
+                    tabletContent(snapshot: snapshot, size: proxy.size)
+                } else {
+                    ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
                     AndroidStylePlayerHeader(snapshot: snapshot)
 
@@ -56,13 +64,15 @@ struct VideoDetailView: View {
                         case .introduction:
                             AndroidStyleIntroduction(
                                 snapshot: snapshot,
-                                videoFeature: videoFeature
+                                videoFeature: videoFeature,
+                                viewModel: viewModel,
+                                showsRelated: true
                             )
                         case .comments:
                             AndroidStyleCommentsPlaceholder()
                         }
                     } header: {
-                        Picker("内容", selection: $selectedTab) {
+                        Picker("Content", selection: $selectedTab) {
                             ForEach(VideoPageTab.allCases) { tab in
                                 Text(tab.title).tag(tab)
                             }
@@ -75,7 +85,55 @@ struct VideoDetailView: View {
                 }
                 .padding(.bottom, 24)
             }
+                    }
+                }
+            }
             .background(Color(.systemGroupedBackground))
+        }
+    }
+
+    private func tabletContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
+                    AndroidStylePlayerHeader(snapshot: snapshot)
+
+                    Section {
+                        switch selectedTab {
+                        case .introduction:
+                            AndroidStyleIntroduction(
+                                snapshot: snapshot,
+                                videoFeature: videoFeature,
+                                viewModel: viewModel,
+                                showsRelated: false
+                            )
+                        case .comments:
+                            AndroidStyleCommentsPlaceholder()
+                        }
+                    } header: {
+                        Picker("Content", selection: $selectedTab) {
+                            ForEach(VideoPageTab.allCases) { tab in
+                                Text(tab.title).tag(tab)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.background)
+                    }
+                }
+                .padding(.bottom, 24)
+            }
+            .frame(width: min(max(size.width * 0.64, 620), size.width - 360))
+
+            Divider()
+
+            TabletRelatedSidebar(
+                videos: snapshot.relatedVideos,
+                videoFeature: videoFeature
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemBackground))
         }
     }
 }
@@ -313,6 +371,8 @@ private final class FullscreenVideoMetrics: ObservableObject {
 private struct AndroidStyleIntroduction: View {
     let snapshot: VideoDetailScreenSnapshot
     let videoFeature: VideoFeature
+    @ObservedObject var viewModel: VideoDetailViewModel
+    let showsRelated: Bool
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 16) {
@@ -327,7 +387,7 @@ private struct AndroidStyleIntroduction: View {
                 ExpandableDescription(text: description)
             }
 
-            ActionButtonRow(snapshot: snapshot)
+            ActionButtonRow(snapshot: snapshot, viewModel: viewModel)
 
             if !snapshot.tags.isEmpty {
                 TagFlow(tags: snapshot.tags)
@@ -343,7 +403,7 @@ private struct AndroidStyleIntroduction: View {
                 )
             }
 
-            if !snapshot.relatedVideos.isEmpty {
+            if showsRelated && !snapshot.relatedVideos.isEmpty {
                 RelatedVideoGrid(
                     videos: snapshot.relatedVideos,
                     videoFeature: videoFeature
@@ -460,48 +520,100 @@ private struct ExpandableDescription: View {
 
 private struct ActionButtonRow: View {
     let snapshot: VideoDetailScreenSnapshot
+    @ObservedObject var viewModel: VideoDetailViewModel
+    @Environment(\.openURL) private var openURL
+    @State private var isShowingMyList = false
+
+    private var videoURL: URL? {
+        URL(string: "https://hanime1.me/watch?v=\(snapshot.videoCode)")
+    }
+
+    private var downloadURL: URL? {
+        URL(string: "https://hanime1.me/download?v=\(snapshot.videoCode)")
+    }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 LabelButton(
                     title: snapshot.isFav ? "已收藏" : "收藏",
-                    systemImage: snapshot.isFav ? "heart.fill" : "heart"
+                    systemImage: snapshot.isFav ? "heart.fill" : "heart",
+                    action: {
+                        viewModel.toggleFavorite(snapshot: snapshot)
+                    }
                 )
 
                 LabelButton(
                     title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
-                    systemImage: "text.badge.plus"
+                    systemImage: "text.badge.plus",
+                    action: {
+                        viewModel.toggleWatchLater(snapshot: snapshot)
+                    }
                 )
 
                 LabelButton(
                     title: "加入列表",
-                    systemImage: "list.bullet"
+                    systemImage: "list.bullet",
+                    action: {
+                        if snapshot.myListItems.isEmpty {
+                            viewModel.showActionMessage("No playlists available")
+                        } else {
+                            isShowingMyList = true
+                        }
+                    }
                 )
 
                 LabelButton(
                     title: "下载",
-                    systemImage: "arrow.down.circle"
+                    systemImage: "arrow.down.circle",
+                    action: {
+                        if let downloadURL {
+                            openURL(downloadURL)
+                        }
+                    }
                 )
 
                 LabelButton(
                     title: "分享",
-                    systemImage: "square.and.arrow.up"
+                    systemImage: "square.and.arrow.up",
+                    action: {
+                        if let videoURL {
+                            openURL(videoURL)
+                        }
+                    }
                 )
 
                 if snapshot.originalComic?.isEmpty == false {
                     LabelButton(
                         title: "原作漫画",
-                        systemImage: "book"
+                        systemImage: "book",
+                        action: {
+                            if let originalComic = snapshot.originalComic,
+                               let url = URL(string: originalComic) {
+                                openURL(url)
+                            }
+                        }
                     )
                 }
 
                 LabelButton(
                     title: "网页",
-                    systemImage: "safari"
+                    systemImage: "safari",
+                    action: {
+                        if let videoURL {
+                            openURL(videoURL)
+                        }
+                    }
                 )
             }
             .padding(.horizontal, 2)
+        }
+        .confirmationDialog("Playlists", isPresented: $isShowingMyList) {
+            ForEach(snapshot.myListItems) { item in
+                Button(item.isSelected ? "Remove \(item.title)" : "Add \(item.title)") {
+                    viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: !item.isSelected)
+                }
+            }
         }
     }
 }
@@ -509,9 +621,10 @@ private struct ActionButtonRow: View {
 private struct LabelButton: View {
     let title: String
     let systemImage: String
+    var action: () -> Void = {}
 
     var body: some View {
-        Button {} label: {
+        Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: systemImage)
                     .font(.title3)
@@ -605,6 +718,83 @@ private struct RelatedVideoGrid: View {
                 }
             }
         }
+    }
+}
+
+private struct TabletRelatedSidebar: View {
+    let videos: [VideoRelatedRow]
+    let videoFeature: VideoFeature
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                Text("鐩稿叧褰辩墖")
+                    .font(.headline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+
+                ForEach(videos) { video in
+                    NavigationLink {
+                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature)
+                    } label: {
+                        TabletRelatedVideoRow(video: video)
+                    }
+                    .buttonStyle(.plain)
+
+                    Divider()
+                        .padding(.leading, 156)
+                }
+            }
+            .padding(.bottom, 24)
+        }
+    }
+}
+
+private struct TabletRelatedVideoRow: View {
+    let video: VideoRelatedRow
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                AsyncImage(url: video.coverURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Rectangle().fill(Color.secondary.opacity(0.15))
+                }
+                .frame(width: 128, height: 72)
+                .clipped()
+
+                if let duration = video.duration, !duration.isEmpty {
+                    Text(duration)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.black.opacity(0.65), in: Capsule())
+                        .padding(5)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(video.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+
+                if !video.metadata.isEmpty {
+                    Text(video.metadata)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 }
 

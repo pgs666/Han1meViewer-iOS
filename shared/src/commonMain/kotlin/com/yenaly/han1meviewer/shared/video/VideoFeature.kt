@@ -41,6 +41,8 @@ class VideoFeature(
             isArtistSubscribed = video.artist?.subscription?.isSubscribed ?: false,
             favTimes = video.favTimes,
             isFav = video.isFav,
+            csrfToken = video.csrfToken,
+            currentUserId = video.currentUserId,
             isWatchLater = video.myList?.isWatchLater ?: false,
             originalComic = video.originalComic,
             playbackSources = video.sources.map { source ->
@@ -89,6 +91,36 @@ class VideoFeature(
             },
         )
     }
+
+    @Throws(Exception::class)
+    suspend fun setFavorite(
+        videoCode: String,
+        currentUserId: String?,
+        csrfToken: String?,
+        isFavorite: Boolean,
+    ) {
+        repository.setFavorite(
+            videoCode = videoCode,
+            userId = currentUserId,
+            csrfToken = csrfToken,
+            isFavorite = isFavorite,
+        )
+    }
+
+    @Throws(Exception::class)
+    suspend fun setMyListItem(
+        listCode: String,
+        videoCode: String,
+        csrfToken: String?,
+        isSelected: Boolean,
+    ) {
+        repository.setMyListItem(
+            listCode = listCode,
+            videoCode = videoCode,
+            csrfToken = csrfToken,
+            isSelected = isSelected,
+        )
+    }
 }
 
 @Serializable
@@ -109,6 +141,8 @@ data class VideoDetailSnapshot(
     val isArtistSubscribed: Boolean,
     val favTimes: Int?,
     val isFav: Boolean,
+    val csrfToken: String?,
+    val currentUserId: String?,
     val isWatchLater: Boolean,
     val originalComic: String?,
     private val playbackSources: List<VideoPlaybackSourceSnapshot>,

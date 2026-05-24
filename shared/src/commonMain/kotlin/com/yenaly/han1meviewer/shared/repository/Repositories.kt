@@ -21,6 +21,20 @@ interface SearchRepository {
 
 interface VideoRepository {
     suspend fun getVideo(videoCode: String): HanimeVideo
+
+    suspend fun setFavorite(
+        videoCode: String,
+        userId: String?,
+        csrfToken: String?,
+        isFavorite: Boolean,
+    )
+
+    suspend fun setMyListItem(
+        listCode: String,
+        videoCode: String,
+        csrfToken: String?,
+        isSelected: Boolean,
+    )
 }
 
 interface FollowingRepository {
