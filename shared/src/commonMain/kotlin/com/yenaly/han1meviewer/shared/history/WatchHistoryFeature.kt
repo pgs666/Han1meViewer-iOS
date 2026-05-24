@@ -6,8 +6,12 @@ class WatchHistoryFeature(
     private val store: WatchHistoryStore,
 ) {
     fun loadRecent(): WatchHistorySnapshot {
+        return loadRecent(limit = DEFAULT_RECENT_LIMIT)
+    }
+
+    fun loadRecent(limit: Int): WatchHistorySnapshot {
         return WatchHistorySnapshot(
-            items = store.recent().map { item ->
+            items = store.recent(limit.toLong()).map { item ->
                 WatchHistoryItemSnapshot(
                     videoCode = item.videoCode,
                     title = item.title,
@@ -27,6 +31,10 @@ class WatchHistoryFeature(
     fun clear(): WatchHistorySnapshot {
         store.clear()
         return loadRecent()
+    }
+
+    private companion object {
+        const val DEFAULT_RECENT_LIMIT = 100
     }
 }
 

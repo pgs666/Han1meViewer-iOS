@@ -6,8 +6,8 @@ import com.yenaly.han1meviewer.shared.model.WatchHistoryItem
 class WatchHistoryStore(
     private val database: Han1meDatabase,
 ) {
-    fun recent(): List<WatchHistoryItem> {
-        return database.watchHistoryQueries.selectRecent(::mapHistoryItem).executeAsList()
+    fun recent(limit: Long = DEFAULT_RECENT_LIMIT): List<WatchHistoryItem> {
+        return database.watchHistoryQueries.selectRecent(limit, ::mapHistoryItem).executeAsList()
     }
 
     fun record(
@@ -48,5 +48,9 @@ class WatchHistoryStore(
             watchedAtEpochMillis = watchedAtEpochMillis,
             playbackPositionMillis = playbackPositionMillis,
         )
+    }
+
+    private companion object {
+        const val DEFAULT_RECENT_LIMIT = 100L
     }
 }

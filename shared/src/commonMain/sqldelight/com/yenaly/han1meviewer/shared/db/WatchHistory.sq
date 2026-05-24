@@ -9,7 +9,8 @@ CREATE TABLE watch_history (
 selectRecent:
 SELECT *
 FROM watch_history
-ORDER BY watched_at_epoch_millis DESC;
+ORDER BY watched_at_epoch_millis DESC
+LIMIT ?;
 
 upsert:
 INSERT OR REPLACE INTO watch_history(
