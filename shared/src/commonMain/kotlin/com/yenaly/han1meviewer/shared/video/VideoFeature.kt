@@ -35,6 +35,14 @@ class VideoFeature(
             sourceCount = video.sources.size,
             defaultSourceLabel = defaultSource?.label,
             defaultSourceUrl = defaultSource?.url,
+            artistName = video.artist?.name,
+            artistAvatarUrl = video.artist?.avatarUrl,
+            artistGenre = video.artist?.genre,
+            isArtistSubscribed = video.artist?.subscription?.isSubscribed ?: false,
+            favTimes = video.favTimes,
+            isFav = video.isFav,
+            isWatchLater = video.myList?.isWatchLater ?: false,
+            originalComic = video.originalComic,
             playbackSources = video.sources.map { source ->
                 VideoPlaybackSourceSnapshot(
                     label = source.label,
@@ -44,6 +52,28 @@ class VideoFeature(
                 )
             },
             uploadDate = video.uploadTime?.toString(),
+            tags = video.tags,
+            playlistName = video.playlist?.name,
+            playlistVideos = video.playlist?.videos.orEmpty().mapNotNull { item ->
+                val playlistVideoCode = item.videoCode ?: return@mapNotNull null
+                VideoRelatedSnapshot(
+                    videoCode = playlistVideoCode,
+                    title = item.title,
+                    coverUrl = item.coverUrl,
+                    duration = item.duration,
+                    views = item.views,
+                    artist = item.currentArtist,
+                    uploadTime = item.uploadTime,
+                    isPlaying = item.isPlaying,
+                )
+            },
+            myListItems = video.myList?.items.orEmpty().map { item ->
+                VideoMyListItemSnapshot(
+                    code = item.code,
+                    title = item.title,
+                    isSelected = item.isSelected,
+                )
+            },
             relatedVideos = video.relatedHanimes.mapNotNull { item ->
                 val relatedVideoCode = item.videoCode ?: return@mapNotNull null
                 VideoRelatedSnapshot(
@@ -54,6 +84,7 @@ class VideoFeature(
                     views = item.views,
                     artist = item.currentArtist,
                     uploadTime = item.uploadTime,
+                    isPlaying = item.isPlaying,
                 )
             },
         )
@@ -72,8 +103,20 @@ data class VideoDetailSnapshot(
     val sourceCount: Int,
     val defaultSourceLabel: String?,
     val defaultSourceUrl: String?,
+    val artistName: String?,
+    val artistAvatarUrl: String?,
+    val artistGenre: String?,
+    val isArtistSubscribed: Boolean,
+    val favTimes: Int?,
+    val isFav: Boolean,
+    val isWatchLater: Boolean,
+    val originalComic: String?,
     private val playbackSources: List<VideoPlaybackSourceSnapshot>,
     val uploadDate: String?,
+    private val tags: List<String>,
+    val playlistName: String?,
+    private val playlistVideos: List<VideoRelatedSnapshot>,
+    private val myListItems: List<VideoMyListItemSnapshot>,
     private val relatedVideos: List<VideoRelatedSnapshot>,
 ) {
     val hasPlayableSource: Boolean
@@ -86,6 +129,18 @@ data class VideoDetailSnapshot(
     fun playbackSourceCount(): Int = playbackSources.size
 
     fun playbackSourceAt(index: Int): VideoPlaybackSourceSnapshot? = playbackSources.getOrNull(index)
+
+    fun tagCount(): Int = tags.size
+
+    fun tagAt(index: Int): String? = tags.getOrNull(index)
+
+    fun playlistVideoCount(): Int = playlistVideos.size
+
+    fun playlistVideoAt(index: Int): VideoRelatedSnapshot? = playlistVideos.getOrNull(index)
+
+    fun myListItemCount(): Int = myListItems.size
+
+    fun myListItemAt(index: Int): VideoMyListItemSnapshot? = myListItems.getOrNull(index)
 }
 
 @Serializable
@@ -105,4 +160,12 @@ data class VideoRelatedSnapshot(
     val views: String?,
     val artist: String?,
     val uploadTime: String?,
+    val isPlaying: Boolean = false,
+)
+
+@Serializable
+data class VideoMyListItemSnapshot(
+    val code: String,
+    val title: String,
+    val isSelected: Boolean,
 )
