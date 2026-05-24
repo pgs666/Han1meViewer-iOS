@@ -290,7 +290,7 @@ struct VideoDetailScreenSnapshot {
             nextFavTimes = nil
         }
 
-        return copy(isFav: isFavorite, favTimes: nextFavTimes)
+        return copy(favTimes: nextFavTimes, isFav: isFavorite)
     }
 
     func updatingWatchLater(isSelected: Bool) -> VideoDetailScreenSnapshot {
