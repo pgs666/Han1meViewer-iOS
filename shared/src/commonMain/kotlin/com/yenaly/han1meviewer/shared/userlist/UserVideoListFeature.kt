@@ -15,9 +15,8 @@ class UserVideoListFeature(
 
     @Throws(Exception::class)
     suspend fun load(page: Int): UserVideoListSnapshot {
-        val userId = homeRepository.getHomePage().userId
+        val userId = resolveCurrentUserId()
             ?: return UserVideoListSnapshot.authRequired(page)
-        currentUserId = userId
         val listPage = listRepository.getUserVideoList(userId, type, page)
         csrfToken = listPage.csrfToken ?: csrfToken
         return listPage.toSnapshot()
@@ -25,8 +24,7 @@ class UserVideoListFeature(
 
     @Throws(Exception::class)
     suspend fun remove(videoCode: String): UserVideoListMutationSnapshot {
-        val userId = currentUserId
-            ?: homeRepository.getHomePage().userId
+        val userId = resolveCurrentUserId()
             ?: return UserVideoListMutationSnapshot(videoCode = videoCode, authRequired = true)
         listRepository.removeUserVideoListItem(
             userId = userId,
@@ -35,6 +33,13 @@ class UserVideoListFeature(
             csrfToken = csrfToken,
         )
         return UserVideoListMutationSnapshot(videoCode = videoCode)
+    }
+
+    private suspend fun resolveCurrentUserId(): String? {
+        currentUserId?.let { return it }
+        return homeRepository.getHomePage().userId?.also { userId ->
+            currentUserId = userId
+        }
     }
 
     private fun com.yenaly.han1meviewer.shared.model.UserVideoListPage.toSnapshot(): UserVideoListSnapshot {
