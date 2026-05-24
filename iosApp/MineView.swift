@@ -89,7 +89,10 @@ struct MineView: View {
                         MineMenuRow(title: "收藏影片", systemImage: "heart")
                     }
                     NavigationLink {
-                        UserPlaylistView(feature: environment.userPlaylistFeature())
+                        UserPlaylistView(
+                            feature: environment.userPlaylistFeature(),
+                            environment: environment
+                        )
                     } label: {
                         MineMenuRow(title: "播放清单", systemImage: "list.bullet.rectangle")
                     }

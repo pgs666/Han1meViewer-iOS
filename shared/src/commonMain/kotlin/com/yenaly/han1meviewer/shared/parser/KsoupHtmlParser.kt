@@ -199,7 +199,9 @@ class KsoupHtmlParser : HtmlParser {
         val body = Ksoup.parse(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
         val description = body.selectFirst("#playlist-show-description")?.ownText()
+            ?: body.selectFirst("p.playlist-description")?.text()
         val container = body.selectFirst(".horizontal-row")
+            ?: body.selectFirst(".playlist-video-list")
         val items = container.toHanimeInfoList("div[class^=user-tab-item-wrapper]")
 
         return UserVideoListPage(

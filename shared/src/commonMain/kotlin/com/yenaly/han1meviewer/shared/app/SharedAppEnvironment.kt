@@ -19,6 +19,7 @@ import com.yenaly.han1meviewer.shared.session.SessionStore
 import com.yenaly.han1meviewer.shared.session.SqlDelightSessionStore
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
 import com.yenaly.han1meviewer.shared.playlist.UserPlaylistFeature
+import com.yenaly.han1meviewer.shared.userlist.PlaylistVideoListFeature
 import com.yenaly.han1meviewer.shared.userlist.UserVideoListFeature
 import com.yenaly.han1meviewer.shared.video.VideoFeature
 
@@ -83,6 +84,13 @@ class SharedAppEnvironment(
         return UserPlaylistFeature(
             homeRepository = homeRepository,
             playlistRepository = userPlaylistRepository,
+        )
+    }
+
+    fun playlistVideoListFeature(listCode: String): PlaylistVideoListFeature {
+        return PlaylistVideoListFeature(
+            listCode = listCode,
+            listRepository = userVideoListRepository,
         )
     }
 }

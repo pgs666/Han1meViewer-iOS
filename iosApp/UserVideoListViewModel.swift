@@ -13,12 +13,20 @@ final class UserVideoListViewModel: ObservableObject {
 
     @Published private(set) var state: State = .idle
 
-    private let feature: UserVideoListFeature
+    private let loadPage: (Int32) async throws -> UserVideoListSnapshot
     private var currentPage: Int32 = 0
     private var hasNextPage = false
 
     init(feature: UserVideoListFeature) {
-        self.feature = feature
+        self.loadPage = { page in
+            try await feature.load(page: page)
+        }
+    }
+
+    init(feature: PlaylistVideoListFeature) {
+        self.loadPage = { page in
+            try await feature.load(page: page)
+        }
     }
 
     func load() {
@@ -62,7 +70,7 @@ final class UserVideoListViewModel: ObservableObject {
 
     private func load(page: Int32, appendingTo existingSnapshot: UserVideoListScreenSnapshot?) async {
         do {
-            let snapshot = try await feature.load(page: page)
+            let snapshot = try await loadPage(page)
             let screenSnapshot = UserVideoListScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext

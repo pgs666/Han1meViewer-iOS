@@ -3,8 +3,10 @@ import Han1meShared
 
 struct UserPlaylistView: View {
     @StateObject private var viewModel: UserPlaylistViewModel
+    private let environment: SharedAppEnvironment
 
-    init(feature: UserPlaylistFeature) {
+    init(feature: UserPlaylistFeature, environment: SharedAppEnvironment) {
+        self.environment = environment
         _viewModel = StateObject(wrappedValue: UserPlaylistViewModel(feature: feature))
     }
 
@@ -73,10 +75,19 @@ struct UserPlaylistView: View {
                 List {
                     Section {
                         ForEach(snapshot.playlists) { playlist in
-                            UserPlaylistRowView(playlist: playlist)
-                                .onAppear {
-                                    viewModel.loadMoreIfNeeded(currentPlaylistID: playlist.id)
-                                }
+                            NavigationLink {
+                                UserVideoListView(
+                                    title: playlist.title,
+                                    emptyMessage: "暂无清单视频",
+                                    feature: environment.playlistVideoListFeature(listCode: playlist.listCode),
+                                    environment: environment
+                                )
+                            } label: {
+                                UserPlaylistRowView(playlist: playlist)
+                            }
+                            .onAppear {
+                                viewModel.loadMoreIfNeeded(currentPlaylistID: playlist.id)
+                            }
                         }
                         footer(snapshot: snapshot)
                     }

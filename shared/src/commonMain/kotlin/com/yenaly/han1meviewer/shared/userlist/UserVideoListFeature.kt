@@ -14,11 +14,45 @@ class UserVideoListFeature(
         val userId = homeRepository.getHomePage().userId
             ?: error("Login is required before loading this list.")
         val listPage = listRepository.getUserVideoList(userId, type, page)
+        return listPage.toSnapshot()
+    }
+
+    private fun com.yenaly.han1meviewer.shared.model.UserVideoListPage.toSnapshot(): UserVideoListSnapshot {
         return UserVideoListSnapshot(
-            page = listPage.page,
-            hasNext = listPage.hasNext,
-            listDescription = listPage.listDescription,
-            videos = listPage.items.mapNotNull { item ->
+            page = page,
+            hasNext = hasNext,
+            listDescription = listDescription,
+            videos = items.mapNotNull { item ->
+                val videoCode = item.videoCode ?: return@mapNotNull null
+                UserVideoListItemSnapshot(
+                    videoCode = videoCode,
+                    title = item.title,
+                    coverUrl = item.coverUrl,
+                    duration = item.duration,
+                    views = item.views,
+                    artist = item.currentArtist,
+                    uploadTime = item.uploadTime,
+                )
+            },
+        )
+    }
+}
+
+class PlaylistVideoListFeature(
+    private val listCode: String,
+    private val listRepository: UserVideoListRepository,
+) {
+    suspend fun load(page: Int): UserVideoListSnapshot {
+        val listPage = listRepository.getPlaylistVideos(listCode, page)
+        return listPage.toSnapshot()
+    }
+
+    private fun com.yenaly.han1meviewer.shared.model.UserVideoListPage.toSnapshot(): UserVideoListSnapshot {
+        return UserVideoListSnapshot(
+            page = page,
+            hasNext = hasNext,
+            listDescription = listDescription,
+            videos = items.mapNotNull { item ->
                 val videoCode = item.videoCode ?: return@mapNotNull null
                 UserVideoListItemSnapshot(
                     videoCode = videoCode,

@@ -38,6 +38,19 @@ class KtorUserVideoListRepository(
         return parser.parseUserVideoList(response.bodyAsText(), page)
     }
 
+    override suspend fun getPlaylistVideos(listCode: String, page: Int): UserVideoListPage {
+        val response = client.get("$baseUrl/playlist") {
+            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            parameter("list", listCode)
+            parameter("page", page)
+            cookieBridge.applyStoredCookies(this)
+        }
+        cookieBridge.saveResponseCookies(response)
+
+        return parser.parseUserVideoList(response.bodyAsText(), page)
+    }
+
     private companion object {
         const val DEFAULT_BASE_URL = "https://hanime1.me"
         const val DEFAULT_USER_AGENT =

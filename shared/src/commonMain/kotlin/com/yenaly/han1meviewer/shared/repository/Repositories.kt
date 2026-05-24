@@ -28,6 +28,8 @@ interface FollowingRepository {
 
 interface UserVideoListRepository {
     suspend fun getUserVideoList(userId: String, type: UserVideoListType, page: Int): UserVideoListPage
+
+    suspend fun getPlaylistVideos(listCode: String, page: Int): UserVideoListPage
 }
 
 interface UserPlaylistRepository {

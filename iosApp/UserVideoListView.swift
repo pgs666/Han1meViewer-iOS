@@ -19,6 +19,18 @@ struct UserVideoListView: View {
         _viewModel = StateObject(wrappedValue: UserVideoListViewModel(feature: feature))
     }
 
+    init(
+        title: String,
+        emptyMessage: String,
+        feature: PlaylistVideoListFeature,
+        environment: SharedAppEnvironment
+    ) {
+        self.title = title
+        self.emptyMessage = emptyMessage
+        self.environment = environment
+        _viewModel = StateObject(wrappedValue: UserVideoListViewModel(feature: feature))
+    }
+
     var body: some View {
         content
             .navigationTitle(title)
