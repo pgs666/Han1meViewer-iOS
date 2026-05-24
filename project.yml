@@ -36,6 +36,8 @@ targets:
           - "@executable_path/Frameworks"
     dependencies:
       - package: Nuke
+        product: Nuke
+      - package: Nuke
         product: NukeUI
       - framework: shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/Han1meShared.framework
         embed: true

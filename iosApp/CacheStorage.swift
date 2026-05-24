@@ -1,4 +1,5 @@
 import Foundation
+import Nuke
 
 enum CacheStorage {
     static func currentSize() -> Int64 {
@@ -12,6 +13,7 @@ enum CacheStorage {
     }
 
     static func clear() {
+        ImagePipeline.shared.cache.removeAll()
         URLCache.shared.removeAllCachedResponses()
 
         cacheDirectoryURLs.forEach { directoryURL in
