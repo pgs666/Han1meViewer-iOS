@@ -11,7 +11,6 @@ struct SearchView: View {
 
     init(environment: SharedAppEnvironment) {
         self.environment = environment
-        UISearchTextField.appearance().enablesReturnKeyAutomatically = false
         _viewModel = StateObject(wrappedValue: SearchViewModel(searchFeature: environment.searchFeature()))
     }
 
@@ -27,6 +26,7 @@ struct SearchView: View {
             .onSubmit(of: .search) {
                 viewModel.search(keyword: keyword)
             }
+            .background(SearchTextFieldReturnKeyEnabler())
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -248,6 +248,32 @@ struct SearchView: View {
         }
     }
 
+}
+
+private struct SearchTextFieldReturnKeyEnabler: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isHidden = true
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            uiView.window?.setSearchReturnKeyEnabled()
+        }
+    }
+}
+
+private extension UIView {
+    func setSearchReturnKeyEnabled() {
+        if let searchTextField = self as? UISearchTextField {
+            searchTextField.enablesReturnKeyAutomatically = false
+        }
+
+        subviews.forEach { subview in
+            subview.setSearchReturnKeyEnabled()
+        }
+    }
 }
 
 private struct SearchFilterSheet: View {
