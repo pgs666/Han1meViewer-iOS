@@ -171,7 +171,7 @@ class KsoupHtmlParser : HtmlParser {
             )
         }
 
-        val related = body.selectFirst("#related-tabcontent").toHanimeInfoList()
+        val related = body.selectFirst("#related-tabcontent").toRelatedHanimeInfoList()
         val artist = body.selectFirst("#video-artist-name")?.let { nameElement ->
             val artistName = nameElement.text().trim().takeIf { it.isNotBlank() } ?: return@let null
             val artistGenre = nameElement.nextElementSibling()?.text()?.trim()?.takeIf { it.isNotBlank() }
@@ -343,6 +343,45 @@ class KsoupHtmlParser : HtmlParser {
     private fun Element?.toHanimeInfoList(
         selector: String = "div[class^=horizontal-card]",
     ): List<HanimeInfo> = this?.select(selector)?.mapNotNull { it.toNormalHanimeInfo() }.orEmpty()
+
+    private fun Element?.toRelatedHanimeInfoList(): List<HanimeInfo> {
+        if (this == null) return emptyList()
+        val normalItems = toHanimeInfoList()
+        if (normalItems.isNotEmpty()) return normalItems
+
+        return children()
+            .flatMap { child ->
+                child.select("a").mapNotNull { link ->
+                    val simplified = link.toSimplifiedHanimeInfo()
+                    if (simplified != null) {
+                        simplified
+                    } else {
+                        link.selectFirst(".home-rows-videos-div")
+                            ?.let { wrapper ->
+                                val detailUrl = link.absUrl("href").ifBlank { link.attr("href") }
+                                val videoCode = detailUrl.toVideoCode()
+                                val coverUrl = wrapper.selectFirst("img")?.absUrl("src")
+                                    ?.ifBlank { wrapper.selectFirst("img")?.attr("src") }
+                                val title = wrapper.selectFirst("div.home-rows-videos-title, div[class$=title]")
+                                    ?.text()
+                                    ?.trim()
+                                if (videoCode != null && coverUrl != null && title != null) {
+                                    HanimeInfo(
+                                        title = title,
+                                        videoCode = videoCode,
+                                        coverUrl = coverUrl,
+                                        detailUrl = detailUrl,
+                                        itemType = HanimeItemType.Simplified,
+                                    )
+                                } else {
+                                    null
+                                }
+                            }
+                    }
+                }
+            }
+            .distinctBy { it.videoCode }
+    }
 
     private fun Element.toNormalHanimeInfo(): HanimeInfo? {
         val title = selectFirst("div.title, h4.video-title")?.text()?.trim()

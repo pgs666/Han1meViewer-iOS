@@ -100,6 +100,7 @@ private struct AndroidStylePlayerHeader: View {
     let snapshot: VideoDetailScreenSnapshot
     @State private var selectedSourceID: String
     @State private var player: AVPlayer?
+    @State private var isShowingFullscreen = false
 
     init(snapshot: VideoDetailScreenSnapshot) {
         self.snapshot = snapshot
@@ -109,32 +110,9 @@ private struct AndroidStylePlayerHeader: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                if let player {
-                    VideoPlayer(player: player)
-                        .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                } else {
-                    AsyncImage(url: snapshot.coverURL) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } placeholder: {
-                        Rectangle().fill(Color.black)
-                    }
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                    .overlay {
-                        VStack(spacing: 10) {
-                            Image(systemName: "play.slash")
-                                .font(.title)
-                            Text("未解析到可播放源")
-                                .font(.subheadline.weight(.semibold))
-                        }
-                        .foregroundStyle(.white)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .background(Color.black)
+            playerSurface
+                .frame(maxWidth: .infinity)
+                .background(Color.black)
 
             if !snapshot.playbackSources.isEmpty {
                 Picker("清晰度", selection: $selectedSourceID) {
@@ -156,10 +134,60 @@ private struct AndroidStylePlayerHeader: View {
         .onChange(of: selectedSourceID) { _ in
             configurePlayer(preservePosition: true)
         }
+        .fullScreenCover(isPresented: $isShowingFullscreen) {
+            FullscreenVideoPlayer(
+                title: snapshot.title,
+                player: player,
+                onClose: {
+                    isShowingFullscreen = false
+                }
+            )
+        }
     }
 
     private var selectedSource: VideoPlaybackSourceRow? {
         snapshot.playbackSources.first { $0.id == selectedSourceID } ?? snapshot.playbackSources.first
+    }
+
+    private var playerSurface: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let player {
+                VideoPlayer(player: player)
+                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
+            } else {
+                AsyncImage(url: snapshot.coverURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    Rectangle().fill(Color.black)
+                }
+                .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                .overlay {
+                    VStack(spacing: 10) {
+                        Image(systemName: "play.slash")
+                            .font(.title)
+                        Text("未解析到可播放源")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                }
+            }
+
+            if player != nil {
+                Button {
+                    isShowingFullscreen = true
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(.black.opacity(0.48), in: Circle())
+                }
+                .padding(12)
+                .accessibilityLabel("全屏播放")
+            }
+        }
     }
 
     private func configurePlayer(preservePosition: Bool) {
@@ -182,6 +210,46 @@ private struct AndroidStylePlayerHeader: View {
             }
         } else if shouldResume {
             nextPlayer.play()
+        }
+    }
+}
+
+private struct FullscreenVideoPlayer: View {
+    let title: String
+    let player: AVPlayer?
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.black.ignoresSafeArea()
+
+            if let player {
+                VideoPlayer(player: player)
+                    .ignoresSafeArea()
+            } else {
+                Text("未解析到可播放源")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            HStack(spacing: 12) {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(.black.opacity(0.52), in: Circle())
+                }
+                .accessibilityLabel("退出全屏")
+
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
         }
     }
 }
