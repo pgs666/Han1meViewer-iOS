@@ -262,10 +262,10 @@ private struct FullscreenVideoPlayer: View {
         }
         .onAppear {
             metrics.start(player: player)
-            AppOrientationController.shared.lock(to: metrics.orientation)
+            AppOrientationController.shared.lockForFullscreen(to: metrics.orientation)
         }
         .onChange(of: metrics.orientation) { orientation in
-            AppOrientationController.shared.lock(to: orientation)
+            AppOrientationController.shared.lockForFullscreen(to: orientation)
         }
         .onDisappear {
             metrics.stop()

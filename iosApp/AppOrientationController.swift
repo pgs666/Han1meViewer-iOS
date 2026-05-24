@@ -27,17 +27,34 @@ final class AppOrientationController {
     static let shared = AppOrientationController()
 
     private(set) var supportedOrientations: UIInterfaceOrientationMask = .allButUpsideDown
+    private var orientationBeforeFullscreen: UIInterfaceOrientation?
+    private var supportedOrientationsBeforeFullscreen: UIInterfaceOrientationMask?
 
     private init() {}
 
-    func lock(to orientation: VideoFullscreenOrientation) {
+    func lockForFullscreen(to orientation: VideoFullscreenOrientation) {
+        if orientationBeforeFullscreen == nil {
+            orientationBeforeFullscreen = currentInterfaceOrientation
+            supportedOrientationsBeforeFullscreen = supportedOrientations
+        }
         supportedOrientations = orientation.mask
         request(interfaceOrientation: orientation.interfaceOrientation, mask: orientation.mask)
     }
 
     func unlockAfterFullscreen() {
-        supportedOrientations = .allButUpsideDown
-        request(interfaceOrientation: .portrait, mask: .allButUpsideDown)
+        let previousOrientation = orientationBeforeFullscreen?.normalizedForPhone ?? .portrait
+        let previousMask = supportedOrientationsBeforeFullscreen ?? .allButUpsideDown
+        orientationBeforeFullscreen = nil
+        supportedOrientationsBeforeFullscreen = nil
+        supportedOrientations = previousMask
+        request(interfaceOrientation: previousOrientation, mask: previousMask)
+    }
+
+    private var currentInterfaceOrientation: UIInterfaceOrientation? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?
+            .interfaceOrientation
     }
 
     private func request(interfaceOrientation: UIInterfaceOrientation, mask: UIInterfaceOrientationMask) {
@@ -55,5 +72,11 @@ final class AppOrientationController {
             UIDevice.current.setValue(interfaceOrientation.rawValue, forKey: "orientation")
             UIViewController.attemptRotationToDeviceOrientation()
         }
+    }
+}
+
+private extension UIInterfaceOrientation {
+    var normalizedForPhone: UIInterfaceOrientation {
+        self == .portraitUpsideDown ? .portrait : self
     }
 }

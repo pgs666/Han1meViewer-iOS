@@ -33,19 +33,24 @@ struct HomeView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
-            VStack(spacing: 12) {
-                Image(systemName: "wifi.exclamationmark")
-                    .font(.largeTitle)
-                    .foregroundColor(.secondary)
-                Text("首页加载失败")
-                    .font(.headline)
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+            ScrollView {
+                VStack(spacing: 12) {
+                    Image(systemName: "wifi.exclamationmark")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("首页加载失败")
+                        .font(.headline)
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: UIScreen.main.bounds.height * 0.65)
             }
-            .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground))
         case .loaded(let snapshot):
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
