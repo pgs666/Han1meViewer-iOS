@@ -81,6 +81,29 @@ class KtorVideoRepository(
         cookieBridge.saveResponseCookies(response)
     }
 
+    override suspend fun setArtistSubscription(
+        userId: String,
+        artistId: String,
+        csrfToken: String?,
+        isSubscribed: Boolean,
+    ) {
+        val cookieHeader = cookieBridge.storedCookieHeader()
+        val response = client.submitForm(
+            url = "$baseUrl/subscribe",
+            formParameters = parameters {
+                append("_token", csrfToken.orEmpty())
+                append("subscribe-user-id", userId)
+                append("subscribe-artist-id", artistId)
+                append("subscribe-status", if (isSubscribed) "" else "1")
+            },
+        ) {
+            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+        }
+        cookieBridge.saveResponseCookies(response)
+    }
+
     private companion object {
         const val DEFAULT_BASE_URL = "https://hanime1.me"
         const val DEFAULT_USER_AGENT =

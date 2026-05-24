@@ -39,6 +39,8 @@ class VideoFeature(
             artistAvatarUrl = video.artist?.avatarUrl,
             artistGenre = video.artist?.genre,
             isArtistSubscribed = video.artist?.subscription?.isSubscribed ?: false,
+            artistSubscriptionUserId = video.artist?.subscription?.userId,
+            artistSubscriptionArtistId = video.artist?.subscription?.artistId,
             favTimes = video.favTimes,
             isFav = video.isFav,
             csrfToken = video.csrfToken,
@@ -121,6 +123,21 @@ class VideoFeature(
             isSelected = isSelected,
         )
     }
+
+    @Throws(Exception::class)
+    suspend fun setArtistSubscription(
+        userId: String,
+        artistId: String,
+        csrfToken: String?,
+        isSubscribed: Boolean,
+    ) {
+        repository.setArtistSubscription(
+            userId = userId,
+            artistId = artistId,
+            csrfToken = csrfToken,
+            isSubscribed = isSubscribed,
+        )
+    }
 }
 
 @Serializable
@@ -139,6 +156,8 @@ data class VideoDetailSnapshot(
     val artistAvatarUrl: String?,
     val artistGenre: String?,
     val isArtistSubscribed: Boolean,
+    val artistSubscriptionUserId: String?,
+    val artistSubscriptionArtistId: String?,
     val favTimes: Int?,
     val isFav: Boolean,
     val csrfToken: String?,

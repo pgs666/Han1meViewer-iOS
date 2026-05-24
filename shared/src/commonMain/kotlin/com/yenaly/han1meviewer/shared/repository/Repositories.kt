@@ -35,6 +35,13 @@ interface VideoRepository {
         csrfToken: String?,
         isSelected: Boolean,
     )
+
+    suspend fun setArtistSubscription(
+        userId: String,
+        artistId: String,
+        csrfToken: String?,
+        isSubscribed: Boolean,
+    )
 }
 
 interface FollowingRepository {

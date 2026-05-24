@@ -113,6 +113,27 @@ final class VideoDetailViewModel: ObservableObject {
         }
     }
 
+    func toggleArtistSubscription(snapshot: VideoDetailScreenSnapshot) {
+        guard let artist = snapshot.artist,
+              let userId = artist.subscriptionUserId,
+              let artistId = artist.subscriptionArtistId else {
+            showActionMessage("Please sign in before subscribing")
+            return
+        }
+
+        runAction(id: "artistSubscription") {
+            let nextValue = !artist.isSubscribed
+            try await self.videoFeature.setArtistSubscription(
+                userId: userId,
+                artistId: artistId,
+                csrfToken: snapshot.csrfToken,
+                isSubscribed: nextValue
+            )
+            self.updateLoadedSnapshot { $0.updatingArtistSubscription(isSubscribed: nextValue) }
+            self.showActionMessage(nextValue ? "Subscribed" : "Unsubscribed")
+        }
+    }
+
     private func runAction(id: String, operation: @escaping () async throws -> Void) {
         guard !runningActionIDs.contains(id) else { return }
         runningActionIDs.insert(id)
@@ -191,7 +212,9 @@ struct VideoDetailScreenSnapshot {
                 name: name,
                 avatarUrl: snapshot.artistAvatarUrl,
                 genre: snapshot.artistGenre,
-                isSubscribed: snapshot.isArtistSubscribed
+                isSubscribed: snapshot.isArtistSubscribed,
+                subscriptionUserId: snapshot.artistSubscriptionUserId,
+                subscriptionArtistId: snapshot.artistSubscriptionArtistId
             )
         } else {
             artist = nil
@@ -320,10 +343,15 @@ struct VideoDetailScreenSnapshot {
         )
     }
 
+    func updatingArtistSubscription(isSubscribed: Bool) -> VideoDetailScreenSnapshot {
+        copy(artist: artist?.updatingSubscription(isSubscribed: isSubscribed))
+    }
+
     private func copy(
         favTimes: Int? = nil,
         isFav: Bool? = nil,
         isWatchLater: Bool? = nil,
+        artist: VideoArtistRow? = nil,
         myListItems: [VideoMyListRow]? = nil
     ) -> VideoDetailScreenSnapshot {
         VideoDetailScreenSnapshot(
@@ -338,7 +366,7 @@ struct VideoDetailScreenSnapshot {
             defaultSourceUrl: defaultSourceUrl,
             uploadDate: uploadDate,
             coverUrl: coverUrl,
-            artist: artist,
+            artist: artist ?? self.artist,
             favTimes: favTimes ?? self.favTimes,
             isFav: isFav ?? self.isFav,
             csrfToken: csrfToken,
@@ -360,6 +388,19 @@ struct VideoArtistRow: Hashable {
     let avatarUrl: String?
     let genre: String?
     let isSubscribed: Bool
+    let subscriptionUserId: String?
+    let subscriptionArtistId: String?
+
+    func updatingSubscription(isSubscribed: Bool) -> VideoArtistRow {
+        VideoArtistRow(
+            name: name,
+            avatarUrl: avatarUrl,
+            genre: genre,
+            isSubscribed: isSubscribed,
+            subscriptionUserId: subscriptionUserId,
+            subscriptionArtistId: subscriptionArtistId
+        )
+    }
 }
 
 struct VideoPlaybackSourceRow: Identifiable, Hashable {

@@ -376,7 +376,13 @@ private struct AndroidStyleIntroduction: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 16) {
             if let artist = snapshot.artist {
-                ArtistCard(artist: artist)
+                ArtistCard(
+                    artist: artist,
+                    isRunning: viewModel.isActionRunning("artistSubscription"),
+                    toggleAction: {
+                        viewModel.toggleArtistSubscription(snapshot: snapshot)
+                    }
+                )
             }
 
             TitleBlock(snapshot: snapshot)
@@ -415,31 +421,41 @@ private struct AndroidStyleIntroduction: View {
 
 private struct ArtistCard: View {
     let artist: VideoArtistRow
+    let isRunning: Bool
+    let toggleAction: () -> Void
+    @State private var isConfirmingUnsubscribe = false
 
     var body: some View {
-        Button {} label: {
-            HStack(spacing: 12) {
-                AsyncImage(url: artist.avatarURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Circle().fill(Color.secondary.opacity(0.15))
-                }
-                .frame(width: 52, height: 52)
-                .clipShape(Circle())
+        HStack(spacing: 12) {
+            AsyncImage(url: artist.avatarURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Circle().fill(Color.secondary.opacity(0.15))
+            }
+            .frame(width: 52, height: 52)
+            .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(artist.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    if let genre = artist.genre, !genre.isEmpty {
-                        Text(genre)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(artist.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                if let genre = artist.genre, !genre.isEmpty {
+                    Text(genre)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
+            }
 
-                Spacer()
+            Spacer()
+
+            Button {
+                if artist.isSubscribed {
+                    isConfirmingUnsubscribe = true
+                } else {
+                    toggleAction()
+                }
+            } label: {
 
                 Text(artist.isSubscribed ? "已订阅" : "订阅")
                     .font(.subheadline.weight(.semibold))
@@ -447,10 +463,19 @@ private struct ArtistCard: View {
                     .padding(.vertical, 7)
                     .background(Color.accentColor.opacity(0.14), in: Capsule())
             }
-            .padding(12)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .disabled(isRunning)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .confirmationDialog("取消订阅该作者", isPresented: $isConfirmingUnsubscribe) {
+            Button("取消订阅", role: .destructive) {
+                toggleAction()
+            }
+            Button("不取消", role: .cancel) {}
+        } message: {
+            Text("确定要取消订阅吗？")
+        }
     }
 }
 
