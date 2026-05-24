@@ -58,6 +58,31 @@ data class HomeSection(
 )
 
 @Serializable
+data class MySubscriptions(
+    val subscriptions: List<SubscriptionItem>,
+    val subscriptionVideos: List<SubscriptionVideoItem>,
+    val maxPage: Int,
+)
+
+@Serializable
+data class SubscriptionItem(
+    val artistName: String,
+    val avatarUrl: String,
+)
+
+@Serializable
+data class SubscriptionVideoItem(
+    val title: String,
+    val coverUrl: String,
+    val videoCode: String,
+    val duration: String? = null,
+    val views: String? = null,
+    val reviews: String? = null,
+    val currentArtist: String? = null,
+    val uploadTime: String? = null,
+)
+
+@Serializable
 data class HanimeVideo(
     val videoCode: String,
     val title: String,

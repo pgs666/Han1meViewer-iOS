@@ -3,6 +3,7 @@ package com.yenaly.han1meviewer.shared.repository
 import com.yenaly.han1meviewer.shared.model.HanimeInfo
 import com.yenaly.han1meviewer.shared.model.HanimeVideo
 import com.yenaly.han1meviewer.shared.model.HomePage
+import com.yenaly.han1meviewer.shared.model.MySubscriptions
 import com.yenaly.han1meviewer.shared.model.PageResult
 import com.yenaly.han1meviewer.shared.model.SearchParams
 
@@ -16,4 +17,8 @@ interface SearchRepository {
 
 interface VideoRepository {
     suspend fun getVideo(videoCode: String): HanimeVideo
+}
+
+interface FollowingRepository {
+    suspend fun getSubscriptions(page: Int): MySubscriptions
 }

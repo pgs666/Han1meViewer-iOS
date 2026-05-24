@@ -1,4 +1,4 @@
-package com.yenaly.han1meviewer.shared.parser
+﻿package com.yenaly.han1meviewer.shared.parser
 
 import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Element
@@ -8,9 +8,12 @@ import com.yenaly.han1meviewer.shared.model.HanimeVideo
 import com.yenaly.han1meviewer.shared.model.HomeBanner
 import com.yenaly.han1meviewer.shared.model.HomePage
 import com.yenaly.han1meviewer.shared.model.HomeSection
+import com.yenaly.han1meviewer.shared.model.MySubscriptions
 import com.yenaly.han1meviewer.shared.model.PageResult
 import com.yenaly.han1meviewer.shared.model.PlaybackSource
 import com.yenaly.han1meviewer.shared.model.SearchParams
+import com.yenaly.han1meviewer.shared.model.SubscriptionItem
+import com.yenaly.han1meviewer.shared.model.SubscriptionVideoItem
 import kotlinx.datetime.LocalDate
 
 class KsoupHtmlParser : HtmlParser {
@@ -134,6 +137,61 @@ class KsoupHtmlParser : HtmlParser {
         )
     }
 
+    override fun parseSubscriptions(html: String): MySubscriptions {
+        val body = Ksoup.parse(html).body()
+        val subscriptionsRoot = body.selectFirst("div.subscriptions-nav")
+            ?: error("Could not find subscriptions list. Login may be required.")
+        val subscriptionVideosRoot = body.selectFirst("div.content-padding-new")
+            ?: error("Could not find subscription videos. Login may be required.")
+
+        val artists = subscriptionsRoot.select("div.subscriptions-artist-card").mapNotNull { card ->
+            val avatarUrl = card.select("img").getOrNull(1)?.absUrl("src")
+                ?.ifBlank { card.select("img").getOrNull(1)?.attr("src") }
+                ?: return@mapNotNull null
+            val artistName = card.selectFirst("div.card-mobile-title")?.text()?.trim()
+                ?: return@mapNotNull null
+
+            SubscriptionItem(
+                artistName = artistName,
+                avatarUrl = avatarUrl,
+            )
+        }
+
+        val videos = subscriptionVideosRoot.select("div[class^=video-item-container]").mapNotNull { videoCard ->
+            val detailUrl = videoCard.selectFirst("a[class^=video-link]")?.absUrl("href")
+                ?.ifBlank { videoCard.selectFirst("a[class^=video-link]")?.attr("href") }
+                ?: return@mapNotNull null
+            val videoCode = detailUrl.toVideoCode() ?: return@mapNotNull null
+            val coverUrl = videoCard.select("img[class^=main-thumb]").getOrNull(0)?.absUrl("src")
+                ?.ifBlank { videoCard.select("img[class^=main-thumb]").getOrNull(0)?.attr("src") }
+                ?: return@mapNotNull null
+            val title = videoCard.attr("title").trim().ifBlank {
+                videoCard.selectFirst("div.title, h4.video-title")?.text()?.trim().orEmpty()
+            }
+            if (title.isBlank()) return@mapNotNull null
+
+            val thumbContainer = videoCard.select("div[class^=thumb-container]")
+            val artistUploadParts = videoCard.select("div.subtitle a").toSubtitleMetadataParts()
+
+            SubscriptionVideoItem(
+                title = title,
+                coverUrl = coverUrl,
+                videoCode = videoCode,
+                duration = thumbContainer.select("div[class^=duration]").text().ifBlank { null },
+                views = thumbContainer.select("div[class^=stat-item]").getOrNull(1)?.text(),
+                reviews = videoCard.selectFirst(".stats-container .stat-item")?.text()?.replace("thumb_up", "")?.trim(),
+                currentArtist = artistUploadParts.getOrNull(0),
+                uploadTime = artistUploadParts.getOrNull(1),
+            )
+        }
+
+        return MySubscriptions(
+            subscriptions = artists,
+            subscriptionVideos = videos,
+            maxPage = body.parseMaxPage(),
+        )
+    }
+
     private fun Element?.toHanimeInfoList(
         selector: String = "div[class^=horizontal-card]",
     ): List<HanimeInfo> = this?.select(selector)?.mapNotNull { it.toNormalHanimeInfo() }.orEmpty()
@@ -146,8 +204,7 @@ class KsoupHtmlParser : HtmlParser {
         if (title == null || coverUrl == null || videoCode == null) return null
 
         val durationAndViews = select("div[class^=thumb-container]")
-        val artistAndUploadTime = selectFirst("div.subtitle a, div.video-meta-data a")?.text()?.trim().orEmpty()
-        val artistUploadParts = artistAndUploadTime.split("•").map { it.trim() }
+        val artistUploadParts = select("div.subtitle a, div.video-meta-data a").toSubtitleMetadataParts()
 
         return HanimeInfo(
             title = title,
@@ -180,8 +237,30 @@ class KsoupHtmlParser : HtmlParser {
 
     private fun String.toVideoCode(): String? = VIDEO_CODE_REGEX.find(this)?.groupValues?.getOrNull(1)
 
+    private fun List<Element>.toSubtitleMetadataParts(): List<String> {
+        val parts = map { it.text().trim() }.filter { it.isNotEmpty() }
+        if (parts.size != 1) return parts
+
+        val value = parts.single()
+        val date = ISO_DATE_REGEX.find(value)?.value ?: return parts
+        val artist = value.substringBefore(date).trim().trim('-', '/', '|', ' ', '•')
+        return listOf(artist, date).filter { it.isNotEmpty() }
+    }
+
+    private fun Element.parseMaxPage(): Int {
+        return select("ul.pagination")
+            .lastOrNull()
+            ?.select("a.page-link[href]")
+            ?.mapNotNull { link ->
+                PAGE_REGEX.find(link.attr("href"))?.groupValues?.getOrNull(1)?.toIntOrNull()
+            }
+            ?.maxOrNull() ?: 1
+    }
+
     private companion object {
         val VIDEO_CODE_REGEX = Regex("""(?:watch\?v=|/videos/|/watch/)(\d+)""")
+        val PAGE_REGEX = Regex("""\?page=(\d+)""")
+        val ISO_DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
         val VIDEO_SOURCE_REGEX = Regex("""const source = '(.+)'""")
         val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""(.+?)\s*(\d{4}-\d{2}-\d{2})""")

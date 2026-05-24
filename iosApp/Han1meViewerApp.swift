@@ -13,7 +13,7 @@ struct Han1meViewerApp: App {
                         Label("首页", systemImage: "house")
                     }
 
-                FollowingView()
+                FollowingView(environment: sharedEnvironment)
                     .tabItem {
                         Label("关注", systemImage: "heart")
                     }
