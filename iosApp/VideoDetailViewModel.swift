@@ -16,34 +16,49 @@ final class VideoDetailViewModel: ObservableObject {
 
     private let videoFeature: VideoFeature
     private var loadedVideoCode: String?
+    private var loadingVideoCode: String?
+    private var loadTask: Task<Void, Never>?
 
     init(videoFeature: VideoFeature) {
         self.videoFeature = videoFeature
     }
 
     func loadIfNeeded(videoCode: String) {
-        if loadedVideoCode == videoCode {
+        if loadedVideoCode == videoCode, case .loaded = state {
+            return
+        }
+        if loadingVideoCode == videoCode, case .loading = state {
             return
         }
         load(videoCode: videoCode)
     }
 
     func load(videoCode: String) {
-        guard case .loading = state else {
-            loadedVideoCode = videoCode
-            state = .loading
-            Task {
-                await loadVideo(videoCode: videoCode)
-            }
-            return
+        loadTask?.cancel()
+        loadedVideoCode = nil
+        loadingVideoCode = videoCode
+        state = .loading
+        loadTask = Task { [weak self] in
+            await self?.loadVideo(videoCode: videoCode)
         }
     }
 
     private func loadVideo(videoCode: String) async {
+        defer {
+            if loadingVideoCode == videoCode {
+                loadingVideoCode = nil
+            }
+        }
+
         do {
             let snapshot = try await videoFeature.loadVideo(videoCode: videoCode)
+            guard !Task.isCancelled, loadingVideoCode == videoCode else { return }
+            loadedVideoCode = videoCode
             state = .loaded(VideoDetailScreenSnapshot(snapshot))
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled, loadingVideoCode == videoCode else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
