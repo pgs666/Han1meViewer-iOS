@@ -29,6 +29,10 @@ class KsoupHtmlParserTest {
                     <div class="stats-container"><div class="stat-item">thumb_up 98%</div></div>
                   </div>
                 </div>
+                <ul class="pagination">
+                  <li><a class="page-link" href="/search?page=1">1</a></li>
+                  <li><a class="page-link" href="/search?page=2">2</a></li>
+                </ul>
               </body>
             </html>
         """.trimIndent()
@@ -40,6 +44,28 @@ class KsoupHtmlParserTest {
         assertEquals("12345", result.items.single().videoCode)
         assertEquals("Artist", result.items.single().currentArtist)
         assertEquals(HanimeItemType.Normal, result.items.single().itemType)
+    }
+
+    @Test
+    fun treatsPageWithoutPaginationAsLastPage() {
+        val html = """
+            <html>
+              <body>
+                <div class="content-padding-new">
+                  <div class="horizontal-card">
+                    <a href="https://hanime1.me/watch?v=12345"></a>
+                    <img src="https://img.example/cover.jpg">
+                    <div class="title">Video title</div>
+                  </div>
+                </div>
+              </body>
+            </html>
+        """.trimIndent()
+
+        val result = parser.parseSearch(html, SearchParams(keyword = "video"), page = 1)
+
+        assertEquals(false, result.hasNext)
+        assertEquals(1, result.items.size)
     }
 
     @Test

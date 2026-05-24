@@ -85,7 +85,7 @@ class KsoupHtmlParser : HtmlParser {
         return PageResult(
             items = items,
             page = page,
-            hasNext = items.isNotEmpty(),
+            hasNext = body.hasNextPage(page),
         )
     }
 
@@ -284,7 +284,7 @@ class KsoupHtmlParser : HtmlParser {
         return MySubscriptions(
             subscriptions = artists,
             subscriptionVideos = videos,
-            maxPage = body.parseMaxPage(),
+            maxPage = body.parseMaxPage() ?: 1,
         )
     }
 
@@ -302,7 +302,7 @@ class KsoupHtmlParser : HtmlParser {
             listDescription = description,
             csrfToken = csrfToken,
             page = page,
-            hasNext = items.isNotEmpty(),
+            hasNext = body.hasNextPage(page),
         )
     }
 
@@ -336,7 +336,7 @@ class KsoupHtmlParser : HtmlParser {
             playlists = playlists,
             csrfToken = csrfToken,
             page = page,
-            hasNext = playlists.isNotEmpty(),
+            hasNext = body.hasNextPage(page),
         )
     }
 
@@ -434,14 +434,18 @@ class KsoupHtmlParser : HtmlParser {
         return listOf(artist, date).filter { it.isNotEmpty() }
     }
 
-    private fun Element.parseMaxPage(): Int {
+    private fun Element.hasNextPage(page: Int): Boolean {
+        return page < (parseMaxPage() ?: page)
+    }
+
+    private fun Element.parseMaxPage(): Int? {
         return select("ul.pagination")
             .lastOrNull()
             ?.select("a.page-link[href]")
             ?.mapNotNull { link ->
                 PAGE_REGEX.find(link.attr("href"))?.groupValues?.getOrNull(1)?.toIntOrNull()
             }
-            ?.maxOrNull() ?: 1
+            ?.maxOrNull()
     }
 
     private companion object {
