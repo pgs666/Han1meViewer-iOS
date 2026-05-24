@@ -15,11 +15,36 @@ struct SearchView: View {
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                searchHeader
-                content
-            }
+            content
             .navigationTitle("搜索")
+            .searchable(
+                text: $keyword,
+                placement: .automatic,
+                prompt: "搜索影片、标签或作者"
+            )
+            .onSubmit(of: .search) {
+                viewModel.search(keyword: keyword)
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        isShowingFilters = true
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "slider.horizontal.3")
+                            if viewModel.filters.activeCount > 0 {
+                                Text("\(viewModel.filters.activeCount)")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.red))
+                                    .offset(x: 9, y: -9)
+                            }
+                        }
+                    }
+                }
+            }
             .onAppear {
                 viewModel.loadHistoryIfNeeded()
             }
@@ -38,93 +63,6 @@ struct SearchView: View {
             }
         }
         .navigationViewStyle(.stack)
-    }
-
-    private var searchHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("搜索影片、标签或作者", text: $keyword)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
-                        .submitLabel(.search)
-                        .onSubmit {
-                            viewModel.search(keyword: keyword)
-                        }
-
-                    if !keyword.isEmpty {
-                        Button {
-                            keyword = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                Button {
-                    isShowingFilters = true
-                } label: {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "slider.horizontal.3")
-                            .frame(width: 38, height: 38)
-                        if viewModel.filters.activeCount > 0 {
-                            Text("\(viewModel.filters.activeCount)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(Color.accentColor))
-                                .offset(x: 4, y: -5)
-                        }
-                    }
-                }
-                .buttonStyle(.bordered)
-            }
-
-            Button {
-                viewModel.search(keyword: keyword)
-            } label: {
-                Label("搜索", systemImage: "magnifyingglass")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .searchProminentGlassButton()
-            .disabled(keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.filters.hasActiveFilters)
-
-            if !viewModel.filters.summaryItems.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(viewModel.filters.summaryItems, id: \.self) { item in
-                            Text(item)
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.accentColor.opacity(0.12), in: Capsule())
-                                .foregroundStyle(.primary)
-                        }
-
-                        Button {
-                            viewModel.resetFilters()
-                        } label: {
-                            Label("清除", systemImage: "xmark")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
-        .background(Color(.systemGroupedBackground))
     }
 
     @ViewBuilder
@@ -162,45 +100,108 @@ struct SearchView: View {
     }
 
     private var idleContent: some View {
-        List {
-            Section {
-                Button {
-                    isShowingFilters = true
-                } label: {
-                    Label("打开筛选面板", systemImage: "slider.horizontal.3")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                if !viewModel.filters.summaryItems.isEmpty {
+                    filterSummary
                 }
 
-                if keyword.isEmpty {
-                    Text("输入关键词，或使用筛选面板开始高级搜索。")
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("搜索")
-            }
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("浏览分类")
+                            .font(.title2.weight(.bold))
+                        Spacer()
+                    }
 
-            if !viewModel.history.isEmpty {
-                Section {
-                    ForEach(viewModel.history, id: \.self) { item in
-                        Button {
-                            keyword = item
-                            viewModel.search(keyword: item)
-                        } label: {
-                            Label(item, systemImage: "clock.arrow.circlepath")
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 14),
+                            GridItem(.flexible(), spacing: 14),
+                        ],
+                        spacing: 14
+                    ) {
+                        ForEach(browseCards) { card in
+                            Button {
+                                isShowingFilters = true
+                            } label: {
+                                SearchBrowseCard(card: card)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
-                } header: {
-                    HStack {
-                        Text("最近搜索")
-                        Spacer()
-                        Button("清空") {
-                            viewModel.clearHistory()
+                }
+
+                if !viewModel.history.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("最近搜索")
+                                .font(.title2.weight(.bold))
+                            Spacer()
+                            Button("清空") {
+                                viewModel.clearHistory()
+                            }
+                            .font(.caption)
                         }
-                        .font(.caption)
+
+                        VStack(spacing: 0) {
+                            ForEach(viewModel.history, id: \.self) { item in
+                                Button {
+                                    keyword = item
+                                    viewModel.search(keyword: item)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .foregroundStyle(.secondary)
+                                        Text(item)
+                                            .foregroundColor(.primary)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .padding(.vertical, 13)
+                                }
+                                if item != viewModel.history.last {
+                                    Divider()
+                                        .padding(.leading, 28)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 18)
+        }
+        .background(Color(.systemBackground))
+    }
+
+    private var filterSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("已选筛选")
+                    .font(.title3.weight(.bold))
+                Spacer()
+                Button("清除") {
+                    viewModel.resetFilters()
+                    viewModel.search(keyword: keyword, filters: SearchFilterState())
+                }
+                .font(.caption)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(viewModel.filters.summaryItems, id: \.self) { item in
+                        Text(item)
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 7)
+                            .background(Color.red.opacity(0.12), in: Capsule())
+                            .foregroundStyle(.primary)
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
     }
 
     private func resultList(snapshot: SearchScreenSnapshot) -> some View {
@@ -279,6 +280,53 @@ struct SearchView: View {
                     .padding(.vertical, 8)
             }
         }
+    }
+
+    private var browseCards: [SearchBrowseCardModel] {
+        [
+            SearchBrowseCardModel(title: "类型", systemImage: "square.grid.2x2.fill", colors: [.red, .pink]),
+            SearchBrowseCardModel(title: "排序", systemImage: "arrow.up.arrow.down", colors: [.pink, .purple]),
+            SearchBrowseCardModel(title: "影片属性", systemImage: "sparkles", colors: [.orange, .yellow]),
+            SearchBrowseCardModel(title: "标签", systemImage: "tag.fill", colors: [.red, .orange]),
+            SearchBrowseCardModel(title: "发布日期", systemImage: "calendar", colors: [.blue, .cyan]),
+            SearchBrowseCardModel(title: "影片时长", systemImage: "clock.fill", colors: [.indigo, .blue]),
+            SearchBrowseCardModel(title: "人物关系", systemImage: "person.2.fill", colors: [.purple, .pink]),
+            SearchBrowseCardModel(title: "情景场所", systemImage: "map.fill", colors: [.green, .teal]),
+        ]
+    }
+}
+
+private struct SearchBrowseCardModel: Identifiable {
+    let title: String
+    let systemImage: String
+    let colors: [Color]
+
+    var id: String { title }
+}
+
+private struct SearchBrowseCard: View {
+    let card: SearchBrowseCardModel
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: card.colors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Image(systemName: card.systemImage)
+                .font(.system(size: 58, weight: .bold))
+                .foregroundColor(.white.opacity(0.28))
+                .rotationEffect(.degrees(-8))
+                .offset(x: 44, y: -22)
+            Text(card.title)
+                .font(.title3.weight(.bold))
+                .foregroundColor(.white)
+                .lineLimit(2)
+                .padding(16)
+        }
+        .frame(height: 112)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -532,50 +580,5 @@ private struct SearchResultRow: View {
             }
         }
         .padding(.vertical, 4)
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func searchProminentGlassButton() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-        } else {
-            self.buttonStyle(LiquidGlassSearchButtonStyle())
-        }
-    }
-}
-
-private struct LiquidGlassSearchButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(.vertical, 14)
-            .foregroundStyle(.primary)
-            .background {
-                ZStack {
-                    Capsule(style: .continuous)
-                        .fill(.ultraThinMaterial)
-                    Capsule(style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(configuration.isPressed ? 0.10 : 0.28),
-                                    Color.white.opacity(0.04),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
-            }
-            .overlay {
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
-            }
-            .shadow(color: Color.black.opacity(configuration.isPressed ? 0.08 : 0.16), radius: 18, x: 0, y: 10)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.spring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
