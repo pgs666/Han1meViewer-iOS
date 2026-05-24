@@ -218,14 +218,23 @@ private struct FullscreenVideoPlayer: View {
     let title: String
     let player: AVPlayer?
     let onClose: () -> Void
+    @StateObject private var metrics = FullscreenVideoMetrics()
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.black.ignoresSafeArea()
 
             if let player {
-                VideoPlayer(player: player)
-                    .ignoresSafeArea()
+                GeometryReader { proxy in
+                    VideoPlayer(player: player)
+                        .aspectRatio(metrics.aspectRatio, contentMode: .fit)
+                        .frame(
+                            width: proxy.size.width,
+                            height: proxy.size.height,
+                            alignment: .center
+                        )
+                }
+                .ignoresSafeArea()
             } else {
                 Text("未解析到可播放源")
                     .font(.headline)
@@ -251,6 +260,53 @@ private struct FullscreenVideoPlayer: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
         }
+        .onAppear {
+            metrics.start(player: player)
+            AppOrientationController.shared.lock(to: metrics.orientation)
+        }
+        .onChange(of: metrics.orientation) { orientation in
+            AppOrientationController.shared.lock(to: orientation)
+        }
+        .onDisappear {
+            metrics.stop()
+            AppOrientationController.shared.unlockAfterFullscreen()
+        }
+    }
+}
+
+@MainActor
+private final class FullscreenVideoMetrics: ObservableObject {
+    @Published private(set) var orientation: VideoFullscreenOrientation = .landscape
+    @Published private(set) var aspectRatio: CGFloat = 16.0 / 9.0
+
+    private var presentationSizeObservation: NSKeyValueObservation?
+
+    func start(player: AVPlayer?) {
+        stop()
+        guard let item = player?.currentItem else {
+            return
+        }
+
+        update(size: item.presentationSize)
+        presentationSizeObservation = item.observe(\.presentationSize, options: [.initial, .new]) { [weak self] item, _ in
+            Task { @MainActor in
+                self?.update(size: item.presentationSize)
+            }
+        }
+    }
+
+    func stop() {
+        presentationSizeObservation?.invalidate()
+        presentationSizeObservation = nil
+    }
+
+    private func update(size: CGSize) {
+        guard size.width > 0, size.height > 0 else {
+            return
+        }
+
+        aspectRatio = size.width / size.height
+        orientation = size.width >= size.height ? .landscape : .portrait
     }
 }
 
