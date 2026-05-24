@@ -80,6 +80,22 @@ data class UserVideoListPage(
 )
 
 @Serializable
+data class UserPlaylistPage(
+    val playlists: List<UserPlaylist>,
+    val csrfToken: String?,
+    val page: Int,
+    val hasNext: Boolean,
+)
+
+@Serializable
+data class UserPlaylist(
+    val listCode: String,
+    val title: String,
+    val total: Int,
+    val coverUrl: String?,
+)
+
+@Serializable
 data class SubscriptionItem(
     val artistName: String,
     val avatarUrl: String,

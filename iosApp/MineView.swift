@@ -88,8 +88,8 @@ struct MineView: View {
                     } label: {
                         MineMenuRow(title: "收藏影片", systemImage: "heart")
                     }
-                    Button {
-                        activeAlert = .notMigrated("播放清单")
+                    NavigationLink {
+                        UserPlaylistView(feature: environment.userPlaylistFeature())
                     } label: {
                         MineMenuRow(title: "播放清单", systemImage: "list.bullet.rectangle")
                     }

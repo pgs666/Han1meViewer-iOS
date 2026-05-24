@@ -10,6 +10,7 @@ import com.yenaly.han1meviewer.shared.home.HomeFeature
 import com.yenaly.han1meviewer.shared.repository.KtorFollowingRepository
 import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
 import com.yenaly.han1meviewer.shared.repository.KtorSearchRepository
+import com.yenaly.han1meviewer.shared.repository.KtorUserPlaylistRepository
 import com.yenaly.han1meviewer.shared.repository.KtorUserVideoListRepository
 import com.yenaly.han1meviewer.shared.repository.KtorVideoRepository
 import com.yenaly.han1meviewer.shared.search.SearchFeature
@@ -17,6 +18,7 @@ import com.yenaly.han1meviewer.shared.search.SearchHistoryStore
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import com.yenaly.han1meviewer.shared.session.SqlDelightSessionStore
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
+import com.yenaly.han1meviewer.shared.playlist.UserPlaylistFeature
 import com.yenaly.han1meviewer.shared.userlist.UserVideoListFeature
 import com.yenaly.han1meviewer.shared.video.VideoFeature
 
@@ -29,6 +31,7 @@ class SharedAppEnvironment(
     private val searchHistoryStore = SearchHistoryStore(database)
     private val homeRepository = KtorHomeRepository(sessionStore)
     private val userVideoListRepository = KtorUserVideoListRepository(sessionStore)
+    private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore)
 
     fun webLoginFeature(): WebLoginFeature {
         return WebLoginFeature(sessionStore)
@@ -73,6 +76,13 @@ class SharedAppEnvironment(
             type = UserVideoListType.Favorites,
             homeRepository = homeRepository,
             listRepository = userVideoListRepository,
+        )
+    }
+
+    fun userPlaylistFeature(): UserPlaylistFeature {
+        return UserPlaylistFeature(
+            homeRepository = homeRepository,
+            playlistRepository = userPlaylistRepository,
         )
     }
 }

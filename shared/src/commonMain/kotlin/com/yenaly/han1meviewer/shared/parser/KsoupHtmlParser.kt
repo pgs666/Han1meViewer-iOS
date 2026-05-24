@@ -14,6 +14,8 @@ import com.yenaly.han1meviewer.shared.model.PlaybackSource
 import com.yenaly.han1meviewer.shared.model.SearchParams
 import com.yenaly.han1meviewer.shared.model.SubscriptionItem
 import com.yenaly.han1meviewer.shared.model.SubscriptionVideoItem
+import com.yenaly.han1meviewer.shared.model.UserPlaylist
+import com.yenaly.han1meviewer.shared.model.UserPlaylistPage
 import com.yenaly.han1meviewer.shared.model.UserVideoListPage
 import kotlinx.datetime.LocalDate
 
@@ -206,6 +208,40 @@ class KsoupHtmlParser : HtmlParser {
             csrfToken = csrfToken,
             page = page,
             hasNext = items.isNotEmpty(),
+        )
+    }
+
+    override fun parseUserPlaylists(html: String, page: Int): UserPlaylistPage {
+        val body = Ksoup.parse(html).body()
+        val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
+        val playlists = body.select(".user-tab-item-wrapper").mapNotNull { item ->
+            val detailUrl = item.selectFirst("a.video-link")?.absUrl("href")
+                ?.ifBlank { item.selectFirst("a.video-link")?.attr("href") }
+                ?: return@mapNotNull null
+            val listCode = detailUrl.substringAfter("list=", missingDelimiterValue = "").takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val title = item.selectFirst(".title")?.ownText()?.trim()?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val total = item.selectFirst(".stat-item")
+                ?.text()
+                ?.filter { char -> char.isDigit() }
+                ?.toIntOrNull() ?: 0
+            val coverUrl = item.selectFirst("img.main-thumb")?.absUrl("src")
+                ?.ifBlank { item.selectFirst("img.main-thumb")?.attr("src") }
+
+            UserPlaylist(
+                listCode = listCode,
+                title = title,
+                total = total,
+                coverUrl = coverUrl,
+            )
+        }
+
+        return UserPlaylistPage(
+            playlists = playlists,
+            csrfToken = csrfToken,
+            page = page,
+            hasNext = playlists.isNotEmpty(),
         )
     }
 
