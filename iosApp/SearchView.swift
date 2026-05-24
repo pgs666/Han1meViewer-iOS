@@ -20,6 +20,9 @@ struct SearchView: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .navigationTitle("搜索")
+            .onAppear {
+                viewModel.loadHistory()
+            }
         }
         .navigationViewStyle(.stack)
     }
@@ -58,9 +61,31 @@ struct SearchView: View {
         switch viewModel.state {
         case .idle:
             List {
-                Section("搜索") {
-                    Text("输入关键词开始搜索。")
-                        .foregroundStyle(.secondary)
+                if viewModel.history.isEmpty {
+                    Section("搜索") {
+                        Text("输入关键词开始搜索。")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section {
+                        ForEach(viewModel.history, id: \.self) { item in
+                            Button {
+                                keyword = item
+                                viewModel.search(keyword: item)
+                            } label: {
+                                Label(item, systemImage: "clock.arrow.circlepath")
+                            }
+                        }
+                    } header: {
+                        HStack {
+                            Text("最近搜索")
+                            Spacer()
+                            Button("清空") {
+                                viewModel.clearHistory()
+                            }
+                            .font(.caption)
+                        }
+                    }
                 }
             }
             .listStyle(.insetGrouped)
@@ -160,8 +185,8 @@ private struct SearchResultRow: View {
     var body: some View {
         HStack(spacing: 12) {
             CachedRemoteImage(urlString: video.coverUrl)
-            .frame(width: 96, height: 54)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+                .frame(width: 96, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(video.title)

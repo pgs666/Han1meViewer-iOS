@@ -12,6 +12,7 @@ import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
 import com.yenaly.han1meviewer.shared.repository.KtorSearchRepository
 import com.yenaly.han1meviewer.shared.repository.KtorVideoRepository
 import com.yenaly.han1meviewer.shared.search.SearchFeature
+import com.yenaly.han1meviewer.shared.search.SearchHistoryStore
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import com.yenaly.han1meviewer.shared.session.SqlDelightSessionStore
 import com.yenaly.han1meviewer.shared.video.VideoFeature
@@ -22,6 +23,7 @@ class SharedAppEnvironment(
     private val database = createDatabase(driverFactory)
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
     private val watchHistoryStore = WatchHistoryStore(database)
+    private val searchHistoryStore = SearchHistoryStore(database)
 
     fun webLoginFeature(): WebLoginFeature {
         return WebLoginFeature(sessionStore)
@@ -36,7 +38,10 @@ class SharedAppEnvironment(
     }
 
     fun searchFeature(): SearchFeature {
-        return SearchFeature(KtorSearchRepository(sessionStore))
+        return SearchFeature(
+            repository = KtorSearchRepository(sessionStore),
+            historyStore = searchHistoryStore,
+        )
     }
 
     fun videoFeature(): VideoFeature {

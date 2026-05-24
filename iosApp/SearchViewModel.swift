@@ -12,6 +12,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    @Published private(set) var history: [String] = []
 
     private let searchFeature: SearchFeature
     private var currentKeyword = ""
@@ -20,6 +21,19 @@ final class SearchViewModel: ObservableObject {
 
     init(searchFeature: SearchFeature) {
         self.searchFeature = searchFeature
+    }
+
+    func loadHistory() {
+        let snapshot = searchFeature.recentHistory(limit: 12)
+        let count = Int(snapshot.keywordCount())
+        history = (0..<count).compactMap { index in
+            snapshot.keywordAt(index: Int32(index))
+        }
+    }
+
+    func clearHistory() {
+        _ = searchFeature.clearHistory()
+        history = []
     }
 
     func search(keyword: String) {
@@ -77,6 +91,9 @@ final class SearchViewModel: ObservableObject {
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
+            if page == 1 {
+                loadHistory()
+            }
             state = .loaded(screenSnapshot)
         } catch {
             if let existingSnapshot {
