@@ -23,18 +23,10 @@ struct SettingsView: View {
                 }
             }
 
-            Section("本地数据") {
-                Button(role: .destructive) {
-                    activeConfirmation = .clearSearchHistory
-                } label: {
-                    SettingsNavigationRow(title: "清除搜索历史", systemImage: "magnifyingglass")
-                }
-
-                Button(role: .destructive) {
-                    activeConfirmation = .clearWatchHistory
-                } label: {
-                    SettingsNavigationRow(title: "清除本地观看历史", systemImage: "clock")
-                }
+            Section {
+                localDataActions
+            } header: {
+                Text("本地数据")
             } footer: {
                 Text("这里只清除 iOS 本地数据，不会修改网站账号里的在线记录。")
             }
@@ -75,6 +67,21 @@ struct SettingsView: View {
         return [version, build.map { "(\($0))" }]
             .compactMap { $0 }
             .joined(separator: " ")
+    }
+
+    @ViewBuilder
+    private var localDataActions: some View {
+        Button(role: .destructive) {
+            activeConfirmation = .clearSearchHistory
+        } label: {
+            SettingsNavigationRow(title: "清除搜索历史", systemImage: "magnifyingglass")
+        }
+
+        Button(role: .destructive) {
+            activeConfirmation = .clearWatchHistory
+        } label: {
+            SettingsNavigationRow(title: "清除本地观看历史", systemImage: "clock")
+        }
     }
 
     private var confirmationBinding: Binding<Bool> {
