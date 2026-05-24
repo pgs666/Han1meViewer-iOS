@@ -64,7 +64,7 @@ struct HomeScreenSnapshot {
         }
 
         let sectionCount = Int(snapshot.homeSectionCount())
-        sections = (0..<sectionCount).compactMap { sectionIndex in
+        sections = (0..<sectionCount).compactMap { sectionIndex -> HomeSectionRow? in
             guard let section = snapshot.homeSectionAt(index: Int32(sectionIndex)) else {
                 return nil
             }
