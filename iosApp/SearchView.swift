@@ -30,17 +30,18 @@ struct SearchView: View {
                     Button {
                         isShowingFilters = true
                     } label: {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "slider.horizontal.3")
-                            if viewModel.filters.activeCount > 0 {
-                                Text("\(viewModel.filters.activeCount)")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(Capsule().fill(Color.red))
-                                    .offset(x: 9, y: -9)
-                            }
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if viewModel.filters.activeCount > 0 {
+                            Text("\(viewModel.filters.activeCount)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.red))
+                                .offset(x: 10, y: -14)
+                                .allowsHitTesting(false)
                         }
                     }
                 }
