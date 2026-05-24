@@ -62,6 +62,7 @@ struct HomeView: View {
                             isCompact: horizontalSizeClass == .regular
                         )
                         .padding(.horizontal, 16)
+                        .padding(.bottom, horizontalSizeClass == .regular ? 10 : 0)
                     }
 
                     ForEach(snapshot.sections) { section in
@@ -97,22 +98,19 @@ private struct HomeBannerView: View {
                 bannerContent
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: isCompact ? .leading : .center)
     }
 
     private var bannerContent: some View {
         GeometryReader { proxy in
-            let width = min(proxy.size.width, isCompact ? 560 : proxy.size.width)
+            let width = min(proxy.size.width, isCompact ? 440 : proxy.size.width)
             let height = width / (isCompact ? 3.2 : 16.0 / 9.0)
 
-            HStack {
-                Spacer(minLength: 0)
-                bannerFrame
-                    .frame(width: width, height: height)
-                Spacer(minLength: 0)
-            }
+            bannerFrame
+                .frame(width: width, height: height)
+                .frame(maxWidth: .infinity, alignment: isCompact ? .leading : .center)
         }
-        .frame(height: isCompact ? 175 : (UIScreen.main.bounds.width - 32) / (16.0 / 9.0))
+        .frame(height: isCompact ? 138 : (UIScreen.main.bounds.width - 32) / (16.0 / 9.0))
     }
 
     private var bannerFrame: some View {
