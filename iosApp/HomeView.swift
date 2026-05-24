@@ -5,6 +5,7 @@ struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
     private let environment: SharedAppEnvironment
     private let onOpenSearch: (HomeSectionRow) -> Void
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(environment: SharedAppEnvironment, onOpenSearch: @escaping (HomeSectionRow) -> Void = { _ in }) {
         self.environment = environment
@@ -57,7 +58,8 @@ struct HomeView: View {
                     if let banner = snapshot.banner {
                         HomeBannerView(
                             banner: banner,
-                            videoFeature: environment.videoFeature()
+                            videoFeature: environment.videoFeature(),
+                            isCompact: horizontalSizeClass == .regular
                         )
                         .padding(.horizontal, 16)
                     }
@@ -80,6 +82,7 @@ struct HomeView: View {
 private struct HomeBannerView: View {
     let banner: HomeBannerRow
     let videoFeature: VideoFeature
+    let isCompact: Bool
 
     var body: some View {
         Group {
@@ -94,13 +97,14 @@ private struct HomeBannerView: View {
                 bannerContent
             }
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var bannerContent: some View {
         ZStack(alignment: .bottomLeading) {
             CachedRemoteImage(urlString: banner.imageUrl)
                 .frame(maxWidth: .infinity)
-                .aspectRatio(16.0 / 9.0, contentMode: .fill)
+                .aspectRatio(isCompact ? 2.35 : 16.0 / 9.0, contentMode: .fill)
                 .clipped()
 
             LinearGradient(
@@ -127,6 +131,7 @@ private struct HomeBannerView: View {
             }
             .padding(16)
         }
+        .frame(maxWidth: isCompact ? 760 : .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
