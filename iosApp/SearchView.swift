@@ -29,23 +29,26 @@ struct SearchView: View {
             .background(SearchTextFieldReturnKeyEnabler())
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        isShowingFilters = true
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                    }
-                    .overlay(alignment: .topTrailing) {
+                    ZStack(alignment: .topTrailing) {
+                        Button {
+                            isShowingFilters = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                        }
+
                         if viewModel.filters.activeCount > 0 {
                             Text("\(viewModel.filters.activeCount)")
                                 .font(.caption2.weight(.bold))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
+                                .frame(minWidth: 18, minHeight: 18)
+                                .padding(.horizontal, viewModel.filters.activeCount > 9 ? 4 : 0)
                                 .background(Capsule().fill(Color.red))
-                                .offset(x: 10, y: -14)
+                                .offset(x: 7, y: -7)
                                 .allowsHitTesting(false)
                         }
                     }
+                    .padding(.top, 7)
+                    .padding(.trailing, 7)
                 }
             }
             .onAppear {
@@ -196,8 +199,16 @@ struct SearchView: View {
                 HStack {
                     Text("结果")
                     Spacer()
-                    Text("\(snapshot.results.count)")
-                        .foregroundStyle(.secondary)
+                    Button {
+                        keyword = ""
+                        viewModel.showHistory()
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("杩斿洖鎼滅储鍘嗗彶")
+                    .foregroundStyle(.secondary)
                 }
             }
         }

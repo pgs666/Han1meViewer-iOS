@@ -54,6 +54,14 @@ final class SearchViewModel: ObservableObject {
         didLoadHistory = true
     }
 
+    func showHistory() {
+        loadHistory()
+        currentKeyword = ""
+        currentPage = 0
+        hasNextPage = false
+        state = .idle
+    }
+
     func search(keyword: String, filters: SearchFilterState? = nil) {
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         let nextFilters = filters ?? self.filters
