@@ -10,11 +10,14 @@ import com.yenaly.han1meviewer.shared.home.HomeFeature
 import com.yenaly.han1meviewer.shared.repository.KtorFollowingRepository
 import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
 import com.yenaly.han1meviewer.shared.repository.KtorSearchRepository
+import com.yenaly.han1meviewer.shared.repository.KtorUserVideoListRepository
 import com.yenaly.han1meviewer.shared.repository.KtorVideoRepository
 import com.yenaly.han1meviewer.shared.search.SearchFeature
 import com.yenaly.han1meviewer.shared.search.SearchHistoryStore
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import com.yenaly.han1meviewer.shared.session.SqlDelightSessionStore
+import com.yenaly.han1meviewer.shared.model.UserVideoListType
+import com.yenaly.han1meviewer.shared.userlist.UserVideoListFeature
 import com.yenaly.han1meviewer.shared.video.VideoFeature
 
 class SharedAppEnvironment(
@@ -24,13 +27,15 @@ class SharedAppEnvironment(
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
     private val watchHistoryStore = WatchHistoryStore(database)
     private val searchHistoryStore = SearchHistoryStore(database)
+    private val homeRepository = KtorHomeRepository(sessionStore)
+    private val userVideoListRepository = KtorUserVideoListRepository(sessionStore)
 
     fun webLoginFeature(): WebLoginFeature {
         return WebLoginFeature(sessionStore)
     }
 
     fun homeFeature(): HomeFeature {
-        return HomeFeature(KtorHomeRepository(sessionStore))
+        return HomeFeature(homeRepository)
     }
 
     fun followingFeature(): FollowingFeature {
@@ -53,5 +58,21 @@ class SharedAppEnvironment(
 
     fun watchHistoryFeature(): WatchHistoryFeature {
         return WatchHistoryFeature(watchHistoryStore)
+    }
+
+    fun watchLaterFeature(): UserVideoListFeature {
+        return UserVideoListFeature(
+            type = UserVideoListType.WatchLater,
+            homeRepository = homeRepository,
+            listRepository = userVideoListRepository,
+        )
+    }
+
+    fun favoriteVideoFeature(): UserVideoListFeature {
+        return UserVideoListFeature(
+            type = UserVideoListType.Favorites,
+            homeRepository = homeRepository,
+            listRepository = userVideoListRepository,
+        )
     }
 }

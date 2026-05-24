@@ -65,6 +65,21 @@ data class MySubscriptions(
 )
 
 @Serializable
+enum class UserVideoListType(val path: String) {
+    WatchLater("saves"),
+    Favorites("likes"),
+}
+
+@Serializable
+data class UserVideoListPage(
+    val items: List<HanimeInfo>,
+    val description: String?,
+    val csrfToken: String?,
+    val page: Int,
+    val hasNext: Boolean,
+)
+
+@Serializable
 data class SubscriptionItem(
     val artistName: String,
     val avatarUrl: String,

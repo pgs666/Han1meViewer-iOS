@@ -68,13 +68,23 @@ struct MineView: View {
                 }
 
                 Section("我的列表") {
-                    Button {
-                        activeAlert = .notMigrated("稍后观看")
+                    NavigationLink {
+                        UserVideoListView(
+                            title: "稍后观看",
+                            emptyMessage: "暂无稍后观看",
+                            feature: environment.watchLaterFeature(),
+                            environment: environment
+                        )
                     } label: {
                         MineMenuRow(title: "稍后观看", systemImage: "clock")
                     }
-                    Button {
-                        activeAlert = .notMigrated("收藏影片")
+                    NavigationLink {
+                        UserVideoListView(
+                            title: "收藏影片",
+                            emptyMessage: "暂无收藏影片",
+                            feature: environment.favoriteVideoFeature(),
+                            environment: environment
+                        )
                     } label: {
                         MineMenuRow(title: "收藏影片", systemImage: "heart")
                     }

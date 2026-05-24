@@ -14,6 +14,7 @@ import com.yenaly.han1meviewer.shared.model.PlaybackSource
 import com.yenaly.han1meviewer.shared.model.SearchParams
 import com.yenaly.han1meviewer.shared.model.SubscriptionItem
 import com.yenaly.han1meviewer.shared.model.SubscriptionVideoItem
+import com.yenaly.han1meviewer.shared.model.UserVideoListPage
 import kotlinx.datetime.LocalDate
 
 class KsoupHtmlParser : HtmlParser {
@@ -189,6 +190,22 @@ class KsoupHtmlParser : HtmlParser {
             subscriptions = artists,
             subscriptionVideos = videos,
             maxPage = body.parseMaxPage(),
+        )
+    }
+
+    override fun parseUserVideoList(html: String, page: Int): UserVideoListPage {
+        val body = Ksoup.parse(html).body()
+        val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
+        val description = body.selectFirst("#playlist-show-description")?.ownText()
+        val container = body.selectFirst(".horizontal-row")
+        val items = container.toHanimeInfoList("div[class^=user-tab-item-wrapper]")
+
+        return UserVideoListPage(
+            items = items,
+            description = description,
+            csrfToken = csrfToken,
+            page = page,
+            hasNext = items.isNotEmpty(),
         )
     }
 
