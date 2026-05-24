@@ -6,6 +6,7 @@ struct SettingsView: View {
 
     @State private var activeConfirmation: SettingsConfirmation?
     @State private var resultMessage: String?
+    @State private var cacheSizeText = CacheStorage.formattedSize()
 
     init(environment: SharedAppEnvironment) {
         self.environment = environment
@@ -29,6 +30,17 @@ struct SettingsView: View {
                 Text("本地数据")
             } footer: {
                 Text("这里只清除 iOS 本地数据，不会修改网站账号里的在线记录。")
+            }
+
+            Section("缓存") {
+                Button(role: .destructive) {
+                    refreshCacheSize()
+                    activeConfirmation = .clearCache
+                } label: {
+                    SettingsNavigationRow(title: "清除缓存（\(cacheSizeText)）", systemImage: "trash")
+                }
+            } footer: {
+                Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
             }
 
             Section("范围") {
@@ -58,6 +70,9 @@ struct SettingsView: View {
             }
         } message: {
             Text(resultMessage ?? "")
+        }
+        .onAppear {
+            refreshCacheSize()
         }
     }
 
@@ -114,14 +129,24 @@ struct SettingsView: View {
         case .clearWatchHistory:
             _ = environment.watchHistoryFeature().clear()
             resultMessage = "本地观看历史已清除。"
+        case .clearCache:
+            let oldSize = cacheSizeText
+            CacheStorage.clear()
+            refreshCacheSize()
+            resultMessage = "已清除 \(oldSize) 缓存。"
         }
         activeConfirmation = nil
+    }
+
+    private func refreshCacheSize() {
+        cacheSizeText = CacheStorage.formattedSize()
     }
 }
 
 private enum SettingsConfirmation: Identifiable {
     case clearSearchHistory
     case clearWatchHistory
+    case clearCache
 
     var id: String {
         switch self {
@@ -129,6 +154,8 @@ private enum SettingsConfirmation: Identifiable {
             return "clearSearchHistory"
         case .clearWatchHistory:
             return "clearWatchHistory"
+        case .clearCache:
+            return "clearCache"
         }
     }
 
@@ -138,6 +165,8 @@ private enum SettingsConfirmation: Identifiable {
             return "确定清除搜索历史？"
         case .clearWatchHistory:
             return "确定清除本地观看历史？"
+        case .clearCache:
+            return "确定清除缓存？"
         }
     }
 
@@ -147,6 +176,8 @@ private enum SettingsConfirmation: Identifiable {
             return "清除搜索历史"
         case .clearWatchHistory:
             return "清除本地观看历史"
+        case .clearCache:
+            return "清除缓存"
         }
     }
 }
