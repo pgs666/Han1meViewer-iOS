@@ -44,9 +44,17 @@ struct HomeView: View {
             .padding()
         case .loaded(let snapshot):
             List {
-                if let bannerTitle = snapshot.bannerTitle {
-                    Section("Banner") {
-                        Text(bannerTitle)
+                if let banner = snapshot.banner {
+                    Section("Featured") {
+                        if let videoCode = banner.videoCode, !videoCode.isEmpty {
+                            NavigationLink {
+                                VideoDetailView(videoCode: videoCode, videoFeature: environment.videoFeature())
+                            } label: {
+                                HomeBannerView(banner: banner)
+                            }
+                        } else {
+                            HomeBannerView(banner: banner)
+                        }
                     }
                 }
 
@@ -63,6 +71,33 @@ struct HomeView: View {
                 }
             }
         }
+    }
+}
+
+private struct HomeBannerView: View {
+    let banner: HomeBannerRow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            CachedRemoteImage(urlString: banner.imageUrl)
+                .frame(maxWidth: .infinity)
+                .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(banner.title)
+                    .font(.headline)
+                    .lineLimit(2)
+
+                if let description = banner.description, !description.isEmpty {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

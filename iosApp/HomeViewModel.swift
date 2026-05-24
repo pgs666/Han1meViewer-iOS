@@ -46,11 +46,20 @@ final class HomeViewModel: ObservableObject {
 }
 
 struct HomeScreenSnapshot {
-    let bannerTitle: String?
+    let banner: HomeBannerRow?
     let sections: [HomeSectionRow]
 
     init(_ snapshot: HomeFeedSnapshot) {
-        bannerTitle = snapshot.bannerTitle
+        if let title = snapshot.bannerTitle {
+            banner = HomeBannerRow(
+                title: title,
+                description: snapshot.bannerDescription,
+                imageUrl: snapshot.bannerImageUrl,
+                videoCode: snapshot.bannerVideoCode
+            )
+        } else {
+            banner = nil
+        }
 
         let sectionCount = Int(snapshot.homeSectionCount())
         sections = (0..<sectionCount).compactMap { sectionIndex -> HomeSectionRow? in
@@ -80,6 +89,17 @@ struct HomeScreenSnapshot {
                 videos: videos
             )
         }
+    }
+}
+
+struct HomeBannerRow {
+    let title: String
+    let description: String?
+    let imageUrl: String?
+    let videoCode: String?
+
+    var canOpenVideo: Bool {
+        videoCode?.isEmpty == false
     }
 }
 
