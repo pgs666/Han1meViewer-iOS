@@ -49,6 +49,7 @@ struct VideoDetailScreenSnapshot {
     let defaultSourceLabel: String?
     let defaultSourceUrl: String?
     let uploadDate: String?
+    let playbackSources: [VideoPlaybackSourceRow]
     let relatedVideos: [VideoRelatedRow]
 
     init(_ snapshot: VideoDetailSnapshot) {
@@ -62,6 +63,19 @@ struct VideoDetailScreenSnapshot {
         defaultSourceLabel = snapshot.defaultSourceLabel
         defaultSourceUrl = snapshot.defaultSourceUrl
         uploadDate = snapshot.uploadDate
+
+        let playbackSourceCount = Int(snapshot.playbackSourceCount())
+        playbackSources = (0..<playbackSourceCount).compactMap { index in
+            guard let source = snapshot.playbackSourceAt(index: Int32(index)) else {
+                return nil
+            }
+            return VideoPlaybackSourceRow(
+                label: source.label,
+                url: source.url,
+                contentType: source.contentType,
+                isDefault: source.isDefault
+            )
+        }
 
         let count = Int(snapshot.relatedVideoCount())
         relatedVideos = (0..<count).compactMap { index in
@@ -79,6 +93,15 @@ struct VideoDetailScreenSnapshot {
             )
         }
     }
+}
+
+struct VideoPlaybackSourceRow: Identifiable, Hashable {
+    let label: String
+    let url: String
+    let contentType: String?
+    let isDefault: Bool
+
+    var id: String { "\(label)-\(url)" }
 }
 
 struct VideoRelatedRow: Identifiable {

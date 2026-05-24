@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import Han1meShared
 
 struct VideoDetailView: View {
@@ -14,7 +14,7 @@ struct VideoDetailView: View {
 
     var body: some View {
         content
-        .navigationTitle("Detail")
+        .navigationTitle("\u{8BE6}\u{60C5}")
         .task {
             viewModel.load(videoCode: videoCode)
         }
@@ -33,7 +33,7 @@ struct VideoDetailView: View {
                 Image(systemName: "wifi.exclamationmark")
                     .font(.largeTitle)
                     .foregroundColor(.secondary)
-                Text("Unable to load video")
+                Text("\u{89C6}\u{9891}\u{52A0}\u{8F7D}\u{5931}\u{8D25}")
                     .font(.headline)
                 Text(message)
                     .font(.subheadline)
@@ -43,7 +43,7 @@ struct VideoDetailView: View {
             .padding()
         case .loaded(let snapshot):
             List {
-                Section("Video") {
+                Section("\u{5F71}\u{7247}") {
                     Text(snapshot.title)
                     if let chineseTitle = snapshot.chineseTitle, !chineseTitle.isEmpty {
                         Text(chineseTitle)
@@ -53,25 +53,25 @@ struct VideoDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Playback") {
-                    Text("Sources: \(snapshot.sourceCount)")
+                Section("\u{64AD}\u{653E}") {
+                    Text("\u{64AD}\u{653E}\u{6E90}\u{FF1A}\(snapshot.sourceCount)")
                     if let label = snapshot.defaultSourceLabel {
-                        Text("Default: \(label)")
+                        Text("\u{9ED8}\u{8BA4}\u{FF1A}\(label)")
                     }
-                    if let sourceUrl = snapshot.defaultSourceUrl {
-                        Text(sourceUrl)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        NavigationLink("Play") {
-                            PlayerView(sourceUrl: sourceUrl, title: snapshot.title)
+                    if !snapshot.playbackSources.isEmpty {
+                        NavigationLink("\u{64AD}\u{653E}") {
+                            PlayerView(
+                                title: snapshot.title,
+                                sources: snapshot.playbackSources
+                            )
                         }
                     } else {
-                        Text("No playable source parsed")
+                        Text("\u{672A}\u{89E3}\u{6790}\u{5230}\u{53EF}\u{64AD}\u{653E}\u{6E90}")
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Section("Info") {
+                Section("\u{4FE1}\u{606F}") {
                     if let views = snapshot.views {
                         Text(views)
                     }
@@ -87,7 +87,7 @@ struct VideoDetailView: View {
                 }
 
                 if !snapshot.relatedVideos.isEmpty {
-                    Section("相关影片") {
+                    Section("\u{76F8}\u{5173}\u{5F71}\u{7247}") {
                         ForEach(snapshot.relatedVideos) { video in
                             NavigationLink {
                                 VideoDetailView(
