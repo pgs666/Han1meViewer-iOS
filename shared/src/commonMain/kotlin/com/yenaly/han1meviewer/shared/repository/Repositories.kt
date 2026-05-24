@@ -30,6 +30,13 @@ interface UserVideoListRepository {
     suspend fun getUserVideoList(userId: String, type: UserVideoListType, page: Int): UserVideoListPage
 
     suspend fun getPlaylistVideos(listCode: String, page: Int): UserVideoListPage
+
+    suspend fun removeUserVideoListItem(
+        userId: String,
+        type: UserVideoListType,
+        videoCode: String,
+        csrfToken: String?,
+    )
 }
 
 interface UserPlaylistRepository {

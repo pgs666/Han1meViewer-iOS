@@ -13,8 +13,12 @@ internal class KtorCookieBridge(
 ) {
     private val cookieHeaderProvider = CookieHeaderProvider(sessionStore)
 
+    suspend fun storedCookieHeader(): String? {
+        return cookieHeaderProvider.buildCookieHeader(domain)
+    }
+
     suspend fun applyStoredCookies(builder: HttpRequestBuilder) {
-        cookieHeaderProvider.buildCookieHeader(domain)?.let { cookieHeader ->
+        storedCookieHeader()?.let { cookieHeader ->
             builder.header(HttpHeaders.Cookie, cookieHeader)
         }
     }

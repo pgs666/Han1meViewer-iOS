@@ -10,11 +10,29 @@ class UserVideoListFeature(
     private val homeRepository: HomeRepository,
     private val listRepository: UserVideoListRepository,
 ) {
+    private var currentUserId: String? = null
+    private var csrfToken: String? = null
+
     suspend fun load(page: Int): UserVideoListSnapshot {
         val userId = homeRepository.getHomePage().userId
             ?: error("Login is required before loading this list.")
+        currentUserId = userId
         val listPage = listRepository.getUserVideoList(userId, type, page)
+        csrfToken = listPage.csrfToken ?: csrfToken
         return listPage.toSnapshot()
+    }
+
+    suspend fun remove(videoCode: String): UserVideoListMutationSnapshot {
+        val userId = currentUserId
+            ?: homeRepository.getHomePage().userId
+            ?: error("Login is required before modifying this list.")
+        listRepository.removeUserVideoListItem(
+            userId = userId,
+            type = type,
+            videoCode = videoCode,
+            csrfToken = csrfToken,
+        )
+        return UserVideoListMutationSnapshot(videoCode = videoCode)
     }
 
     private fun com.yenaly.han1meviewer.shared.model.UserVideoListPage.toSnapshot(): UserVideoListSnapshot {
@@ -89,4 +107,9 @@ data class UserVideoListItemSnapshot(
     val views: String?,
     val artist: String?,
     val uploadTime: String?,
+)
+
+@Serializable
+data class UserVideoListMutationSnapshot(
+    val videoCode: String,
 )

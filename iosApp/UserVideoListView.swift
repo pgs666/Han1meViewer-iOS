@@ -49,6 +49,13 @@ struct UserVideoListView: View {
                     viewModel.load()
                 }
             }
+            .alert("操作失败", isPresented: actionErrorBinding) {
+                Button("好", role: .cancel) {
+                    viewModel.actionErrorMessage = nil
+                }
+            } message: {
+                Text(viewModel.actionErrorMessage ?? "")
+            }
     }
 
     @ViewBuilder
@@ -116,6 +123,7 @@ struct UserVideoListView: View {
                                 viewModel.loadMoreIfNeeded(currentVideoID: video.id)
                             }
                         }
+                        .onDelete(perform: viewModel.canRemoveItems ? viewModel.delete : nil)
                         footer(snapshot: snapshot)
                     }
                 }
@@ -131,6 +139,17 @@ struct UserVideoListView: View {
         case .idle, .loaded, .failed:
             return false
         }
+    }
+
+    private var actionErrorBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.actionErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    viewModel.actionErrorMessage = nil
+                }
+            }
+        )
     }
 
     @ViewBuilder

@@ -7,12 +7,14 @@ import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import io.ktor.client.HttpClient
+import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
+import io.ktor.http.parameters
 
 class KtorUserVideoListRepository(
     sessionStore: SessionStore,
@@ -49,6 +51,51 @@ class KtorUserVideoListRepository(
         cookieBridge.saveResponseCookies(response)
 
         return parser.parseUserVideoList(response.bodyAsText(), page)
+    }
+
+    override suspend fun removeUserVideoListItem(
+        userId: String,
+        type: UserVideoListType,
+        videoCode: String,
+        csrfToken: String?,
+    ) {
+        val cookieHeader = cookieBridge.storedCookieHeader()
+        val response = when (type) {
+            UserVideoListType.WatchLater -> {
+                client.submitForm(
+                    url = "$baseUrl/save",
+                    formParameters = parameters {
+                        append("_token", csrfToken.orEmpty())
+                        append("input_id", "save")
+                        append("video_id", videoCode)
+                        append("is_checked", "false")
+                        append("user_id", "")
+                    },
+                ) {
+                    header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+                    header("X-CSRF-TOKEN", csrfToken.orEmpty())
+                    cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+                }
+            }
+
+            UserVideoListType.Favorites -> {
+                client.submitForm(
+                    url = "$baseUrl/like",
+                    formParameters = parameters {
+                        append("like-foreign-id", videoCode)
+                        append("like-status", "1")
+                        append("_token", csrfToken.orEmpty())
+                        append("like-user-id", userId)
+                        append("like-is-positive", "1")
+                    },
+                ) {
+                    header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+                    header("X-CSRF-TOKEN", csrfToken.orEmpty())
+                    cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+                }
+            }
+        }
+        cookieBridge.saveResponseCookies(response)
     }
 
     private companion object {

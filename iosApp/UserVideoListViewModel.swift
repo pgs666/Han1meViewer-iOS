@@ -12,8 +12,10 @@ final class UserVideoListViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    @Published var actionErrorMessage: String?
 
     private let loadPage: (Int32) async throws -> UserVideoListSnapshot
+    private let removeVideo: ((String) async throws -> UserVideoListMutationSnapshot)?
     private var currentPage: Int32 = 0
     private var hasNextPage = false
 
@@ -21,12 +23,20 @@ final class UserVideoListViewModel: ObservableObject {
         self.loadPage = { page in
             try await feature.load(page: page)
         }
+        self.removeVideo = { videoCode in
+            try await feature.remove(videoCode: videoCode)
+        }
     }
 
     init(feature: PlaylistVideoListFeature) {
         self.loadPage = { page in
             try await feature.load(page: page)
         }
+        self.removeVideo = nil
+    }
+
+    var canRemoveItems: Bool {
+        removeVideo != nil
     }
 
     func load() {
@@ -56,6 +66,31 @@ final class UserVideoListViewModel: ObservableObject {
         state = .loadingMore(snapshot)
         Task {
             await load(page: nextPage, appendingTo: snapshot)
+        }
+    }
+
+    func delete(at offsets: IndexSet) {
+        guard let removeVideo else {
+            return
+        }
+        guard case .loaded(let snapshot) = state else {
+            return
+        }
+
+        let videoCodes = offsets.map { snapshot.videos[$0].videoCode }
+        state = .loaded(snapshot.removing(videoCodes: videoCodes))
+        actionErrorMessage = nil
+
+        Task {
+            for videoCode in videoCodes {
+                do {
+                    _ = try await removeVideo(videoCode)
+                } catch {
+                    actionErrorMessage = ErrorMessage.userFriendly(error)
+                    await load(page: 1, appendingTo: nil)
+                    return
+                }
+            }
         }
     }
 
@@ -138,6 +173,17 @@ struct UserVideoListScreenSnapshot {
             listDescription: listDescription,
             videos: videos,
             loadMoreError: message
+        )
+    }
+
+    func removing(videoCodes: [String]) -> UserVideoListScreenSnapshot {
+        let removed = Set(videoCodes)
+        return UserVideoListScreenSnapshot(
+            page: page,
+            hasNext: hasNext,
+            listDescription: listDescription,
+            videos: videos.filter { !removed.contains($0.videoCode) },
+            loadMoreError: loadMoreError
         )
     }
 
