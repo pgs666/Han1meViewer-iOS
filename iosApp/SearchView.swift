@@ -6,11 +6,13 @@ struct SearchView: View {
     @State private var keyword = ""
     @State private var isShowingFilters = false
     @StateObject private var viewModel: SearchViewModel
+    @Binding private var launchRequest: SearchLaunchRequest?
     private let environment: SharedAppEnvironment
     private let catalog = SearchOptionCatalog.shared
 
-    init(environment: SharedAppEnvironment) {
+    init(environment: SharedAppEnvironment, launchRequest: Binding<SearchLaunchRequest?> = .constant(nil)) {
         self.environment = environment
+        _launchRequest = launchRequest
         _viewModel = StateObject(wrappedValue: SearchViewModel(searchFeature: environment.searchFeature()))
     }
 
@@ -53,6 +55,10 @@ struct SearchView: View {
             }
             .onAppear {
                 viewModel.loadHistoryIfNeeded()
+                consumeLaunchRequestIfNeeded()
+            }
+            .onChange(of: launchRequest?.id) { _ in
+                consumeLaunchRequestIfNeeded()
             }
             .sheet(isPresented: $isShowingFilters) {
                 SearchFilterSheet(
@@ -171,6 +177,15 @@ struct SearchView: View {
                 .background(Color(.systemBackground))
             }
         }
+    }
+
+    private func consumeLaunchRequestIfNeeded() {
+        guard let request = launchRequest else {
+            return
+        }
+        keyword = ""
+        viewModel.openHomeSection(request, catalog: catalog)
+        launchRequest = nil
     }
 
     private func resultList(snapshot: SearchScreenSnapshot) -> some View {

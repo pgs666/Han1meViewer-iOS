@@ -62,7 +62,7 @@ final class SearchViewModel: ObservableObject {
         state = .idle
     }
 
-    func search(keyword: String, filters: SearchFilterState? = nil) {
+    func search(keyword: String, filters: SearchFilterState? = nil, recordHistory: Bool = true) {
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         let nextFilters = filters ?? self.filters
         guard !isLoading else {
@@ -76,8 +76,19 @@ final class SearchViewModel: ObservableObject {
         hasNextPage = false
         state = .loading
         Task {
-            await loadSearch(keyword: trimmedKeyword, filters: nextFilters, page: 1, appendingTo: nil)
+            await loadSearch(
+                keyword: trimmedKeyword,
+                filters: nextFilters,
+                page: 1,
+                appendingTo: nil,
+                recordHistory: recordHistory
+            )
         }
+    }
+
+    func openHomeSection(_ request: SearchLaunchRequest, catalog: SearchOptionCatalog) {
+        let filters = SearchFilterState.homeSection(key: request.sectionKey, catalog: catalog)
+        search(keyword: "", filters: filters, recordHistory: false)
     }
 
     func resetFilters() {
@@ -102,7 +113,8 @@ final class SearchViewModel: ObservableObject {
                 keyword: currentKeyword,
                 filters: currentFilters,
                 page: nextPage,
-                appendingTo: snapshot
+                appendingTo: snapshot,
+                recordHistory: false
             )
         }
     }
@@ -120,7 +132,8 @@ final class SearchViewModel: ObservableObject {
         keyword: String,
         filters: SearchFilterState,
         page: Int32,
-        appendingTo existingSnapshot: SearchScreenSnapshot?
+        appendingTo existingSnapshot: SearchScreenSnapshot?,
+        recordHistory: Bool
     ) async {
         do {
             let snapshot = try await searchFeature.searchAdvanced(
@@ -133,12 +146,13 @@ final class SearchViewModel: ObservableObject {
                 tags: filters.selectedTagKeys.joined(separator: "\n"),
                 brands: filters.selectedBrandKeys.joined(separator: "\n"),
                 filterSummary: filters.summaryItems.joined(separator: " · "),
-                page: page
+                page: page,
+                recordHistory: recordHistory
             )
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
-            if page == 1 {
+            if recordHistory && page == 1 {
                 loadHistory()
             }
             state = .loaded(screenSnapshot)

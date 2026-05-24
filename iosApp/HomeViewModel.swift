@@ -76,7 +76,12 @@ struct HomeScreenSnapshot {
                 return HomeVideoRow(
                     videoCode: video.videoCode,
                     title: video.title,
-                    coverUrl: video.coverUrl
+                    coverUrl: video.coverUrl,
+                    duration: video.duration,
+                    views: video.views,
+                    uploadTime: video.uploadTime,
+                    artist: video.artist,
+                    reviews: video.reviews
                 )
             }
 
@@ -116,6 +121,20 @@ struct HomeVideoRow: Identifiable {
     let videoCode: String
     let title: String
     let coverUrl: String?
+    let duration: String?
+    let views: String?
+    let uploadTime: String?
+    let artist: String?
+    let reviews: String?
 
     var id: String { videoCode }
+
+    var footerMetadata: String {
+        [reviews, uploadTime]
+            .compactMap { value in
+                guard let value, !value.isEmpty else { return nil }
+                return value
+            }
+            .joined(separator: " · ")
+    }
 }

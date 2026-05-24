@@ -16,6 +16,11 @@ class HomeFeature(
                     videoCode = videoCode,
                     title = item.title,
                     coverUrl = item.coverUrl,
+                    duration = item.duration,
+                    views = item.views,
+                    uploadTime = item.uploadTime,
+                    artist = item.currentArtist,
+                    reviews = item.reviews,
                 )
             }
             if (videos.isEmpty()) {
@@ -97,4 +102,9 @@ data class HomeVideoSnapshot(
     val videoCode: String,
     val title: String,
     val coverUrl: String?,
+    val duration: String?,
+    val views: String?,
+    val uploadTime: String?,
+    val artist: String?,
+    val reviews: String?,
 )

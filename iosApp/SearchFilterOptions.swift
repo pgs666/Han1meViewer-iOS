@@ -178,3 +178,44 @@ struct SearchFilterState: Equatable {
         brands = []
     }
 }
+
+extension SearchFilterState {
+    static func homeSection(key: String, catalog: SearchOptionCatalog) -> SearchFilterState {
+        var state = SearchFilterState()
+        switch key {
+        case "latestRelease":
+            state.sort = catalog.sortOptions.firstSearchKey("最新上市")
+        case "latestHanime":
+            state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+        case "watchingNow":
+            state.sort = catalog.sortOptions.firstSearchKey("他們在看")
+        case "ecchiAnime":
+            state.genre = catalog.genres.firstSearchKey("裏番")
+        case "shortEpisodeAnime":
+            state.genre = catalog.genres.firstSearchKey("泡麵番")
+        case "motionAnime":
+            state.genre = catalog.genres.firstSearchKey("Motion Anime")
+        case "threeDCG":
+            state.genre = catalog.genres.firstSearchKey("3DCG")
+        case "twoPointFiveDAnime":
+            state.genre = catalog.genres.firstSearchKey("2.5D")
+        case "twoDAnime":
+            state.genre = catalog.genres.firstSearchKey("2D動畫")
+        case "aiGenerated":
+            state.genre = catalog.genres.firstSearchKey("AI生成")
+        case "mmd":
+            state.genre = catalog.genres.firstSearchKey("MMD")
+        case "cosplay":
+            state.genre = catalog.genres.firstSearchKey("Cosplay")
+        default:
+            break
+        }
+        return state
+    }
+}
+
+private extension [SearchFilterOption] {
+    func firstSearchKey(_ searchKey: String) -> SearchFilterOption? {
+        first { $0.searchKey == searchKey }
+    }
+}

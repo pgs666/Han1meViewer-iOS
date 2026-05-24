@@ -5,6 +5,7 @@ import Han1meShared
 struct Han1meViewerApp: App {
     private let sharedEnvironment = SharedAppEnvironment(driverFactory: DatabaseDriverFactory())
     @State private var selectedTab: MainTab = .home
+    @State private var searchLaunchRequest: SearchLaunchRequest?
 
     var body: some Scene {
         WindowGroup {
@@ -30,7 +31,10 @@ struct Han1meViewerApp: App {
     private var modernTabView: some View {
         TabView(selection: $selectedTab) {
             Tab("首页", systemImage: "house.fill", value: MainTab.home) {
-                HomeView(environment: sharedEnvironment)
+                HomeView(environment: sharedEnvironment) { section in
+                    searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
+                    selectedTab = .search
+                }
             }
 
             Tab("关注", systemImage: "heart.fill", value: MainTab.following) {
@@ -42,7 +46,7 @@ struct Han1meViewerApp: App {
             }
 
             Tab("搜索", systemImage: "magnifyingglass", value: MainTab.search, role: .search) {
-                SearchView(environment: sharedEnvironment)
+                SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
             }
         }
         .tint(.red)
@@ -51,7 +55,10 @@ struct Han1meViewerApp: App {
 
     private var legacyTabView: some View {
         TabView(selection: $selectedTab) {
-            HomeView(environment: sharedEnvironment)
+            HomeView(environment: sharedEnvironment) { section in
+                searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
+                selectedTab = .search
+            }
                 .tabItem {
                     Label("首页", systemImage: "house")
                 }
@@ -69,7 +76,7 @@ struct Han1meViewerApp: App {
                 }
                 .tag(MainTab.mine)
 
-            SearchView(environment: sharedEnvironment)
+            SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
                 .tabItem {
                     Label("搜索", systemImage: "magnifyingglass")
                 }

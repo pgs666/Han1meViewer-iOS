@@ -29,6 +29,7 @@ class SearchFeature(
         brands: String,
         filterSummary: String,
         page: Int,
+        recordHistory: Boolean,
     ): SearchSnapshot {
         return search(
             params = SearchParams(
@@ -43,14 +44,20 @@ class SearchFeature(
             ),
             page = page,
             filterSummary = filterSummary.trim(),
+            recordHistory = recordHistory,
         )
     }
 
     @OptIn(ExperimentalTime::class)
-    private suspend fun search(params: SearchParams, page: Int, filterSummary: String): SearchSnapshot {
+    private suspend fun search(
+        params: SearchParams,
+        page: Int,
+        filterSummary: String,
+        recordHistory: Boolean = true,
+    ): SearchSnapshot {
         val result = repository.search(params, page)
         val trimmedKeyword = params.keyword.trim()
-        if (page == 1 && (trimmedKeyword.isNotBlank() || filterSummary.isNotBlank())) {
+        if (recordHistory && page == 1 && (trimmedKeyword.isNotBlank() || filterSummary.isNotBlank())) {
             historyStore?.record(
                 keyword = trimmedKeyword,
                 filterSummary = filterSummary,
