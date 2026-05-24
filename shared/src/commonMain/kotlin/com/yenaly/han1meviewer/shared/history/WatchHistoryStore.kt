@@ -30,6 +30,10 @@ class WatchHistoryStore(
         database.watchHistoryQueries.deleteByVideoCode(videoCode)
     }
 
+    fun clear() {
+        database.watchHistoryQueries.deleteAll()
+    }
+
     private fun mapHistoryItem(
         videoCode: String,
         title: String,

@@ -23,6 +23,11 @@ class WatchHistoryFeature(
         store.delete(videoCode)
         return loadRecent()
     }
+
+    fun clear(): WatchHistorySnapshot {
+        store.clear()
+        return loadRecent()
+    }
 }
 
 @Serializable

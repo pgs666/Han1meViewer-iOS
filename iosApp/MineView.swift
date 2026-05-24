@@ -55,8 +55,8 @@ struct MineView: View {
                 }
 
                 Section("主要") {
-                    Button {
-                        activeAlert = .notMigrated("设置")
+                    NavigationLink {
+                        SettingsView(environment: environment)
                     } label: {
                         MineMenuRow(title: "设置", systemImage: "gearshape")
                     }

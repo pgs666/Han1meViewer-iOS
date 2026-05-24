@@ -24,3 +24,6 @@ VALUES (?, ?, ?, ?, ?);
 deleteByVideoCode:
 DELETE FROM watch_history
 WHERE video_code = ?;
+
+deleteAll:
+DELETE FROM watch_history;
