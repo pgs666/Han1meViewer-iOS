@@ -29,7 +29,9 @@ class KtorSearchRepository(
             header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             parameter("page", page)
             params.keyword.takeIf { it.isNotBlank() }?.let { keyword -> parameter("query", keyword) }
+            params.genre?.let { genre -> parameter("genre", genre) }
             params.sort?.let { sort -> parameter("sort", sort) }
+            if (params.broad) parameter("broad", "on")
             params.releaseDate?.let { releaseDate -> parameter("date", releaseDate) }
             params.duration?.let { duration -> parameter("duration", duration) }
             params.tags.forEach { tag -> parameter("tags[]", tag) }

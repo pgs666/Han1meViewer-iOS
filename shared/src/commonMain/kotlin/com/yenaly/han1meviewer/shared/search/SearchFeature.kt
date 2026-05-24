@@ -13,7 +13,39 @@ class SearchFeature(
     @OptIn(ExperimentalTime::class)
     suspend fun search(keyword: String, page: Int): SearchSnapshot {
         val trimmedKeyword = keyword.trim()
-        val result = repository.search(SearchParams(keyword = trimmedKeyword), page)
+        return search(SearchParams(keyword = trimmedKeyword), page)
+    }
+
+    suspend fun searchAdvanced(
+        keyword: String,
+        genre: String?,
+        sort: String?,
+        broad: Boolean,
+        releaseDate: String?,
+        duration: String?,
+        tags: String,
+        brands: String,
+        page: Int,
+    ): SearchSnapshot {
+        return search(
+            params = SearchParams(
+                keyword = keyword.trim(),
+                genre = genre?.takeIf { it.isNotBlank() && it != ALL_OPTION_KEY },
+                sort = sort?.takeIf { it.isNotBlank() },
+                broad = broad,
+                releaseDate = releaseDate?.takeIf { it.isNotBlank() },
+                duration = duration?.takeIf { it.isNotBlank() },
+                tags = tags.toSearchKeyList(),
+                brands = brands.toSearchKeyList(),
+            ),
+            page = page,
+        )
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private suspend fun search(params: SearchParams, page: Int): SearchSnapshot {
+        val result = repository.search(params, page)
+        val trimmedKeyword = params.keyword.trim()
         if (page == 1 && trimmedKeyword.isNotBlank()) {
             historyStore?.record(
                 keyword = trimmedKeyword,
@@ -40,6 +72,14 @@ class SearchFeature(
         )
     }
 
+    private fun String.toSearchKeyList(): List<String> {
+        return lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .toList()
+    }
+
     fun recentHistory(limit: Int): SearchHistorySnapshot {
         val keywords = historyStore
             ?.recent(limit = (limit * HISTORY_DEDUP_FACTOR).toLong())
@@ -59,6 +99,7 @@ class SearchFeature(
 
     private companion object {
         const val HISTORY_DEDUP_FACTOR = 3
+        const val ALL_OPTION_KEY = "全部"
     }
 }
 

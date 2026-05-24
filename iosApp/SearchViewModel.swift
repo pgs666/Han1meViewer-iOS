@@ -13,9 +13,11 @@ final class SearchViewModel: ObservableObject {
 
     @Published private(set) var state: State = .idle
     @Published private(set) var history: [String] = []
+    @Published var filters = SearchFilterState()
 
     private let searchFeature: SearchFeature
     private var currentKeyword = ""
+    private var currentFilters = SearchFilterState()
     private var currentPage: Int32 = 0
     private var hasNextPage = false
     private var didLoadHistory = false
@@ -46,11 +48,13 @@ final class SearchViewModel: ObservableObject {
         didLoadHistory = true
     }
 
-    func search(keyword: String) {
+    func search(keyword: String, filters: SearchFilterState? = nil) {
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedKeyword.isEmpty else {
+        let nextFilters = filters ?? self.filters
+        guard !trimmedKeyword.isEmpty || nextFilters.hasActiveFilters else {
             state = .idle
             currentKeyword = ""
+            currentFilters = SearchFilterState()
             currentPage = 0
             hasNextPage = false
             return
@@ -60,16 +64,22 @@ final class SearchViewModel: ObservableObject {
         }
 
         currentKeyword = trimmedKeyword
+        currentFilters = nextFilters
+        self.filters = nextFilters
         currentPage = 0
         hasNextPage = false
         state = .loading
         Task {
-            await loadSearch(keyword: trimmedKeyword, page: 1, appendingTo: nil)
+            await loadSearch(keyword: trimmedKeyword, filters: nextFilters, page: 1, appendingTo: nil)
         }
     }
 
+    func resetFilters() {
+        filters.reset()
+    }
+
     func loadMoreIfNeeded(currentItemID: String?) {
-        guard hasNextPage, !currentKeyword.isEmpty, !isLoading else {
+        guard hasNextPage, !isLoading else {
             return
         }
         guard case .loaded(let snapshot) = state else {
@@ -82,7 +92,12 @@ final class SearchViewModel: ObservableObject {
         let nextPage = currentPage + 1
         state = .loadingMore(snapshot)
         Task {
-            await loadSearch(keyword: currentKeyword, page: nextPage, appendingTo: snapshot)
+            await loadSearch(
+                keyword: currentKeyword,
+                filters: currentFilters,
+                page: nextPage,
+                appendingTo: snapshot
+            )
         }
     }
 
@@ -95,9 +110,24 @@ final class SearchViewModel: ObservableObject {
         }
     }
 
-    private func loadSearch(keyword: String, page: Int32, appendingTo existingSnapshot: SearchScreenSnapshot?) async {
+    private func loadSearch(
+        keyword: String,
+        filters: SearchFilterState,
+        page: Int32,
+        appendingTo existingSnapshot: SearchScreenSnapshot?
+    ) async {
         do {
-            let snapshot = try await searchFeature.search(keyword: keyword, page: page)
+            let snapshot = try await searchFeature.searchAdvanced(
+                keyword: keyword,
+                genre: filters.genre?.searchKey,
+                sort: filters.sort?.searchKey,
+                broad: filters.broad,
+                releaseDate: filters.releaseDate?.searchKey,
+                duration: filters.duration?.searchKey,
+                tags: filters.selectedTagKeys.joined(separator: "\n"),
+                brands: "",
+                page: page
+            )
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             currentPage = screenSnapshot.page
             hasNextPage = screenSnapshot.hasNext
