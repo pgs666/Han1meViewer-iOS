@@ -34,22 +34,11 @@ struct SearchView: View {
                     Button {
                         isShowingFilters = true
                     } label: {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "slider.horizontal.3")
-                                .frame(width: 44, height: 44)
-
-                            if viewModel.filters.activeCount > 0 {
-                                Text("\(viewModel.filters.activeCount)")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundColor(.white)
-                                    .frame(minWidth: 18, minHeight: 18)
-                                    .padding(.horizontal, viewModel.filters.activeCount > 9 ? 4 : 0)
-                                    .background(Capsule().fill(Color.red))
-                                    .offset(x: 6, y: -6)
-                                    .allowsHitTesting(false)
-                            }
-                        }
+                        Image(systemName: "slider.horizontal.3")
+                            .frame(width: 44, height: 44)
+                            .foregroundStyle(viewModel.filters.activeCount > 0 ? Color.accentColor : Color.primary)
                     }
+                    .tint(viewModel.filters.activeCount > 0 ? Color.accentColor : Color.primary)
                 }
             }
             .onAppear {
