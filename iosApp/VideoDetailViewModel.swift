@@ -23,6 +23,10 @@ final class VideoDetailViewModel: ObservableObject {
         self.videoFeature = videoFeature
     }
 
+    deinit {
+        loadTask?.cancel()
+    }
+
     func loadIfNeeded(videoCode: String) {
         if loadedVideoCode == videoCode, case .loaded = state {
             return

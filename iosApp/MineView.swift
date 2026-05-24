@@ -162,6 +162,7 @@ struct MineView: View {
         viewModel.logout(
             clearWebViewCookies: clearWebViewCookies,
             onSuccess: {
+                environment.clearCachedCurrentUserId()
                 activeAlert = .loggedOut
             }
         )

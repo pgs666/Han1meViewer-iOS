@@ -42,6 +42,7 @@ class SharedAppEnvironment(
     private val userVideoListRepository = KtorUserVideoListRepository(sessionStore, client = httpClient)
     private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore, client = httpClient)
     private val onlineWatchHistoryRepository = KtorOnlineWatchHistoryRepository(sessionStore, client = httpClient)
+    private var cachedCurrentUserId: String? = null
 
     fun webLoginFeature(): WebLoginFeature {
         return WebLoginFeature(sessionStore)
@@ -87,7 +88,7 @@ class SharedAppEnvironment(
     fun watchLaterFeature(): UserVideoListFeature {
         return UserVideoListFeature(
             type = UserVideoListType.WatchLater,
-            homeRepository = homeRepository,
+            currentUserIdProvider = ::resolveCurrentUserId,
             listRepository = userVideoListRepository,
         )
     }
@@ -95,7 +96,7 @@ class SharedAppEnvironment(
     fun favoriteVideoFeature(): UserVideoListFeature {
         return UserVideoListFeature(
             type = UserVideoListType.Favorites,
-            homeRepository = homeRepository,
+            currentUserIdProvider = ::resolveCurrentUserId,
             listRepository = userVideoListRepository,
         )
     }
@@ -112,5 +113,16 @@ class SharedAppEnvironment(
             listCode = listCode,
             listRepository = userVideoListRepository,
         )
+    }
+
+    fun clearCachedCurrentUserId() {
+        cachedCurrentUserId = null
+    }
+
+    private suspend fun resolveCurrentUserId(): String? {
+        cachedCurrentUserId?.let { return it }
+        return homeRepository.getHomePage().userId?.also { userId ->
+            cachedCurrentUserId = userId
+        }
     }
 }

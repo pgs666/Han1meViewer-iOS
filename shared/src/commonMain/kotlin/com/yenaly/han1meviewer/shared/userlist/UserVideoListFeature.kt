@@ -1,16 +1,14 @@
 package com.yenaly.han1meviewer.shared.userlist
 
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
-import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.repository.UserVideoListRepository
 import kotlinx.serialization.Serializable
 
 class UserVideoListFeature(
     private val type: UserVideoListType,
-    private val homeRepository: HomeRepository,
+    private val currentUserIdProvider: suspend () -> String?,
     private val listRepository: UserVideoListRepository,
 ) {
-    private var currentUserId: String? = null
     private var csrfToken: String? = null
 
     @Throws(Exception::class)
@@ -36,10 +34,7 @@ class UserVideoListFeature(
     }
 
     private suspend fun resolveCurrentUserId(): String? {
-        currentUserId?.let { return it }
-        return homeRepository.getHomePage().userId?.also { userId ->
-            currentUserId = userId
-        }
+        return currentUserIdProvider()
     }
 
     private fun com.yenaly.han1meviewer.shared.model.UserVideoListPage.toSnapshot(): UserVideoListSnapshot {
