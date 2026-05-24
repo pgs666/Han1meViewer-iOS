@@ -80,12 +80,12 @@ struct SearchView: View {
             VStack(spacing: 12) {
                 Image(systemName: "wifi.exclamationmark")
                     .font(.largeTitle)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Text("搜索失败")
                     .font(.headline)
                 Text(message)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 Button("重试") {
                     viewModel.search(keyword: keyword)
@@ -137,7 +137,7 @@ struct SearchView: View {
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(item.title)
                                                 .font(.body)
-                                                .foregroundColor(.primary)
+                                                .foregroundStyle(.primary)
 
                                             if item.hasKeyword && item.hasFilterSummary {
                                                 Text(item.filterSummary)
@@ -392,7 +392,7 @@ private struct SearchFilterSheet: View {
                     } label: {
                         HStack {
                             Text(option.displayName)
-                                .foregroundColor(.primary)
+                                .foregroundStyle(.primary)
                             Spacer()
                             if selection.wrappedValue == option ||
                                 (selection.wrappedValue == nil && (option.searchKey == nil || option.searchKey == "全部")) {

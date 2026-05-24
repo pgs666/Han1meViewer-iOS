@@ -39,7 +39,7 @@ private struct CloudflareChallengeView: View {
     let cloudflareFeature: CloudflareFeature
     let onResolved: () -> Void
 
-    @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.dismiss) private var dismiss
     @State private var status: ChallengeStatus = .loading
 
     var body: some View {
@@ -53,7 +53,7 @@ private struct CloudflareChallengeView: View {
                     status: $status,
                     onResolved: {
                         onResolved()
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
                 )
             }
@@ -62,7 +62,7 @@ private struct CloudflareChallengeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
                 }
             }
@@ -95,10 +95,10 @@ private struct CloudflareStatusBar: View {
                 Text("正在同步 Cloudflare Cookie")
             case .resolved:
                 Label("Cloudflare 验证已同步", systemImage: "checkmark.shield.fill")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
             case .failed(let message):
                 Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
             }
         }
         .font(.footnote)

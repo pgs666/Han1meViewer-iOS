@@ -9,6 +9,7 @@ import com.yenaly.han1meviewer.shared.history.WatchHistoryFeature
 import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
 import com.yenaly.han1meviewer.shared.history.OnlineWatchHistoryFeature
 import com.yenaly.han1meviewer.shared.home.HomeFeature
+import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.repository.KtorFollowingRepository
 import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
 import com.yenaly.han1meviewer.shared.repository.KtorOnlineWatchHistoryRepository
@@ -33,9 +34,14 @@ class SharedAppEnvironment(
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
     private val watchHistoryStore = WatchHistoryStore(database)
     private val searchHistoryStore = SearchHistoryStore(database)
-    private val homeRepository = KtorHomeRepository(sessionStore)
-    private val userVideoListRepository = KtorUserVideoListRepository(sessionStore)
-    private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore)
+    private val httpClient = createHan1meHttpClient()
+    private val homeRepository = KtorHomeRepository(sessionStore, client = httpClient)
+    private val followingRepository = KtorFollowingRepository(sessionStore, client = httpClient)
+    private val searchRepository = KtorSearchRepository(sessionStore, client = httpClient)
+    private val videoRepository = KtorVideoRepository(sessionStore, client = httpClient)
+    private val userVideoListRepository = KtorUserVideoListRepository(sessionStore, client = httpClient)
+    private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore, client = httpClient)
+    private val onlineWatchHistoryRepository = KtorOnlineWatchHistoryRepository(sessionStore, client = httpClient)
 
     fun webLoginFeature(): WebLoginFeature {
         return WebLoginFeature(sessionStore)
@@ -50,19 +56,19 @@ class SharedAppEnvironment(
     }
 
     fun followingFeature(): FollowingFeature {
-        return FollowingFeature(KtorFollowingRepository(sessionStore))
+        return FollowingFeature(followingRepository)
     }
 
     fun searchFeature(): SearchFeature {
         return SearchFeature(
-            repository = KtorSearchRepository(sessionStore),
+            repository = searchRepository,
             historyStore = searchHistoryStore,
         )
     }
 
     fun videoFeature(): VideoFeature {
         return VideoFeature(
-            repository = KtorVideoRepository(sessionStore),
+            repository = videoRepository,
             watchHistoryStore = watchHistoryStore,
         )
     }
@@ -74,7 +80,7 @@ class SharedAppEnvironment(
     fun onlineWatchHistoryFeature(): OnlineWatchHistoryFeature {
         return OnlineWatchHistoryFeature(
             homeRepository = homeRepository,
-            historyRepository = KtorOnlineWatchHistoryRepository(sessionStore),
+            historyRepository = onlineWatchHistoryRepository,
         )
     }
 

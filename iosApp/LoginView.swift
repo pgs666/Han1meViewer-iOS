@@ -6,7 +6,7 @@ struct LoginView: View {
     let webLoginFeature: WebLoginFeature
     let onLoginSuccess: () -> Void
 
-    @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.dismiss) private var dismiss
     @State private var status: LoginStatus = .idle
     @State private var reloadToken = UUID()
 
@@ -20,7 +20,7 @@ struct LoginView: View {
                 status: $status,
                 onLoginSuccess: {
                     onLoginSuccess()
-                    presentationMode.wrappedValue.dismiss()
+                    dismiss()
                 }
             )
         }
@@ -60,10 +60,10 @@ private struct WebLoginStatusBar: View {
                 Text("正在载入登录页")
             case .imported:
                 Label("已同步登录 Cookie", systemImage: "checkmark.circle.fill")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
             case .failed(let message):
                 Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
             }
         }
         .font(.footnote)

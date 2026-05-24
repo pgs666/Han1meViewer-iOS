@@ -235,10 +235,10 @@ private struct MineAccountRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayName)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text(isChecking ? "正在检查登录状态" : (isLoggedIn ? "点击可退出登录" : "使用网页登录并同步 Cookie"))
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
@@ -260,7 +260,7 @@ private struct MineAccountRow: View {
                 Circle()
                     .fill(isLoggedIn ? Color.green.opacity(0.15) : Color.accentColor.opacity(0.12))
                 Image(systemName: isLoggedIn ? "person.crop.circle.fill.badge.checkmark" : "person.crop.circle.badge.checkmark")
-                    .foregroundColor(isLoggedIn ? .green : .accentColor)
+                    .foregroundStyle(isLoggedIn ? .green : .accentColor)
                     .imageScale(.large)
             }
         }
@@ -273,6 +273,6 @@ private struct MineMenuRow: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .foregroundColor(.primary)
+            .foregroundStyle(.primary)
     }
 }

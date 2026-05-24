@@ -38,12 +38,12 @@ struct HomeView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "wifi.exclamationmark")
                         .font(.largeTitle)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text("首页加载失败")
                         .font(.headline)
                     Text(message)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(24)
@@ -101,10 +101,24 @@ private struct HomeBannerView: View {
     }
 
     private var bannerContent: some View {
+        GeometryReader { proxy in
+            let width = min(proxy.size.width, isCompact ? 560 : proxy.size.width)
+            let height = width / (isCompact ? 3.2 : 16.0 / 9.0)
+
+            HStack {
+                Spacer(minLength: 0)
+                bannerFrame
+                    .frame(width: width, height: height)
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(height: isCompact ? 175 : (UIScreen.main.bounds.width - 32) / (16.0 / 9.0))
+    }
+
+    private var bannerFrame: some View {
         ZStack(alignment: .bottomLeading) {
             CachedRemoteImage(urlString: banner.imageUrl)
-                .frame(maxWidth: .infinity)
-                .aspectRatio(isCompact ? 2.35 : 16.0 / 9.0, contentMode: .fill)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
 
             LinearGradient(
@@ -131,7 +145,6 @@ private struct HomeBannerView: View {
             }
             .padding(16)
         }
-        .frame(maxWidth: isCompact ? 760 : .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

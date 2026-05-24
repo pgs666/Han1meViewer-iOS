@@ -198,6 +198,6 @@ private struct SettingsNavigationRow: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .foregroundColor(.primary)
+            .foregroundStyle(.primary)
     }
 }

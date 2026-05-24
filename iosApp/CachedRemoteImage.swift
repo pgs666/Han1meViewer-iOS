@@ -22,7 +22,7 @@ struct CachedRemoteImage: View {
                     .overlay {
                         if state.error != nil {
                             Image(systemName: "photo")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
             }
