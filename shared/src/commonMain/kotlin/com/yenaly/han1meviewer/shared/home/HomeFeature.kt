@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 class HomeFeature(
     private val repository: HomeRepository,
 ) {
+    @Throws(Exception::class)
     suspend fun loadHome(): HomeFeedSnapshot {
         val homePage = repository.getHomePage()
         val sections = homePage.sections.mapNotNull { section ->

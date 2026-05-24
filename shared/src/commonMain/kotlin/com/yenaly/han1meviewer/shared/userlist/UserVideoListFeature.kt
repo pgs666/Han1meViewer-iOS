@@ -13,6 +13,7 @@ class UserVideoListFeature(
     private var currentUserId: String? = null
     private var csrfToken: String? = null
 
+    @Throws(Exception::class)
     suspend fun load(page: Int): UserVideoListSnapshot {
         val userId = homeRepository.getHomePage().userId
             ?: return UserVideoListSnapshot.authRequired(page)
@@ -22,6 +23,7 @@ class UserVideoListFeature(
         return listPage.toSnapshot()
     }
 
+    @Throws(Exception::class)
     suspend fun remove(videoCode: String): UserVideoListMutationSnapshot {
         val userId = currentUserId
             ?: homeRepository.getHomePage().userId
@@ -60,6 +62,7 @@ class PlaylistVideoListFeature(
     private val listCode: String,
     private val listRepository: UserVideoListRepository,
 ) {
+    @Throws(Exception::class)
     suspend fun load(page: Int): UserVideoListSnapshot {
         val listPage = listRepository.getPlaylistVideos(listCode, page)
         return listPage.toSnapshot()

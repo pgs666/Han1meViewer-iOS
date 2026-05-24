@@ -8,6 +8,7 @@ class UserPlaylistFeature(
     private val homeRepository: HomeRepository,
     private val playlistRepository: UserPlaylistRepository,
 ) {
+    @Throws(Exception::class)
     suspend fun load(page: Int): UserPlaylistSnapshot {
         val userId = homeRepository.getHomePage().userId
             ?: return UserPlaylistSnapshot.authRequired(page)

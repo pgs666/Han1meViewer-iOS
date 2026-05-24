@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 class CloudflareFeature(
     private val sessionStore: SessionStore,
 ) {
+    @Throws(Exception::class)
     suspend fun importChallengeCookieHeader(cookieHeader: String, domain: String): CloudflareChallengeSnapshot {
         val cookies = parseCookieHeader(cookieHeader, domain)
         sessionStore.saveCookies(cookies)

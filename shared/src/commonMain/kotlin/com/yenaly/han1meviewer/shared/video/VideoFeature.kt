@@ -11,6 +11,7 @@ class VideoFeature(
     private val watchHistoryStore: WatchHistoryStore? = null,
 ) {
     @OptIn(ExperimentalTime::class)
+    @Throws(Exception::class)
     suspend fun loadVideo(videoCode: String): VideoDetailSnapshot {
         val video = repository.getVideo(videoCode)
         val defaultSource = video.sources.firstOrNull { source -> source.isDefault }

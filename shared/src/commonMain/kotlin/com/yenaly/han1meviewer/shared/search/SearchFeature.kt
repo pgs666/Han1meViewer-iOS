@@ -11,11 +11,13 @@ class SearchFeature(
     private val historyStore: SearchHistoryStore? = null,
 ) {
     @OptIn(ExperimentalTime::class)
+    @Throws(Exception::class)
     suspend fun search(keyword: String, page: Int): SearchSnapshot {
         val trimmedKeyword = keyword.trim()
         return search(SearchParams(keyword = trimmedKeyword), page, filterSummary = "")
     }
 
+    @Throws(Exception::class)
     suspend fun searchAdvanced(
         keyword: String,
         genre: String?,

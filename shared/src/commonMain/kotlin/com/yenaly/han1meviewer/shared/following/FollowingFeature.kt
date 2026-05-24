@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 class FollowingFeature(
     private val repository: FollowingRepository,
 ) {
+    @Throws(Exception::class)
     suspend fun loadFollowing(page: Int): FollowingSnapshot {
         val subscriptions = repository.getSubscriptions(page)
         return FollowingSnapshot(

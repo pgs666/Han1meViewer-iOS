@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 class WebLoginFeature(
     private val sessionStore: SessionStore,
 ) {
+    @Throws(Exception::class)
     suspend fun importCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
         val cookies = parseCookieHeader(cookieHeader, domain)
 
@@ -19,6 +20,7 @@ class WebLoginFeature(
         )
     }
 
+    @Throws(Exception::class)
     suspend fun importConfirmedLoginCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
         val cookies = parseCookieHeader(cookieHeader, domain) + SessionCookie(
             name = confirmedLoginCookieName,
@@ -35,6 +37,7 @@ class WebLoginFeature(
         )
     }
 
+    @Throws(Exception::class)
     suspend fun currentSessionSnapshot(): AuthSnapshot {
         val isLoggedIn = sessionStore.loadCookies().hasLoginSession()
         return AuthSnapshot(
@@ -48,6 +51,7 @@ class WebLoginFeature(
         )
     }
 
+    @Throws(Exception::class)
     suspend fun logout(): AuthSnapshot {
         sessionStore.clear()
         return AuthSnapshot(

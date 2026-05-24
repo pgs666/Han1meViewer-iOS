@@ -9,14 +9,17 @@ class OnlineWatchHistoryFeature(
     private val homeRepository: HomeRepository,
     private val historyRepository: OnlineWatchHistoryRepository,
 ) {
+    @Throws(Exception::class)
     suspend fun loadLatest(page: Int): OnlineWatchHistorySnapshot {
         return load(OnlineWatchHistorySort.Latest, page)
     }
 
+    @Throws(Exception::class)
     suspend fun loadOldest(page: Int): OnlineWatchHistorySnapshot {
         return load(OnlineWatchHistorySort.Oldest, page)
     }
 
+    @Throws(Exception::class)
     suspend fun load(sort: OnlineWatchHistorySort, page: Int): OnlineWatchHistorySnapshot {
         val userId = homeRepository.getHomePage().userId
             ?: return OnlineWatchHistorySnapshot.authRequired(page)
@@ -42,6 +45,7 @@ class OnlineWatchHistoryFeature(
         )
     }
 
+    @Throws(Exception::class)
     suspend fun remove(videoCode: String, csrfToken: String?): OnlineWatchHistoryMutationSnapshot {
         historyRepository.removeHistoryItem(videoCode, csrfToken)
         return OnlineWatchHistoryMutationSnapshot(videoCode = videoCode)
