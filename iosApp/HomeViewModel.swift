@@ -70,7 +70,7 @@ struct HomeScreenSnapshot {
             }
 
             let videoCount = Int(section.videoCount())
-            let videos = (0..<videoCount).compactMap { videoIndex in
+            let videos = (0..<videoCount).compactMap { videoIndex -> HomeVideoRow? in
                 guard let video = section.videoAt(index: Int32(videoIndex)) else {
                     return nil
                 }
