@@ -80,14 +80,14 @@ final class UserVideoListViewModel: ObservableObject {
 struct UserVideoListScreenSnapshot {
     let page: Int32
     let hasNext: Bool
-    let description: String?
+    let listDescription: String?
     let videos: [UserVideoListRow]
     let loadMoreError: String?
 
     init(_ snapshot: UserVideoListSnapshot, appendingTo existingSnapshot: UserVideoListScreenSnapshot? = nil) {
         page = snapshot.page
         hasNext = snapshot.hasNext
-        description = snapshot.description ?? existingSnapshot?.description
+        listDescription = snapshot.listDescription ?? existingSnapshot?.listDescription
 
         let videoCount = Int(snapshot.videoCount())
         let newVideos: [UserVideoListRow] = (0..<videoCount).compactMap { index in
@@ -112,13 +112,13 @@ struct UserVideoListScreenSnapshot {
     private init(
         page: Int32,
         hasNext: Bool,
-        description: String?,
+        listDescription: String?,
         videos: [UserVideoListRow],
         loadMoreError: String?
     ) {
         self.page = page
         self.hasNext = hasNext
-        self.description = description
+        self.listDescription = listDescription
         self.videos = videos
         self.loadMoreError = loadMoreError
     }
@@ -127,7 +127,7 @@ struct UserVideoListScreenSnapshot {
         UserVideoListScreenSnapshot(
             page: page,
             hasNext: hasNext,
-            description: description,
+            listDescription: listDescription,
             videos: videos,
             loadMoreError: message
         )

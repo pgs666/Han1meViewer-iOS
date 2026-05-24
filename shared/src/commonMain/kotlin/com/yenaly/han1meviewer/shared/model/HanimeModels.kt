@@ -73,7 +73,7 @@ enum class UserVideoListType(val path: String) {
 @Serializable
 data class UserVideoListPage(
     val items: List<HanimeInfo>,
-    val description: String?,
+    val listDescription: String?,
     val csrfToken: String?,
     val page: Int,
     val hasNext: Boolean,

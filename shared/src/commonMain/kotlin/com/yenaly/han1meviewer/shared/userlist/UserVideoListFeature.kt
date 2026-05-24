@@ -17,7 +17,7 @@ class UserVideoListFeature(
         return UserVideoListSnapshot(
             page = listPage.page,
             hasNext = listPage.hasNext,
-            description = listPage.description,
+            listDescription = listPage.listDescription,
             videos = listPage.items.mapNotNull { item ->
                 val videoCode = item.videoCode ?: return@mapNotNull null
                 UserVideoListItemSnapshot(
@@ -38,7 +38,7 @@ class UserVideoListFeature(
 data class UserVideoListSnapshot(
     val page: Int,
     val hasNext: Boolean,
-    val description: String?,
+    val listDescription: String?,
     private val videos: List<UserVideoListItemSnapshot>,
 ) {
     fun videoCount(): Int = videos.size

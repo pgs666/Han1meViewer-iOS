@@ -204,7 +204,7 @@ class KsoupHtmlParser : HtmlParser {
 
         return UserVideoListPage(
             items = items,
-            description = description,
+            listDescription = description,
             csrfToken = csrfToken,
             page = page,
             hasNext = items.isNotEmpty(),

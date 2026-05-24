@@ -82,9 +82,9 @@ struct UserVideoListView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
-                    if let description = snapshot.description, !description.isEmpty {
+                    if let listDescription = snapshot.listDescription, !listDescription.isEmpty {
                         Section {
-                            Text(description)
+                            Text(listDescription)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
