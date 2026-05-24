@@ -126,16 +126,25 @@ struct SearchView: View {
                         }
 
                         VStack(spacing: 0) {
-                            ForEach(viewModel.history, id: \.self) { item in
+                            ForEach(viewModel.history) { item in
                                 Button {
-                                    keyword = item
-                                    viewModel.search(keyword: item)
+                                    keyword = item.keyword
+                                    viewModel.search(keyword: item.keyword)
                                 } label: {
                                     HStack {
                                         Image(systemName: "clock.arrow.circlepath")
                                             .foregroundStyle(.secondary)
-                                        Text(item)
-                                            .foregroundColor(.primary)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(item.title)
+                                                .font(.body)
+                                                .foregroundColor(.primary)
+
+                                            if item.hasKeyword && item.hasFilterSummary {
+                                                Text(item.filterSummary)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .font(.caption.weight(.semibold))
@@ -143,7 +152,7 @@ struct SearchView: View {
                                     }
                                     .padding(.vertical, 13)
                                 }
-                                if item != viewModel.history.last {
+                                if item.id != viewModel.history.last?.id {
                                     Divider()
                                         .padding(.leading, 28)
                                 }

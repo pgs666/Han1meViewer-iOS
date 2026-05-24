@@ -12,7 +12,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
-    @Published private(set) var history: [String] = []
+    @Published private(set) var history: [SearchHistoryRow] = []
     @Published var filters = SearchFilterState()
 
     private let searchFeature: SearchFeature
@@ -35,9 +35,15 @@ final class SearchViewModel: ObservableObject {
 
     private func loadHistory() {
         let snapshot = searchFeature.recentHistory(limit: 12)
-        let count = Int(snapshot.keywordCount())
+        let count = Int(snapshot.itemCount())
         history = (0..<count).compactMap { index in
-            snapshot.keywordAt(index: Int32(index))
+            guard let item = snapshot.itemAt(index: Int32(index)) else {
+                return nil
+            }
+            return SearchHistoryRow(
+                keyword: item.keyword,
+                filterSummary: item.filterSummary
+            )
         }
         didLoadHistory = true
     }
@@ -51,14 +57,6 @@ final class SearchViewModel: ObservableObject {
     func search(keyword: String, filters: SearchFilterState? = nil) {
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         let nextFilters = filters ?? self.filters
-        guard !trimmedKeyword.isEmpty || nextFilters.hasActiveFilters else {
-            state = .idle
-            currentKeyword = ""
-            currentFilters = SearchFilterState()
-            currentPage = 0
-            hasNextPage = false
-            return
-        }
         guard !isLoading else {
             return
         }
@@ -126,6 +124,7 @@ final class SearchViewModel: ObservableObject {
                 duration: filters.duration?.searchKey,
                 tags: filters.selectedTagKeys.joined(separator: "\n"),
                 brands: filters.selectedBrandKeys.joined(separator: "\n"),
+                filterSummary: filters.summaryItems.joined(separator: " · "),
                 page: page
             )
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
@@ -143,6 +142,27 @@ final class SearchViewModel: ObservableObject {
                 state = .failed(ErrorMessage.userFriendly(error))
             }
         }
+    }
+}
+
+struct SearchHistoryRow: Identifiable, Hashable {
+    let keyword: String
+    let filterSummary: String
+
+    var id: String {
+        "\(keyword)\n\(filterSummary)"
+    }
+
+    var hasKeyword: Bool {
+        !keyword.isEmpty
+    }
+
+    var hasFilterSummary: Bool {
+        !filterSummary.isEmpty
+    }
+
+    var title: String {
+        hasKeyword ? keyword : (hasFilterSummary ? filterSummary : "空关键词")
     }
 }
 

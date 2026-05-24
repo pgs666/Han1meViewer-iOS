@@ -13,7 +13,7 @@ class SearchFeature(
     @OptIn(ExperimentalTime::class)
     suspend fun search(keyword: String, page: Int): SearchSnapshot {
         val trimmedKeyword = keyword.trim()
-        return search(SearchParams(keyword = trimmedKeyword), page)
+        return search(SearchParams(keyword = trimmedKeyword), page, filterSummary = "")
     }
 
     suspend fun searchAdvanced(
@@ -25,6 +25,7 @@ class SearchFeature(
         duration: String?,
         tags: String,
         brands: String,
+        filterSummary: String,
         page: Int,
     ): SearchSnapshot {
         return search(
@@ -39,16 +40,18 @@ class SearchFeature(
                 brands = brands.toSearchKeyList(),
             ),
             page = page,
+            filterSummary = filterSummary.trim(),
         )
     }
 
     @OptIn(ExperimentalTime::class)
-    private suspend fun search(params: SearchParams, page: Int): SearchSnapshot {
+    private suspend fun search(params: SearchParams, page: Int, filterSummary: String): SearchSnapshot {
         val result = repository.search(params, page)
         val trimmedKeyword = params.keyword.trim()
-        if (page == 1 && trimmedKeyword.isNotBlank()) {
+        if (page == 1 && (trimmedKeyword.isNotBlank() || filterSummary.isNotBlank())) {
             historyStore?.record(
                 keyword = trimmedKeyword,
+                filterSummary = filterSummary,
                 searchedAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
             )
         }
@@ -81,20 +84,25 @@ class SearchFeature(
     }
 
     fun recentHistory(limit: Int): SearchHistorySnapshot {
-        val keywords = historyStore
+        val items = historyStore
             ?.recent(limit = (limit * HISTORY_DEDUP_FACTOR).toLong())
             .orEmpty()
-            .map { item -> item.keyword.trim() }
-            .filter { keyword -> keyword.isNotBlank() }
-            .distinct()
+            .map { item ->
+                SearchHistoryEntrySnapshot(
+                    keyword = item.keyword.trim(),
+                    filterSummary = item.filterSummary.trim(),
+                )
+            }
+            .filter { item -> item.keyword.isNotBlank() || item.filterSummary.isNotBlank() }
+            .distinctBy { item -> "${item.keyword}\n${item.filterSummary}" }
             .take(limit)
 
-        return SearchHistorySnapshot(keywords = keywords)
+        return SearchHistorySnapshot(items = items)
     }
 
     fun clearHistory(): SearchHistorySnapshot {
         historyStore?.clear()
-        return SearchHistorySnapshot(keywords = emptyList())
+        return SearchHistorySnapshot(items = emptyList())
     }
 
     private companion object {
@@ -127,9 +135,19 @@ data class SearchVideoSnapshot(
 
 @Serializable
 data class SearchHistorySnapshot(
-    private val keywords: List<String>,
+    private val items: List<SearchHistoryEntrySnapshot>,
 ) {
-    fun keywordCount(): Int = keywords.size
+    fun itemCount(): Int = items.size
 
-    fun keywordAt(index: Int): String? = keywords.getOrNull(index)
+    fun itemAt(index: Int): SearchHistoryEntrySnapshot? = items.getOrNull(index)
+
+    fun keywordCount(): Int = items.size
+
+    fun keywordAt(index: Int): String? = items.getOrNull(index)?.keyword
 }
+
+@Serializable
+data class SearchHistoryEntrySnapshot(
+    val keyword: String,
+    val filterSummary: String,
+)
