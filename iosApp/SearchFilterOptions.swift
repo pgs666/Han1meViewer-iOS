@@ -18,7 +18,7 @@ struct SearchOptionCatalog {
     }
 
     private static func loadArray(_ name: String, bundle: Bundle) -> [SearchFilterOption] {
-        guard let url = bundle.url(forResource: name, withExtension: "json", subdirectory: "SearchOptions"),
+        guard let url = resourceURL(name, bundle: bundle),
               let data = try? Data(contentsOf: url),
               let options = try? JSONDecoder().decode([SearchFilterOption].self, from: data) else {
             return []
@@ -27,7 +27,7 @@ struct SearchOptionCatalog {
     }
 
     private static func loadTagSections(bundle: Bundle) -> [SearchTagSection] {
-        guard let url = bundle.url(forResource: "tags", withExtension: "json", subdirectory: "SearchOptions"),
+        guard let url = resourceURL("tags", bundle: bundle),
               let data = try? Data(contentsOf: url),
               let rawSections = try? JSONDecoder().decode([String: [SearchFilterOption]].self, from: data) else {
             return []
@@ -39,6 +39,11 @@ struct SearchOptionCatalog {
             }
             return SearchTagSection(key: key, title: title, options: options)
         }
+    }
+
+    private static func resourceURL(_ name: String, bundle: Bundle) -> URL? {
+        bundle.url(forResource: name, withExtension: "json", subdirectory: "SearchOptions")
+            ?? bundle.url(forResource: name, withExtension: "json")
     }
 
     private static let tagSectionOrder: [(String, String)] = [
