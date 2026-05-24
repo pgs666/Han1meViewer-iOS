@@ -367,6 +367,7 @@ private struct SearchFilterSheet: View {
                     options: catalog.sortOptions,
                     selection: $draft.sort
                 )
+                brandSection
                 tagSection
                 singleChoiceSection(
                     title: "发布日期",
@@ -447,6 +448,43 @@ private struct SearchFilterSheet: View {
                 if selection.wrappedValue != nil {
                     Button("清除") {
                         selection.wrappedValue = nil
+                    }
+                    .font(.caption)
+                }
+            }
+        }
+    }
+
+    private var brandSection: some View {
+        Section {
+            if catalog.brands.isEmpty {
+                Text("品牌加载失败。")
+                    .foregroundStyle(.secondary)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
+                    ForEach(catalog.brands) { option in
+                        SearchTagChip(
+                            title: option.displayName,
+                            isSelected: draft.brands.contains(option),
+                            onTap: {
+                                if draft.brands.contains(option) {
+                                    draft.brands.remove(option)
+                                } else {
+                                    draft.brands.insert(option)
+                                }
+                            }
+                        )
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+        } header: {
+            HStack {
+                Text(draft.brands.isEmpty ? "品牌" : "品牌（\(draft.brands.count)）")
+                Spacer()
+                if !draft.brands.isEmpty {
+                    Button("清除") {
+                        draft.brands.removeAll()
                     }
                     .font(.caption)
                 }

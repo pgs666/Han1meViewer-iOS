@@ -39,6 +39,7 @@ final class MineViewModel: ObservableObject {
                 }
                 isCheckingLogin = false
             } catch {
+                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 errorMessage = ErrorMessage.userFriendly(error)
                 isCheckingLogin = false
             }
@@ -70,6 +71,7 @@ final class MineViewModel: ObservableObject {
                 isCheckingLogin = false
                 onSuccess()
             } catch {
+                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 errorMessage = ErrorMessage.userFriendly(error)
                 isCheckingLogin = false
             }
@@ -84,6 +86,7 @@ final class MineViewModel: ObservableObject {
                 avatarUrl: home.avatarUrl
             )
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             errorMessage = ErrorMessage.userFriendly(error)
         }
     }

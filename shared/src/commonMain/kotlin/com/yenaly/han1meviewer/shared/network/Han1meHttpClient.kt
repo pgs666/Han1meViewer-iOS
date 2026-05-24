@@ -47,8 +47,5 @@ internal fun createHan1meHttpClient(): HttpClient = HttpClient {
 internal fun Headers.setCookieHeaders(): List<String> = getAll(HttpHeaders.SetCookie).orEmpty()
 
 private fun Headers.isCloudflareChallenge(): Boolean {
-    val mitigated = this["cf-mitigated"]?.equals("challenge", ignoreCase = true) == true
-    val server = this[HttpHeaders.Server]?.contains("cloudflare", ignoreCase = true) == true
-    val hasCloudflareHeader = names().any { name -> name.startsWith("cf-", ignoreCase = true) }
-    return mitigated || server || hasCloudflareHeader
+    return this["cf-mitigated"]?.equals("challenge", ignoreCase = true) == true
 }

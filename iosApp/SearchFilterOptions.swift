@@ -5,6 +5,7 @@ struct SearchOptionCatalog {
     let sortOptions: [SearchFilterOption]
     let durations: [SearchFilterOption]
     let releaseDates: [SearchFilterOption]
+    let brands: [SearchFilterOption]
     let tagSections: [SearchTagSection]
 
     static let shared = SearchOptionCatalog()
@@ -14,6 +15,7 @@ struct SearchOptionCatalog {
         sortOptions = SearchOptionCatalog.loadArray("sort_option", bundle: bundle)
         durations = SearchOptionCatalog.loadArray("duration", bundle: bundle)
         releaseDates = SearchOptionCatalog.loadArray("release_date", bundle: bundle)
+        brands = SearchOptionCatalog.loadArray("brands", bundle: bundle)
         tagSections = SearchOptionCatalog.loadTagSections(bundle: bundle)
     }
 
@@ -114,6 +116,7 @@ struct SearchFilterState: Equatable {
     var releaseDate: SearchFilterOption?
     var broad = false
     var tags: Set<SearchFilterOption> = []
+    var brands: Set<SearchFilterOption> = []
 
     var activeCount: Int {
         var count = 0
@@ -122,6 +125,7 @@ struct SearchFilterState: Equatable {
         if duration?.searchKey?.isEmpty == false { count += 1 }
         if releaseDate?.searchKey?.isEmpty == false { count += 1 }
         if !tags.isEmpty { count += tags.count }
+        if !brands.isEmpty { count += brands.count }
         if broad { count += 1 }
         return count
     }
@@ -132,6 +136,10 @@ struct SearchFilterState: Equatable {
 
     var selectedTagKeys: [String] {
         tags.compactMap(\.searchKey).filter { !$0.isEmpty }.sorted()
+    }
+
+    var selectedBrandKeys: [String] {
+        brands.compactMap(\.searchKey).filter { !$0.isEmpty }.sorted()
     }
 
     var summaryItems: [String] {
@@ -151,6 +159,9 @@ struct SearchFilterState: Equatable {
         if !tags.isEmpty {
             items.append("标签: \(tags.count)")
         }
+        if !brands.isEmpty {
+            items.append("品牌: \(brands.count)")
+        }
         if broad {
             items.append("模糊")
         }
@@ -164,5 +175,6 @@ struct SearchFilterState: Equatable {
         releaseDate = nil
         broad = false
         tags = []
+        brands = []
     }
 }

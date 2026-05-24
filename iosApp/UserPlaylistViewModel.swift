@@ -74,6 +74,7 @@ final class UserPlaylistViewModel: ObservableObject {
             hasNextPage = screenSnapshot.hasNext
             state = .loaded(screenSnapshot)
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
             } else {

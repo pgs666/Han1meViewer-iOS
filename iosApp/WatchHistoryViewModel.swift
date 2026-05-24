@@ -29,6 +29,7 @@ final class WatchHistoryViewModel: ObservableObject {
             let snapshot = watchHistoryFeature.loadRecent()
             state = .loaded(WatchHistoryScreenSnapshot(snapshot))
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }
@@ -38,6 +39,7 @@ final class WatchHistoryViewModel: ObservableObject {
             let snapshot = watchHistoryFeature.delete(videoCode: videoCode)
             state = .loaded(WatchHistoryScreenSnapshot(snapshot))
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }

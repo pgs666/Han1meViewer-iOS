@@ -125,7 +125,7 @@ final class SearchViewModel: ObservableObject {
                 releaseDate: filters.releaseDate?.searchKey,
                 duration: filters.duration?.searchKey,
                 tags: filters.selectedTagKeys.joined(separator: "\n"),
-                brands: "",
+                brands: filters.selectedBrandKeys.joined(separator: "\n"),
                 page: page
             )
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
@@ -136,6 +136,7 @@ final class SearchViewModel: ObservableObject {
             }
             state = .loaded(screenSnapshot)
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
             } else {

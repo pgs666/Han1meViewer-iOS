@@ -42,6 +42,7 @@ final class VideoDetailViewModel: ObservableObject {
             let snapshot = try await videoFeature.loadVideo(videoCode: videoCode)
             state = .loaded(VideoDetailScreenSnapshot(snapshot))
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }

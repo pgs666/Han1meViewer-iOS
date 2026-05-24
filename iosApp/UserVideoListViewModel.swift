@@ -86,6 +86,7 @@ final class UserVideoListViewModel: ObservableObject {
                 do {
                     _ = try await removeVideo(videoCode)
                 } catch {
+                    CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                     actionErrorMessage = ErrorMessage.userFriendly(error)
                     await load(page: 1, appendingTo: nil)
                     return
@@ -117,6 +118,7 @@ final class UserVideoListViewModel: ObservableObject {
             hasNextPage = screenSnapshot.hasNext
             state = .loaded(screenSnapshot)
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
             } else {

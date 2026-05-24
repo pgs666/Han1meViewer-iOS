@@ -91,6 +91,7 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
                 do {
                     _ = try await feature.remove(videoCode: videoCode, csrfToken: snapshot.csrfToken)
                 } catch {
+                    CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                     actionErrorMessage = ErrorMessage.userFriendly(error)
                     await load(page: 1, appendingTo: nil)
                     return
@@ -130,6 +131,7 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
             hasNextPage = screenSnapshot.hasNext
             state = .loaded(screenSnapshot)
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             if let existingSnapshot {
                 state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
             } else {

@@ -40,6 +40,7 @@ final class HomeViewModel: ObservableObject {
             let snapshot = try await homeFeature.loadHome()
             state = .loaded(HomeScreenSnapshot(snapshot))
         } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }
