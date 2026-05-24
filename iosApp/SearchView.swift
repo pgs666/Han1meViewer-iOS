@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Han1meShared
 
 struct SearchView: View {
@@ -10,6 +11,7 @@ struct SearchView: View {
 
     init(environment: SharedAppEnvironment) {
         self.environment = environment
+        UISearchTextField.appearance().enablesReturnKeyAutomatically = false
         _viewModel = StateObject(wrappedValue: SearchViewModel(searchFeature: environment.searchFeature()))
     }
 
