@@ -2,7 +2,7 @@
 
 ## User Request
 
-修 iOS 侧：登录真实性校验 + 全局 ViewModel 任务取消模式 + 残留乱码。修复乱码的时候：顺便把硬编码的所有UI文字变成支持多语言的
+修 iOS 侧：登录真实性校验 + 全局 ViewModel 任务取消模式 + 残留乱码。修复乱码的时候：顺便把硬编码的所有 UI 文字变成支持多语言的
 
 ## English Translation
 
