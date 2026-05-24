@@ -54,6 +54,12 @@ final class AppOrientationController {
         request(interfaceOrientation: previousOrientation, mask: previousMask)
     }
 
+    func enforceCurrentOrientationMask() {
+        let orientation = currentInterfaceOrientation?.normalized(for: supportedOrientations)
+            ?? supportedOrientations.preferredOrientation
+        request(interfaceOrientation: orientation, mask: supportedOrientations)
+    }
+
     private var currentInterfaceOrientation: UIInterfaceOrientation? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -69,9 +75,21 @@ final class AppOrientationController {
             return
         }
 
-        if #available(iOS 16.0, *),
-           let windowScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
-            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        if #available(iOS 16.0, *), let windowScene {
+            windowScene.windows
+                .first { $0.isKeyWindow }?
+                .rootViewController?
+                .setNeedsUpdateOfSupportedInterfaceOrientations()
+            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { _ in
+                UIDevice.current.setValue(interfaceOrientation.rawValue, forKey: "orientation")
+                UIViewController.attemptRotationToDeviceOrientation()
+            }
+            UIDevice.current.setValue(interfaceOrientation.rawValue, forKey: "orientation")
+            UIViewController.attemptRotationToDeviceOrientation()
         } else {
             UIDevice.current.setValue(interfaceOrientation.rawValue, forKey: "orientation")
             UIViewController.attemptRotationToDeviceOrientation()

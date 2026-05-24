@@ -191,7 +191,9 @@ private struct AndroidStylePlayerHeader: View {
         .onChange(of: selectedSourceID) { _ in
             configurePlayer(preservePosition: true)
         }
-        .fullScreenCover(isPresented: $isShowingFullscreen) {
+        .fullScreenCover(isPresented: $isShowingFullscreen, onDismiss: {
+            AppOrientationController.shared.enforceCurrentOrientationMask()
+        }) {
             FullscreenVideoPlayer(
                 title: snapshot.title,
                 player: player,
