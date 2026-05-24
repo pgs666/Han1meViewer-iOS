@@ -27,11 +27,13 @@ Watch later and favorite lists were readable but not manageable. Swipe deletion 
 ## Mistakes Or Failed Attempts
 
 - First local compile failed because `submitForm` request builders cannot call the suspend cookie injection helper directly. I added a cookie-header accessor and inject the preloaded header in the form request builder.
+- The first GitHub Actions iOS build failed with a Swift compiler diagnostic crash in `UserVideoListView.content`, likely triggered by an optional `onDelete` closure inside a complex `@ViewBuilder` expression. I split removable and read-only rows into separate helper views.
 
 ## Verification
 
 - `./gradlew :shared:jvmTest` passed locally on Windows after the cookie injection fix.
-- Pending: GitHub Actions iOS build.
+- GitHub Actions iOS build failed once on Swift compilation before the row builder split.
+- Pending: rerun verification after the SwiftUI split.
 
 ## Known Limits
 

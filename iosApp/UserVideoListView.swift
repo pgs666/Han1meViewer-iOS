@@ -110,20 +110,11 @@ struct UserVideoListView: View {
                     }
 
                     Section {
-                        ForEach(snapshot.videos) { video in
-                            NavigationLink {
-                                VideoDetailView(
-                                    videoCode: video.videoCode,
-                                    videoFeature: environment.videoFeature()
-                                )
-                            } label: {
-                                UserVideoListRowView(video: video)
-                            }
-                            .onAppear {
-                                viewModel.loadMoreIfNeeded(currentVideoID: video.id)
-                            }
+                        if viewModel.canRemoveItems {
+                            removableVideoRows(snapshot: snapshot)
+                        } else {
+                            videoRows(snapshot: snapshot)
                         }
-                        .onDelete(perform: viewModel.canRemoveItems ? viewModel.delete : nil)
                         footer(snapshot: snapshot)
                     }
                 }
@@ -150,6 +141,39 @@ struct UserVideoListView: View {
                 }
             }
         )
+    }
+
+    private func videoRows(snapshot: UserVideoListScreenSnapshot) -> some View {
+        ForEach(snapshot.videos) { video in
+            NavigationLink {
+                VideoDetailView(
+                    videoCode: video.videoCode,
+                    videoFeature: environment.videoFeature()
+                )
+            } label: {
+                UserVideoListRowView(video: video)
+            }
+            .onAppear {
+                viewModel.loadMoreIfNeeded(currentVideoID: video.id)
+            }
+        }
+    }
+
+    private func removableVideoRows(snapshot: UserVideoListScreenSnapshot) -> some View {
+        ForEach(snapshot.videos) { video in
+            NavigationLink {
+                VideoDetailView(
+                    videoCode: video.videoCode,
+                    videoFeature: environment.videoFeature()
+                )
+            } label: {
+                UserVideoListRowView(video: video)
+            }
+            .onAppear {
+                viewModel.loadMoreIfNeeded(currentVideoID: video.id)
+            }
+        }
+        .onDelete(perform: viewModel.delete)
     }
 
     @ViewBuilder
