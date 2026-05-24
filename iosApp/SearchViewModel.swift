@@ -96,7 +96,7 @@ struct SearchScreenSnapshot {
 
     init(_ snapshot: SearchSnapshot, appendingTo existingSnapshot: SearchScreenSnapshot? = nil) {
         let count = Int(snapshot.itemCount())
-        let newResults = (0..<count).compactMap { index in
+        let newResults: [SearchVideoRow] = (0..<count).compactMap { index in
             guard let item = snapshot.itemAt(index: Int32(index)) else {
                 return nil
             }
