@@ -43,6 +43,7 @@ struct HomeScreenSnapshot {
     let baseUrl: String
     let bannerTitle: String?
     let videos: [HomeVideoRow]
+    let sections: [HomeSectionRow]
 
     init(_ snapshot: HomeFeedSnapshot) {
         summary = snapshot.summary
@@ -61,7 +62,45 @@ struct HomeScreenSnapshot {
                 sectionTitle: video.sectionTitle
             )
         }
+
+        let sectionCount = Int(snapshot.homeSectionCount())
+        sections = (0..<sectionCount).compactMap { sectionIndex in
+            guard let section = snapshot.homeSectionAt(index: Int32(sectionIndex)) else {
+                return nil
+            }
+
+            let videoCount = Int(section.videoCount())
+            let videos = (0..<videoCount).compactMap { videoIndex in
+                guard let video = section.videoAt(index: Int32(videoIndex)) else {
+                    return nil
+                }
+                return HomeVideoRow(
+                    videoCode: video.videoCode,
+                    title: video.title,
+                    coverUrl: video.coverUrl,
+                    sectionTitle: video.sectionTitle
+                )
+            }
+
+            guard !videos.isEmpty else {
+                return nil
+            }
+
+            return HomeSectionRow(
+                key: section.key,
+                title: section.title,
+                videos: videos
+            )
+        }
     }
+}
+
+struct HomeSectionRow: Identifiable {
+    let key: String
+    let title: String
+    let videos: [HomeVideoRow]
+
+    var id: String { key }
 }
 
 struct HomeVideoRow: Identifiable {

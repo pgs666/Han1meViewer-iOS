@@ -55,35 +55,45 @@ struct HomeView: View {
                     }
                 }
 
-                Section("Videos") {
-                    ForEach(snapshot.videos) { video in
-                        NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode, videoFeature: environment.videoFeature())
-                        } label: {
-                            HStack(spacing: 12) {
-                                AsyncImage(url: video.coverUrl.flatMap(URL.init(string:))) { image in
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                } placeholder: {
-                                    Color.gray.opacity(0.18)
-                                }
-                                .frame(width: 96, height: 54)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(video.title)
-                                        .lineLimit(2)
-                                    Text(video.sectionTitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+                ForEach(snapshot.sections) { section in
+                    Section(section.title) {
+                        ForEach(section.videos) { video in
+                            NavigationLink {
+                                VideoDetailView(videoCode: video.videoCode, videoFeature: environment.videoFeature())
+                            } label: {
+                                HomeVideoListRow(video: video)
                             }
-                            .padding(.vertical, 4)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+private struct HomeVideoListRow: View {
+    let video: HomeVideoRow
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: video.coverUrl.flatMap(URL.init(string:))) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+            } placeholder: {
+                Color.gray.opacity(0.18)
+            }
+            .frame(width: 96, height: 54)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(video.title)
+                    .lineLimit(2)
+                Text(video.sectionTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

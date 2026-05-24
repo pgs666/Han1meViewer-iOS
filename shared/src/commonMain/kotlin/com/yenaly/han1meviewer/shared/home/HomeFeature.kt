@@ -12,36 +12,66 @@ class HomeFeature(
 
     suspend fun loadHome(): HomeFeedSnapshot {
         val homePage = repository.getHomePage()
-        val videos = homePage.sections.flatMap { section ->
-            section.items.mapNotNull { item ->
+        val sections = homePage.sections.mapNotNull { section ->
+            val videos = section.items.mapNotNull { item ->
                 val videoCode = item.videoCode ?: return@mapNotNull null
                 HomeVideoSnapshot(
                     videoCode = videoCode,
                     title = item.title,
                     coverUrl = item.coverUrl,
-                    sectionTitle = section.title,
+                    sectionTitle = section.displayTitle(),
                     detailUrl = item.detailUrl,
                 )
             }
+            if (videos.isEmpty()) {
+                null
+            } else {
+                HomeSectionSnapshot(
+                    key = section.key,
+                    title = section.displayTitle(),
+                    videos = videos.take(MAX_SECTION_VIDEOS),
+                )
+            }
         }
+        val videos = sections.flatMap { section -> section.allVideos() }
         val firstItem = videos.firstOrNull()
 
         return HomeFeedSnapshot(
-            summary = "Sections: ${homePage.sections.size}, items: ${videos.size}",
+            summary = "Sections: ${sections.size}, items: ${videos.size}",
             baseUrl = DEFAULT_BASE_URL,
             username = homePage.username,
             bannerTitle = homePage.banner?.title,
             firstVideoTitle = firstItem?.title,
             firstVideoCode = firstItem?.videoCode,
-            sectionCount = homePage.sections.size,
+            sectionCount = sections.size,
             itemCount = videos.size,
             videos = videos.take(MAX_HOME_VIDEOS),
+            sections = sections,
         )
+    }
+
+    private fun com.yenaly.han1meviewer.shared.model.HomeSection.displayTitle(): String {
+        return HOME_SECTION_TITLES[key] ?: title
     }
 
     private companion object {
         const val MAX_HOME_VIDEOS = 30
+        const val MAX_SECTION_VIDEOS = 12
         const val DEFAULT_BASE_URL = "https://hanime1.me"
+        val HOME_SECTION_TITLES = mapOf(
+            "latestRelease" to "最新上市",
+            "latestHanime" to "最新上传",
+            "ecchiAnime" to "里番",
+            "shortEpisodeAnime" to "泡面番",
+            "motionAnime" to "Motion Anime",
+            "threeDCG" to "3D CG",
+            "twoPointFiveDAnime" to "2.5D",
+            "twoDAnime" to "2D",
+            "aiGenerated" to "AI 生成",
+            "mmd" to "MMD",
+            "cosplay" to "Cosplay",
+            "watchingNow" to "他们在看",
+        )
     }
 }
 
@@ -56,10 +86,28 @@ data class HomeFeedSnapshot(
     val sectionCount: Int,
     val itemCount: Int,
     private val videos: List<HomeVideoSnapshot>,
+    private val sections: List<HomeSectionSnapshot>,
 ) {
     fun videoCount(): Int = videos.size
 
     fun videoAt(index: Int): HomeVideoSnapshot? = videos.getOrNull(index)
+
+    fun homeSectionCount(): Int = sections.size
+
+    fun homeSectionAt(index: Int): HomeSectionSnapshot? = sections.getOrNull(index)
+}
+
+@Serializable
+data class HomeSectionSnapshot(
+    val key: String,
+    val title: String,
+    private val videos: List<HomeVideoSnapshot>,
+) {
+    fun videoCount(): Int = videos.size
+
+    fun videoAt(index: Int): HomeVideoSnapshot? = videos.getOrNull(index)
+
+    fun allVideos(): List<HomeVideoSnapshot> = videos
 }
 
 @Serializable
