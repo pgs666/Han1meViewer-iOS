@@ -87,7 +87,7 @@ class SharedAppEnvironment(
 
     fun onlineWatchHistoryFeature(): OnlineWatchHistoryFeature {
         return OnlineWatchHistoryFeature(
-            homeRepository = homeRepository,
+            currentUserIdProvider = ::resolveCurrentUserId,
             historyRepository = onlineWatchHistoryRepository,
         )
     }
@@ -110,7 +110,7 @@ class SharedAppEnvironment(
 
     fun userPlaylistFeature(): UserPlaylistFeature {
         return UserPlaylistFeature(
-            homeRepository = homeRepository,
+            currentUserIdProvider = ::resolveCurrentUserId,
             playlistRepository = userPlaylistRepository,
         )
     }

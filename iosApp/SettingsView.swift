@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var activeConfirmation: SettingsConfirmation?
     @State private var resultMessage: String?
     @State private var cacheSizeText = "计算中…"
+    @State private var crashReportSummary = CrashReporter.latestReportSummary()
 
     init(environment: SharedAppEnvironment) {
         self.environment = environment
@@ -45,6 +46,26 @@ struct SettingsView: View {
                 Text("缓存")
             } footer: {
                 Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
+            }
+
+            if let crashReportSummary {
+                Section {
+                    Text(crashReportSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                    Button(role: .destructive) {
+                        CrashReporter.clearReports()
+                        self.crashReportSummary = nil
+                        resultMessage = "崩溃报告已清除。"
+                    } label: {
+                        SettingsNavigationRow(title: "清除崩溃报告", systemImage: "xmark.bin")
+                    }
+                } header: {
+                    Text("崩溃报告")
+                } footer: {
+                    Text("仅保存在本机，用于复现和定位上次异常退出。")
+                }
             }
         }
         .navigationTitle("设置")

@@ -1,12 +1,11 @@
 package com.yenaly.han1meviewer.shared.history
 
 import com.yenaly.han1meviewer.shared.model.OnlineWatchHistorySort
-import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.repository.OnlineWatchHistoryRepository
 import kotlinx.serialization.Serializable
 
 class OnlineWatchHistoryFeature(
-    private val homeRepository: HomeRepository,
+    private val currentUserIdProvider: suspend () -> String?,
     private val historyRepository: OnlineWatchHistoryRepository,
 ) {
     @Throws(Exception::class)
@@ -21,7 +20,7 @@ class OnlineWatchHistoryFeature(
 
     @Throws(Exception::class)
     suspend fun load(sort: OnlineWatchHistorySort, page: Int): OnlineWatchHistorySnapshot {
-        val userId = homeRepository.getHomePage().userId
+        val userId = currentUserIdProvider()
             ?: return OnlineWatchHistorySnapshot.authRequired(page)
         val pageData = historyRepository.getHistories(userId, sort, page)
 

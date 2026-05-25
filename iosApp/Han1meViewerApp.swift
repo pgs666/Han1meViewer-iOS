@@ -7,10 +7,27 @@ struct Han1meViewerApp: App {
     private let sharedEnvironment = SharedAppEnvironment(driverFactory: DatabaseDriverFactory())
     @State private var selectedTab: MainTab = .home
     @State private var searchLaunchRequest: SearchLaunchRequest?
+    @State private var deepLinkedVideo: DeepLinkedVideo?
+
+    init() {
+        CrashReporter.install()
+    }
 
     var body: some Scene {
         WindowGroup {
             rootView
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
+                .sheet(item: $deepLinkedVideo) { item in
+                    CompatibleNavigationStack {
+                        VideoDetailView(
+                            videoCode: item.videoCode,
+                            videoFeature: sharedEnvironment.videoFeature(),
+                            commentFeature: sharedEnvironment.commentFeature()
+                        )
+                    }
+                }
                 .modifier(
                     CloudflareChallengePresenter(
                         cloudflareFeature: sharedEnvironment.cloudflareFeature()
@@ -85,6 +102,18 @@ struct Han1meViewerApp: App {
         }
         .tint(.red)
     }
+
+    private func handleDeepLink(_ url: URL) {
+        if let videoCode = DeepLinkParser.videoCode(from: url) {
+            deepLinkedVideo = DeepLinkedVideo(videoCode: videoCode)
+            return
+        }
+
+        if let keyword = DeepLinkParser.searchKeyword(from: url) {
+            searchLaunchRequest = SearchLaunchRequest(sectionKey: "keyword", sectionTitle: keyword, keyword: keyword)
+            selectedTab = .search
+        }
+    }
 }
 
 private enum MainTab: Hashable {
@@ -92,4 +121,55 @@ private enum MainTab: Hashable {
     case following
     case mine
     case search
+}
+
+private struct DeepLinkedVideo: Identifiable {
+    let videoCode: String
+
+    var id: String { videoCode }
+}
+
+private enum DeepLinkParser {
+    static func videoCode(from url: URL) -> String? {
+        if let queryVideoCode = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "v" || $0.name == "video" || $0.name == "videoCode" })?
+            .value?
+            .trimmedNonEmpty {
+            return queryVideoCode
+        }
+
+        let pathParts = url.pathComponents.filter { $0 != "/" }
+        if let markerIndex = pathParts.firstIndex(where: { ["watch", "videos", "video"].contains($0.lowercased()) }),
+           pathParts.indices.contains(markerIndex + 1) {
+            return pathParts[markerIndex + 1].trimmedNonEmpty
+        }
+
+        if ["han1me", "hanimeviewer"].contains(url.scheme?.lowercased() ?? ""),
+           let host = url.host?.trimmedNonEmpty {
+            if host.allSatisfy({ $0.isNumber }) {
+                return host
+            }
+            if ["watch", "videos", "video"].contains(host.lowercased()) {
+                return pathParts.first?.trimmedNonEmpty
+            }
+        }
+
+        return nil
+    }
+
+    static func searchKeyword(from url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "q" || $0.name == "keyword" || $0.name == "search" })?
+            .value?
+            .trimmedNonEmpty
+    }
+}
+
+private extension String {
+    var trimmedNonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }

@@ -1,6 +1,7 @@
 CREATE TABLE search_history (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     keyword TEXT NOT NULL,
+    filter_summary TEXT NOT NULL DEFAULT '',
     searched_at_epoch_millis INTEGER NOT NULL
 );
 
@@ -11,8 +12,8 @@ ORDER BY searched_at_epoch_millis DESC
 LIMIT ?;
 
 insert:
-INSERT INTO search_history(keyword, searched_at_epoch_millis)
-VALUES (?, ?);
+INSERT INTO search_history(keyword, filter_summary, searched_at_epoch_millis)
+VALUES (?, ?, ?);
 
 deleteAll:
 DELETE FROM search_history;

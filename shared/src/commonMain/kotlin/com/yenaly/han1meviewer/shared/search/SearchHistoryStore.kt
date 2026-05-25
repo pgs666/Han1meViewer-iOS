@@ -11,7 +11,8 @@ class SearchHistoryStore(
 
     fun record(keyword: String, filterSummary: String, searchedAtEpochMillis: Long) {
         database.searchHistoryQueries.insert(
-            keyword = encodeHistoryValue(keyword, filterSummary),
+            keyword = keyword,
+            filter_summary = filterSummary,
             searched_at_epoch_millis = searchedAtEpochMillis,
         )
     }
@@ -23,9 +24,10 @@ class SearchHistoryStore(
     private fun mapHistoryItem(
         id: Long,
         keyword: String,
+        filterSummary: String,
         searchedAtEpochMillis: Long,
     ): SearchHistoryItem {
-        val decoded = decodeHistoryValue(keyword)
+        val decoded = decodeHistoryValue(keyword, filterSummary)
         return SearchHistoryItem(
             id = id,
             keyword = decoded.first,
@@ -34,12 +36,8 @@ class SearchHistoryStore(
         )
     }
 
-    private fun encodeHistoryValue(keyword: String, filterSummary: String): String {
-        if (filterSummary.isBlank()) return keyword
-        return "$HISTORY_VALUE_PREFIX$keyword$HISTORY_VALUE_SEPARATOR$filterSummary"
-    }
-
-    private fun decodeHistoryValue(rawValue: String): Pair<String, String> {
+    private fun decodeHistoryValue(rawValue: String, filterSummary: String): Pair<String, String> {
+        if (filterSummary.isNotBlank()) return rawValue to filterSummary
         if (!rawValue.startsWith(HISTORY_VALUE_PREFIX)) return rawValue to ""
         val payload = rawValue.removePrefix(HISTORY_VALUE_PREFIX)
         val parts = payload.split(HISTORY_VALUE_SEPARATOR, limit = 2)

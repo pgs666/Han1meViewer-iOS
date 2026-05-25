@@ -1,16 +1,15 @@
 package com.yenaly.han1meviewer.shared.playlist
 
-import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.repository.UserPlaylistRepository
 import kotlinx.serialization.Serializable
 
 class UserPlaylistFeature(
-    private val homeRepository: HomeRepository,
+    private val currentUserIdProvider: suspend () -> String?,
     private val playlistRepository: UserPlaylistRepository,
 ) {
     @Throws(Exception::class)
     suspend fun load(page: Int): UserPlaylistSnapshot {
-        val userId = homeRepository.getHomePage().userId
+        val userId = currentUserIdProvider()
             ?: return UserPlaylistSnapshot.authRequired(page)
         val pageData = playlistRepository.getPlaylists(userId, page)
 

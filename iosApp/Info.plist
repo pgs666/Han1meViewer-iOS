@@ -25,6 +25,18 @@
         <key>NSAllowsLocalNetworking</key>
         <true/>
     </dict>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.yenaly.han1meviewer.ios</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>han1me</string>
+                <string>hanimeviewer</string>
+            </array>
+        </dict>
+    </array>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UIApplicationSceneManifest</key>

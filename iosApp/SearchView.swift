@@ -181,7 +181,12 @@ struct SearchView: View {
             return
         }
         keyword = ""
-        viewModel.openHomeSection(request, catalog: catalog)
+        if let requestKeyword = request.keyword {
+            keyword = requestKeyword
+            viewModel.search(keyword: requestKeyword, recordHistory: false)
+        } else {
+            viewModel.openHomeSection(request, catalog: catalog)
+        }
         launchRequest = nil
     }
 
