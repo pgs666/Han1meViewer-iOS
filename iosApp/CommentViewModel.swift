@@ -187,9 +187,9 @@ final class CommentViewModel: ObservableObject {
         }
         switch sortMode {
         case .latest:
-            return snapshot.comments.sorted { parseRelativeMinutes($0.date) < parseRelativeMinutes($1.date) }
+            return sortByRelativeDate(snapshot.comments, ascending: true)
         case .earliest:
-            return snapshot.comments.sorted { parseRelativeMinutes($0.date) > parseRelativeMinutes($1.date) }
+            return sortByRelativeDate(snapshot.comments, ascending: false)
         case .mostReplies:
             return snapshot.comments.sorted { ($0.replyCount ?? 0) > ($1.replyCount ?? 0) }
         case .mostLikes:
@@ -355,13 +355,73 @@ enum CommentViewModelError: LocalizedError {
     }
 }
 
-private func parseRelativeMinutes(_ text: String) -> Int {
-    let number = Int(text.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
-    if text.contains("分鐘前") { return number }
-    if text.contains("小時前") { return number * 60 }
-    if text.contains("天前") { return number * 60 * 24 }
-    if text.contains("週前") { return number * 60 * 24 * 7 }
-    if text.contains("個月前") { return number * 60 * 24 * 30 }
-    if text.contains("年前") { return number * 60 * 24 * 365 }
+private func sortByRelativeDate(_ comments: [CommentRow], ascending: Bool) -> [CommentRow] {
+    comments.enumerated().sorted { lhs, rhs in
+        let lhsMinutes = parseRelativeMinutes(lhs.element.date)
+        let rhsMinutes = parseRelativeMinutes(rhs.element.date)
+
+        switch (lhsMinutes, rhsMinutes) {
+        case let (lhsMinutes?, rhsMinutes?):
+            if lhsMinutes == rhsMinutes {
+                return lhs.offset < rhs.offset
+            }
+            return ascending ? lhsMinutes < rhsMinutes : lhsMinutes > rhsMinutes
+        default:
+            return ascending ? lhs.offset < rhs.offset : lhs.offset > rhs.offset
+        }
+    }
+    .map(\.element)
+}
+
+private func parseRelativeMinutes(_ text: String) -> Int? {
+    let normalized = text
+        .lowercased()
+        .replacingOccurrences(of: " ", with: "")
+
+    if normalized.contains("剛剛") || normalized.contains("刚刚") || normalized.contains("justnow") {
+        return 0
+    }
+
+    let pattern = #"(\d+)\s*(分鐘|分钟|分|小時|小时|時|时|天|日|週|周|星期|個月|个月|月|年|minute|minutes|min|mins|hour|hours|day|days|week|weeks|month|months|year|years)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+        return nil
+    }
+
+    let range = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+    let matches = regex.matches(in: normalized, range: range)
+    guard !matches.isEmpty else {
+        return nil
+    }
+
+    return matches.reduce(0) { total, match in
+        guard match.numberOfRanges >= 3,
+              let numberRange = Range(match.range(at: 1), in: normalized),
+              let unitRange = Range(match.range(at: 2), in: normalized),
+              let number = Int(normalized[numberRange]) else {
+            return total
+        }
+        return total + number * minutesPerUnit(String(normalized[unitRange]))
+    }
+}
+
+private func minutesPerUnit(_ unit: String) -> Int {
+    if ["分鐘", "分钟", "分", "minute", "minutes", "min", "mins"].contains(unit) {
+        return 1
+    }
+    if ["小時", "小时", "時", "时", "hour", "hours"].contains(unit) {
+        return 60
+    }
+    if ["天", "日", "day", "days"].contains(unit) {
+        return 60 * 24
+    }
+    if ["週", "周", "星期", "week", "weeks"].contains(unit) {
+        return 60 * 24 * 7
+    }
+    if ["個月", "个月", "月", "month", "months"].contains(unit) {
+        return 60 * 24 * 30
+    }
+    if ["年", "year", "years"].contains(unit) {
+        return 60 * 24 * 365
+    }
     return 0
 }

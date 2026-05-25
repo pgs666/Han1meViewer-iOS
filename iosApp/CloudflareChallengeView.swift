@@ -144,6 +144,7 @@ private struct CloudflareWebView: UIViewRepresentable {
         private let cloudflareFeature: CloudflareFeature
         private let onResolved: () -> Void
         private weak var webView: WKWebView?
+        private let importStateQueue = DispatchQueue(label: "app.han1me.cloudflare.cookie-import")
         private var didResolve = false
         private var isImporting = false
 
@@ -173,7 +174,7 @@ private struct CloudflareWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            if !didResolve {
+            if !isResolved {
                 status = .waiting
                 importClearanceCookies(from: webView)
             }
@@ -188,13 +189,12 @@ private struct CloudflareWebView: UIViewRepresentable {
         }
 
         func importClearanceCookies(from webView: WKWebView) {
-            guard !didResolve, !isImporting else {
+            guard tryBeginImport() else {
                 return
             }
-            isImporting = true
 
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
-                guard let self = self, !self.didResolve else {
+                guard let self = self, !self.isResolved else {
                     return
                 }
 
@@ -203,7 +203,7 @@ private struct CloudflareWebView: UIViewRepresentable {
                 }
 
                 guard hanimeCookies.contains(where: { $0.name == "cf_clearance" }) else {
-                    self.isImporting = false
+                    self.finishImport()
                     return
                 }
 
@@ -212,7 +212,7 @@ private struct CloudflareWebView: UIViewRepresentable {
                     .joined(separator: "; ")
 
                 guard !cookieHeader.isEmpty else {
-                    self.isImporting = false
+                    self.finishImport()
                     return
                 }
 
@@ -223,19 +223,48 @@ private struct CloudflareWebView: UIViewRepresentable {
                             cookieHeader: cookieHeader,
                             domain: "hanime1.me"
                         )
-                        self.isImporting = false
+                        self.finishImport()
                         if snapshot.hasClearance {
-                            self.didResolve = true
+                            self.markResolved()
                             self.status = .resolved
                             self.onResolved()
                         } else {
                             self.status = .waiting
                         }
                     } catch {
-                        self.isImporting = false
+                        self.finishImport()
                         self.status = .failed(ErrorMessage.userFriendly(error))
                     }
                 }
+            }
+        }
+
+        private var isResolved: Bool {
+            importStateQueue.sync {
+                didResolve
+            }
+        }
+
+        private func tryBeginImport() -> Bool {
+            importStateQueue.sync {
+                guard !didResolve, !isImporting else {
+                    return false
+                }
+                isImporting = true
+                return true
+            }
+        }
+
+        private func finishImport() {
+            importStateQueue.sync {
+                isImporting = false
+            }
+        }
+
+        private func markResolved() {
+            importStateQueue.sync {
+                didResolve = true
+                isImporting = false
             }
         }
     }

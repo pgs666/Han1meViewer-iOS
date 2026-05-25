@@ -1,3 +1,4 @@
+import AVKit
 import Foundation
 import Han1meShared
 
@@ -13,11 +14,16 @@ final class VideoDetailViewModel: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published var actionMessage: VideoActionMessage?
     @Published private(set) var runningActionIDs: Set<String> = []
+    @Published private(set) var player: AVPlayer?
+    @Published var selectedPlaybackSourceID = ""
 
     private let videoFeature: VideoFeature
     private var loadedVideoCode: String?
     private var loadingVideoCode: String?
     private var loadTask: Task<Void, Never>?
+    private var currentPlayerVideoCode: String?
+    private var currentPlayerSourceID: String?
+    private var didApplyRestoredPlaybackPosition = false
 
     init(videoFeature: VideoFeature) {
         self.videoFeature = videoFeature
@@ -39,6 +45,8 @@ final class VideoDetailViewModel: ObservableObject {
 
     func load(videoCode: String) {
         loadTask?.cancel()
+        persistPlaybackPosition()
+        releasePlayer()
         loadedVideoCode = nil
         loadingVideoCode = videoCode
         state = .loading
@@ -66,6 +74,46 @@ final class VideoDetailViewModel: ObservableObject {
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
+    }
+
+    func preparePlayer(snapshot: VideoDetailScreenSnapshot) {
+        let defaultSource = snapshot.playbackSources.first { $0.isDefault } ?? snapshot.playbackSources.first
+        let source = snapshot.playbackSources.first { $0.id == selectedPlaybackSourceID } ?? defaultSource
+        guard let source else {
+            releasePlayer()
+            return
+        }
+
+        if selectedPlaybackSourceID != source.id {
+            selectedPlaybackSourceID = source.id
+        }
+        configurePlayer(snapshot: snapshot, sourceID: source.id, preservePosition: false)
+    }
+
+    func selectPlaybackSource(snapshot: VideoDetailScreenSnapshot, sourceID: String) {
+        selectedPlaybackSourceID = sourceID
+        configurePlayer(snapshot: snapshot, sourceID: sourceID, preservePosition: true)
+    }
+
+    func persistPlaybackPosition() {
+        guard let currentPlayerVideoCode,
+              case .loaded(let snapshot) = state,
+              snapshot.videoCode == currentPlayerVideoCode,
+              let currentTimeMillis = player?.currentTime().positiveMillis else {
+            return
+        }
+
+        videoFeature.recordPlaybackPosition(
+            videoCode: snapshot.videoCode,
+            title: snapshot.title,
+            coverUrl: snapshot.coverUrl,
+            playbackPositionMillis: currentTimeMillis
+        )
+    }
+
+    func pausePlayer() {
+        persistPlaybackPosition()
+        player?.pause()
     }
 
     func isActionRunning(_ id: String) -> Bool {
@@ -163,6 +211,59 @@ final class VideoDetailViewModel: ObservableObject {
         guard case .loaded(let snapshot) = state else { return }
         state = .loaded(transform(snapshot))
     }
+
+    private func configurePlayer(
+        snapshot: VideoDetailScreenSnapshot,
+        sourceID: String,
+        preservePosition: Bool
+    ) {
+        guard let source = snapshot.playbackSources.first(where: { $0.id == sourceID }) ?? snapshot.playbackSources.first,
+              let url = URL(string: source.url) else {
+            releasePlayer()
+            return
+        }
+
+        if currentPlayerVideoCode == snapshot.videoCode,
+           currentPlayerSourceID == source.id,
+           player != nil {
+            return
+        }
+
+        let previousPlayer = player
+        let previousTime = preservePosition ? previousPlayer?.currentTime() : nil
+        let shouldResume = previousPlayer?.timeControlStatus == .playing
+        previousPlayer?.pause()
+
+        let nextPlayer = AVPlayer(url: url)
+        player = nextPlayer
+        currentPlayerVideoCode = snapshot.videoCode
+        currentPlayerSourceID = source.id
+
+        let restoredTime = !preservePosition && !didApplyRestoredPlaybackPosition
+            ? CMTime(positiveMilliseconds: snapshot.playbackPositionMillis)
+            : nil
+        let seekTime = previousTime ?? restoredTime
+        didApplyRestoredPlaybackPosition = true
+
+        if let seekTime {
+            nextPlayer.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
+                if shouldResume {
+                    nextPlayer.play()
+                }
+            }
+        } else if shouldResume {
+            nextPlayer.play()
+        }
+    }
+
+    private func releasePlayer() {
+        player?.pause()
+        player = nil
+        selectedPlaybackSourceID = ""
+        currentPlayerVideoCode = nil
+        currentPlayerSourceID = nil
+        didApplyRestoredPlaybackPosition = false
+    }
 }
 
 struct VideoActionMessage: Identifiable {
@@ -189,6 +290,7 @@ struct VideoDetailScreenSnapshot {
     let currentUserId: String?
     let isWatchLater: Bool
     let originalComic: String?
+    let playbackPositionMillis: Int64
     let tags: [String]
     let playbackSources: [VideoPlaybackSourceRow]
     let playlistName: String?
@@ -214,6 +316,7 @@ struct VideoDetailScreenSnapshot {
         currentUserId = snapshot.currentUserId
         isWatchLater = snapshot.isWatchLater
         originalComic = snapshot.originalComic
+        playbackPositionMillis = snapshot.playbackPositionMillis
 
         if let name = snapshot.artistName, !name.isEmpty {
             artist = VideoArtistRow(
@@ -295,6 +398,7 @@ struct VideoDetailScreenSnapshot {
         currentUserId: String?,
         isWatchLater: Bool,
         originalComic: String?,
+        playbackPositionMillis: Int64,
         tags: [String],
         playbackSources: [VideoPlaybackSourceRow],
         playlistName: String?,
@@ -320,6 +424,7 @@ struct VideoDetailScreenSnapshot {
         self.currentUserId = currentUserId
         self.isWatchLater = isWatchLater
         self.originalComic = originalComic
+        self.playbackPositionMillis = playbackPositionMillis
         self.tags = tags
         self.playbackSources = playbackSources
         self.playlistName = playlistName
@@ -381,6 +486,7 @@ struct VideoDetailScreenSnapshot {
             currentUserId: currentUserId,
             isWatchLater: isWatchLater ?? self.isWatchLater,
             originalComic: originalComic,
+            playbackPositionMillis: playbackPositionMillis,
             tags: tags,
             playbackSources: playbackSources,
             playlistName: playlistName,
@@ -462,5 +568,21 @@ struct VideoMyListRow: Identifiable, Hashable {
 
     func updatingSelection(_ isSelected: Bool) -> VideoMyListRow {
         VideoMyListRow(code: code, title: title, isSelected: isSelected)
+    }
+}
+
+private extension CMTime {
+    init?(positiveMilliseconds milliseconds: Int64) {
+        guard milliseconds > 0 else {
+            return nil
+        }
+        self.init(seconds: Double(milliseconds) / 1000, preferredTimescale: 600)
+    }
+
+    var positiveMillis: Int64? {
+        guard isValid, isNumeric, seconds.isFinite, seconds > 0 else {
+            return nil
+        }
+        return Int64(seconds * 1000)
     }
 }

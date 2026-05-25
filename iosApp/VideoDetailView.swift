@@ -63,7 +63,7 @@ struct VideoDetailView: View {
                 } else {
                     ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                    AndroidStylePlayerHeader(snapshot: snapshot)
+                    AndroidStylePlayerHeader(snapshot: snapshot, viewModel: viewModel)
 
                     Section {
                         switch selectedTab {
@@ -102,7 +102,7 @@ struct VideoDetailView: View {
         HStack(alignment: .top, spacing: 0) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                    AndroidStylePlayerHeader(snapshot: snapshot)
+                    AndroidStylePlayerHeader(snapshot: snapshot, viewModel: viewModel)
 
                     Section {
                         switch selectedTab {
@@ -164,15 +164,8 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
 
 private struct AndroidStylePlayerHeader: View {
     let snapshot: VideoDetailScreenSnapshot
-    @State private var selectedSourceID: String
-    @State private var player: AVPlayer?
+    @ObservedObject var viewModel: VideoDetailViewModel
     @State private var isShowingFullscreen = false
-
-    init(snapshot: VideoDetailScreenSnapshot) {
-        self.snapshot = snapshot
-        let defaultSource = snapshot.playbackSources.first { $0.isDefault } ?? snapshot.playbackSources.first
-        _selectedSourceID = State(initialValue: defaultSource?.id ?? "")
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -181,7 +174,7 @@ private struct AndroidStylePlayerHeader: View {
                 .background(Color.black)
 
             if !snapshot.playbackSources.isEmpty {
-                Picker("清晰度", selection: $selectedSourceID) {
+                Picker("清晰度", selection: $viewModel.selectedPlaybackSourceID) {
                     ForEach(snapshot.playbackSources) { source in
                         Text(source.label).tag(source.id)
                     }
@@ -192,20 +185,20 @@ private struct AndroidStylePlayerHeader: View {
             }
         }
         .onAppear {
-            configurePlayer(preservePosition: false)
+            viewModel.preparePlayer(snapshot: snapshot)
         }
         .onDisappear {
-            player?.pause()
+            viewModel.pausePlayer()
         }
-        .onChange(of: selectedSourceID) { _ in
-            configurePlayer(preservePosition: true)
+        .onChange(of: viewModel.selectedPlaybackSourceID) { sourceID in
+            viewModel.selectPlaybackSource(snapshot: snapshot, sourceID: sourceID)
         }
         .fullScreenCover(isPresented: $isShowingFullscreen, onDismiss: {
             AppOrientationController.shared.enforceCurrentOrientationMask()
         }) {
             FullscreenVideoPlayer(
                 title: snapshot.title,
-                player: player,
+                player: viewModel.player,
                 onClose: {
                     isShowingFullscreen = false
                 }
@@ -213,13 +206,9 @@ private struct AndroidStylePlayerHeader: View {
         }
     }
 
-    private var selectedSource: VideoPlaybackSourceRow? {
-        snapshot.playbackSources.first { $0.id == selectedSourceID } ?? snapshot.playbackSources.first
-    }
-
     private var playerSurface: some View {
         ZStack(alignment: .bottomTrailing) {
-            if let player {
+            if let player = viewModel.player {
                 VideoPlayer(player: player)
                     .aspectRatio(16.0 / 9.0, contentMode: .fit)
             } else {
@@ -242,7 +231,7 @@ private struct AndroidStylePlayerHeader: View {
                 }
             }
 
-            if player != nil {
+            if viewModel.player != nil {
                 Button {
                     isShowingFullscreen = true
                 } label: {
@@ -255,31 +244,6 @@ private struct AndroidStylePlayerHeader: View {
                 .padding(12)
                 .accessibilityLabel("全屏播放")
             }
-        }
-    }
-
-    private func configurePlayer(preservePosition: Bool) {
-        guard let source = selectedSource, let url = URL(string: source.url) else {
-            player?.pause()
-            player = nil
-            return
-        }
-
-        let previousPlayer = player
-        let previousTime = preservePosition ? previousPlayer?.currentTime() : nil
-        let shouldResume = previousPlayer?.timeControlStatus == .playing
-        let nextPlayer = AVPlayer(url: url)
-        previousPlayer?.pause()
-        player = nextPlayer
-
-        if let previousTime {
-            nextPlayer.seek(to: previousTime, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
-                if shouldResume {
-                    nextPlayer.play()
-                }
-            }
-        } else if shouldResume {
-            nextPlayer.play()
         }
     }
 }

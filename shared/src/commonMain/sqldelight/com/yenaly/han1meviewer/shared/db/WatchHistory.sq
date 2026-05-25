@@ -12,6 +12,11 @@ FROM watch_history
 ORDER BY watched_at_epoch_millis DESC
 LIMIT ?;
 
+selectByVideoCode:
+SELECT *
+FROM watch_history
+WHERE video_code = ?;
+
 upsert:
 INSERT OR REPLACE INTO watch_history(
     video_code,

@@ -114,6 +114,7 @@ private struct WebLoginView: UIViewRepresentable {
         private let webLoginFeature: WebLoginFeature
         private let onLoginSuccess: () -> Void
         private var didCompleteLogin = false
+        private var isImportingLogin = false
         @Binding private var status: LoginStatus
 
         init(
@@ -128,6 +129,7 @@ private struct WebLoginView: UIViewRepresentable {
 
         func loadLoginPage(in webView: WKWebView) {
             didCompleteLogin = false
+            isImportingLogin = false
             guard let url = URL(string: "https://hanime1.me/login") else {
                 status = .failed(String(localized: "登录地址无效"))
                 return
@@ -138,6 +140,7 @@ private struct WebLoginView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             status = .idle
+            evaluateLoginSuccess(in: webView)
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -153,23 +156,45 @@ private struct WebLoginView: UIViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
-            if let url = navigationAction.request.url,
-               url.host?.contains("hanime1.me") == true,
-               url.path != "/login" {
-                importConfirmedLoginCookies(from: webView)
-            }
             decisionHandler(.allow)
         }
 
-        private func importConfirmedLoginCookies(from webView: WKWebView) {
-            guard !didCompleteLogin else {
+        private func evaluateLoginSuccess(in webView: WKWebView) {
+            guard !didCompleteLogin, !isImportingLogin else {
                 return
             }
 
+            let script = """
+            (() => {
+              const hrefs = Array.from(document.querySelectorAll('a[href], form[action]'))
+                .map((element) => (element.getAttribute('href') || element.getAttribute('action') || '').toLowerCase());
+              const text = (document.body && document.body.innerText || '').toLowerCase();
+              const hasLogoutAction = hrefs.some((href) => href.includes('logout') || href.includes('signout'));
+              const hasLogoutText = text.includes('登出') || text.includes('注销') || text.includes('logout') || text.includes('sign out');
+              const hasUserMenu = document.querySelector('[href*="/user"], [href*="/users"], .user-avatar, .avatar, .dropdown-user') !== null;
+              return hasLogoutAction || hasLogoutText || hasUserMenu;
+            })();
+            """
+
+            webView.evaluateJavaScript(script) { [weak self, weak webView] result, _ in
+                guard let self, let webView else { return }
+                guard result as? Bool == true else {
+                    return
+                }
+                Task { @MainActor in
+                    self.importConfirmedLoginCookies(from: webView)
+                }
+            }
+        }
+
+        private func importConfirmedLoginCookies(from webView: WKWebView) {
+            guard !didCompleteLogin, !isImportingLogin else {
+                return
+            }
+            isImportingLogin = true
+
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
                 guard let self = self else { return }
-                guard !self.didCompleteLogin else { return }
-
                 let hanimeCookies = cookies.filter { cookie in
                     cookie.domain.contains("hanime1.me")
                 }
@@ -179,10 +204,17 @@ private struct WebLoginView: UIViewRepresentable {
                     .joined(separator: "; ")
 
                 guard !cookieHeader.isEmpty else {
+                    Task { @MainActor in
+                        self.isImportingLogin = false
+                    }
                     return
                 }
 
                 Task { @MainActor in
+                    guard !self.didCompleteLogin else {
+                        self.isImportingLogin = false
+                        return
+                    }
                     do {
                         let snapshot = try await self.webLoginFeature.importConfirmedLoginCookieHeader(
                             cookieHeader: cookieHeader,
@@ -192,8 +224,11 @@ private struct WebLoginView: UIViewRepresentable {
                             self.status = .imported
                             self.didCompleteLogin = true
                             self.onLoginSuccess()
+                        } else {
+                            self.isImportingLogin = false
                         }
                     } catch {
+                        self.isImportingLogin = false
                         self.status = .failed(ErrorMessage.userFriendly(error))
                     }
                 }

@@ -16,12 +16,17 @@ class VideoFeature(
         val video = repository.getVideo(videoCode)
         val defaultSource = video.sources.firstOrNull { source -> source.isDefault }
             ?: video.sources.firstOrNull()
+        val playbackPositionMillis = watchHistoryStore
+            ?.find(video.videoCode)
+            ?.playbackPositionMillis
+            ?: 0L
 
         watchHistoryStore?.record(
             videoCode = video.videoCode,
             title = video.title.ifBlank { "Untitled" },
             coverUrl = video.coverUrl,
             watchedAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
+            playbackPositionMillis = playbackPositionMillis,
         )
 
         return VideoDetailSnapshot(
@@ -47,6 +52,7 @@ class VideoFeature(
             currentUserId = video.currentUserId,
             isWatchLater = video.myList?.isWatchLater ?: false,
             originalComic = video.originalComic,
+            playbackPositionMillis = playbackPositionMillis,
             playbackSources = video.sources.map { source ->
                 VideoPlaybackSourceSnapshot(
                     label = source.label,
@@ -91,6 +97,22 @@ class VideoFeature(
                     isPlaying = item.isPlaying,
                 )
             },
+        )
+    }
+
+    @OptIn(ExperimentalTime::class)
+    fun recordPlaybackPosition(
+        videoCode: String,
+        title: String,
+        coverUrl: String?,
+        playbackPositionMillis: Long,
+    ) {
+        watchHistoryStore?.record(
+            videoCode = videoCode,
+            title = title.ifBlank { "Untitled" },
+            coverUrl = coverUrl,
+            watchedAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
+            playbackPositionMillis = playbackPositionMillis.coerceAtLeast(0L),
         )
     }
 
@@ -164,6 +186,7 @@ data class VideoDetailSnapshot(
     val currentUserId: String?,
     val isWatchLater: Boolean,
     val originalComic: String?,
+    val playbackPositionMillis: Long,
     private val playbackSources: List<VideoPlaybackSourceSnapshot>,
     val uploadDate: String?,
     private val tags: List<String>,

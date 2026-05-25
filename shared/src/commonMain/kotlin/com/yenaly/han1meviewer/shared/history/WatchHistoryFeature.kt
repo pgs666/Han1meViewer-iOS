@@ -23,6 +23,10 @@ class WatchHistoryFeature(
         )
     }
 
+    fun playbackPositionMillis(videoCode: String): Long {
+        return store.find(videoCode)?.playbackPositionMillis ?: 0L
+    }
+
     fun delete(videoCode: String): WatchHistorySnapshot {
         store.delete(videoCode)
         return loadRecent()

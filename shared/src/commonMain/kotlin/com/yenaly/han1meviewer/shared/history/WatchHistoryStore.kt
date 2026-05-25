@@ -10,6 +10,10 @@ class WatchHistoryStore(
         return database.watchHistoryQueries.selectRecent(limit, ::mapHistoryItem).executeAsList()
     }
 
+    fun find(videoCode: String): WatchHistoryItem? {
+        return database.watchHistoryQueries.selectByVideoCode(videoCode, ::mapHistoryItem).executeAsOneOrNull()
+    }
+
     fun record(
         videoCode: String,
         title: String,
