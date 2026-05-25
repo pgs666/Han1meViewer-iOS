@@ -212,7 +212,7 @@ struct OnlineWatchHistoryScreenSnapshot {
             )
         }
 
-        videos = OnlineWatchHistoryScreenSnapshot.merging(existingSnapshot?.videos ?? [], with: newVideos)
+        videos = mergeByIdentifiable(existingSnapshot?.videos ?? [], with: newVideos)
         loadMoreError = nil
     }
 
@@ -251,14 +251,6 @@ struct OnlineWatchHistoryScreenSnapshot {
         )
     }
 
-    private static func merging(_ existing: [OnlineWatchHistoryRow], with newRows: [OnlineWatchHistoryRow]) -> [OnlineWatchHistoryRow] {
-        var seenIDs = Set(existing.map(\.id))
-        var merged = existing
-        for row in newRows where seenIDs.insert(row.id).inserted {
-            merged.append(row)
-        }
-        return merged
-    }
 }
 
 struct OnlineWatchHistoryRow: Identifiable {

@@ -109,46 +109,18 @@ struct UserPlaylistView: View {
 
     @ViewBuilder
     private func footer(snapshot: UserPlaylistScreenSnapshot) -> some View {
-        switch viewModel.state {
-        case .loadingMore:
-            HStack {
-                Spacer()
-                ProgressView()
-                Spacer()
+        PaginationFooterView(
+            isLoadingMore: {
+                if case .loadingMore = viewModel.state { return true }
+                return false
+            }(),
+            hasNext: snapshot.hasNext,
+            loadMoreError: snapshot.loadMoreError,
+            isEmpty: snapshot.playlists.isEmpty,
+            onRetry: {
+                viewModel.loadMoreIfNeeded(currentPlaylistID: snapshot.playlists.last?.id)
             }
-            .padding(.vertical, 10)
-        default:
-            if let message = snapshot.loadMoreError {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("加载更多失败")
-                        .font(.subheadline.weight(.semibold))
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("重试") {
-                        viewModel.loadMoreIfNeeded(currentPlaylistID: snapshot.playlists.last?.id)
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding(.vertical, 8)
-            } else if snapshot.hasNext {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                        .onAppear {
-                            viewModel.loadMoreIfNeeded(currentPlaylistID: snapshot.playlists.last?.id)
-                        }
-                    Spacer()
-                }
-                .padding(.vertical, 10)
-            } else {
-                Text("已全部加载")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
-            }
-        }
+        )
     }
 }
 
