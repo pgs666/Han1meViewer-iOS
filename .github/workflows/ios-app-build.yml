@@ -47,6 +47,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -sdk iphoneos \
             -derivedDataPath build \
+            -jobs "$(sysctl -n hw.ncpu)" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
