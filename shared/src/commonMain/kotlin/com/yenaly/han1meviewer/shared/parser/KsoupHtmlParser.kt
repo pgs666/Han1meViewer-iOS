@@ -469,8 +469,8 @@ class KsoupHtmlParser : HtmlParser {
     }
 
     private fun List<Element>.toCommentWrapper(): Element? {
-        val html = joinToString(separator = "") { it.outerHtml() }
-        return parseHtml("<div>$html</div>").body().selectFirst("div")
+        if (isEmpty()) return null
+        return Element("div").appendChildren(this)
     }
 
     private fun parseHtml(html: String) = Ksoup.parse(html, BASE_URI)
