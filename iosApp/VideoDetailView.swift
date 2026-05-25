@@ -76,7 +76,12 @@ struct VideoDetailView: View {
                                 snapshot: snapshot,
                                 videoFeature: videoFeature,
                                 commentFeature: commentFeature,
-                                viewModel: viewModel,
+                                isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                                onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                                onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                                onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                                onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                                onShowMessage: { viewModel.showActionMessage($0) },
                                 showsRelated: true
                             )
                         case .comments:
@@ -115,7 +120,12 @@ struct VideoDetailView: View {
                                 snapshot: snapshot,
                                 videoFeature: videoFeature,
                                 commentFeature: commentFeature,
-                                viewModel: viewModel,
+                                isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                                onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                                onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                                onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                                onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                                onShowMessage: { viewModel.showActionMessage($0) },
                                 showsRelated: false
                             )
                         case .comments:
@@ -385,7 +395,12 @@ private struct AndroidStyleIntroduction: View {
     let snapshot: VideoDetailScreenSnapshot
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
-    @ObservedObject var viewModel: VideoDetailViewModel
+    let isArtistActionRunning: Bool
+    let onToggleArtistSubscription: () -> Void
+    let onToggleFavorite: () -> Void
+    let onToggleWatchLater: () -> Void
+    let onSetMyListItem: (VideoMyListItemSnapshot, Bool) -> Void
+    let onShowMessage: (String) -> Void
     let showsRelated: Bool
 
     var body: some View {
@@ -393,10 +408,8 @@ private struct AndroidStyleIntroduction: View {
             if let artist = snapshot.artist {
                 ArtistCard(
                     artist: artist,
-                    isRunning: viewModel.isActionRunning("artistSubscription"),
-                    toggleAction: {
-                        viewModel.toggleArtistSubscription(snapshot: snapshot)
-                    }
+                    isRunning: isArtistActionRunning,
+                    toggleAction: onToggleArtistSubscription
                 )
             }
 
@@ -407,7 +420,13 @@ private struct AndroidStyleIntroduction: View {
                 ExpandableDescription(text: description)
             }
 
-            ActionButtonRow(snapshot: snapshot, viewModel: viewModel)
+            ActionButtonRow(
+                snapshot: snapshot,
+                onToggleFavorite: onToggleFavorite,
+                onToggleWatchLater: onToggleWatchLater,
+                onSetMyListItem: onSetMyListItem,
+                onShowMessage: onShowMessage
+            )
 
             if !snapshot.tags.isEmpty {
                 TagFlow(tags: snapshot.tags)
@@ -561,7 +580,10 @@ private struct ExpandableDescription: View {
 
 private struct ActionButtonRow: View {
     let snapshot: VideoDetailScreenSnapshot
-    @ObservedObject var viewModel: VideoDetailViewModel
+    let onToggleFavorite: () -> Void
+    let onToggleWatchLater: () -> Void
+    let onSetMyListItem: (VideoMyListItemSnapshot, Bool) -> Void
+    let onShowMessage: (String) -> Void
     @Environment(\.openURL) private var openURL
     @State private var isShowingMyList = false
     @State private var isShowingShareSheet = false
@@ -580,17 +602,13 @@ private struct ActionButtonRow: View {
                 LabelButton(
                     title: snapshot.isFav ? "已收藏" : "收藏",
                     systemImage: snapshot.isFav ? "heart.fill" : "heart",
-                    action: {
-                        viewModel.toggleFavorite(snapshot: snapshot)
-                    }
+                    action: onToggleFavorite
                 )
 
                 LabelButton(
                     title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
                     systemImage: "text.badge.plus",
-                    action: {
-                        viewModel.toggleWatchLater(snapshot: snapshot)
-                    }
+                    action: onToggleWatchLater
                 )
 
                 LabelButton(
@@ -598,7 +616,7 @@ private struct ActionButtonRow: View {
                     systemImage: "list.bullet",
                     action: {
                         if snapshot.myListItems.isEmpty {
-                            viewModel.showActionMessage(String(localized: "video.action.playlist.empty"))
+                            onShowMessage(String(localized: "video.action.playlist.empty"))
                         } else {
                             isShowingMyList = true
                         }
@@ -653,7 +671,7 @@ private struct ActionButtonRow: View {
         .confirmationDialog("播放列表", isPresented: $isShowingMyList) {
             ForEach(snapshot.myListItems) { item in
                 Button(String(format: NSLocalizedString(item.isSelected ? "video.playlist.remove_item" : "video.playlist.add_item", comment: ""), item.title)) {
-                    viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: !item.isSelected)
+                    onSetMyListItem(item, !item.isSelected)
                 }
             }
         }
