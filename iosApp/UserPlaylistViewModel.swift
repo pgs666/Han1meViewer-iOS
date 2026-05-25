@@ -140,7 +140,7 @@ struct UserPlaylistScreenSnapshot {
             )
         }
 
-        playlists = UserPlaylistScreenSnapshot.merging(existingSnapshot?.playlists ?? [], with: newPlaylists)
+        playlists = mergeByIdentifiable(existingSnapshot?.playlists ?? [], with: newPlaylists)
         loadMoreError = nil
     }
 
@@ -165,14 +165,6 @@ struct UserPlaylistScreenSnapshot {
         )
     }
 
-    private static func merging(_ existing: [UserPlaylistRow], with newRows: [UserPlaylistRow]) -> [UserPlaylistRow] {
-        var seenIDs = Set(existing.map(\.id))
-        var merged = existing
-        for row in newRows where seenIDs.insert(row.id).inserted {
-            merged.append(row)
-        }
-        return merged
-    }
 }
 
 struct UserPlaylistRow: Identifiable {

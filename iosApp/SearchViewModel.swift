@@ -229,7 +229,7 @@ struct SearchScreenSnapshot {
                 artist: item.artist
             )
         }
-        results = SearchScreenSnapshot.merging(existingSnapshot?.results ?? [], with: newResults)
+        results = mergeByIdentifiable(existingSnapshot?.results ?? [], with: newResults)
         page = snapshot.page
         hasNext = snapshot.hasNext
         loadMoreError = nil
@@ -251,14 +251,6 @@ struct SearchScreenSnapshot {
         )
     }
 
-    private static func merging(_ existing: [SearchVideoRow], with newResults: [SearchVideoRow]) -> [SearchVideoRow] {
-        var seenIDs = Set(existing.map(\.id))
-        var merged = existing
-        for result in newResults where seenIDs.insert(result.id).inserted {
-            merged.append(result)
-        }
-        return merged
-    }
 }
 
 struct SearchVideoRow: Identifiable {

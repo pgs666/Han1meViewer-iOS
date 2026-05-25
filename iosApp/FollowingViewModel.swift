@@ -156,8 +156,8 @@ struct FollowingScreenSnapshot {
             )
         }
 
-        artists = FollowingScreenSnapshot.merging(existingSnapshot?.artists ?? [], with: newArtists)
-        videos = FollowingScreenSnapshot.merging(existingSnapshot?.videos ?? [], with: newVideos)
+        artists = mergeByIdentifiable(existingSnapshot?.artists ?? [], with: newArtists)
+        videos = mergeByIdentifiable(existingSnapshot?.videos ?? [], with: newVideos)
         loadMoreError = nil
     }
 
@@ -183,15 +183,6 @@ struct FollowingScreenSnapshot {
             videos: videos,
             loadMoreError: message
         )
-    }
-
-    private static func merging<T: Identifiable>(_ existing: [T], with newRows: [T]) -> [T] where T.ID == String {
-        var seenIDs = Set(existing.map(\.id))
-        var merged = existing
-        for row in newRows where seenIDs.insert(row.id).inserted {
-            merged.append(row)
-        }
-        return merged
     }
 }
 
