@@ -212,6 +212,9 @@ class KsoupHtmlParserTest {
         assertEquals("Alice", comments.comments.single().username)
         assertEquals("99", comments.comments.single().replyTargetIdOrNull)
         assertEquals("99", comments.comments.single().post.foreignId)
+        assertEquals(3, comments.comments.single().thumbUp)
+        assertEquals(3, comments.comments.single().post.commentLikesCount)
+        assertEquals(3, comments.comments.single().post.commentLikesSum)
         assertEquals(2, comments.comments.single().replyCount)
         assertTrue(comments.comments.single().hasMoreReplies)
     }
@@ -250,8 +253,44 @@ class KsoupHtmlParserTest {
         assertEquals("Bob", replies.comments.single().username)
         assertTrue(replies.comments.single().isChildComment)
         assertEquals("100", replies.comments.single().post.foreignId)
+        assertEquals(1, replies.comments.single().thumbUp)
+        assertEquals(1, replies.comments.single().post.commentLikesCount)
+        assertEquals(1, replies.comments.single().post.commentLikesSum)
         assertTrue(replies.comments.single().post.isPositive)
         assertTrue(replies.comments.single().post.likeCommentStatus)
+    }
+
+    @Test
+    fun parsesCommentLikesFromHiddenInputsWithoutStyleSpans() {
+        val html = """
+            <div>
+              <div id="comment-start">
+                <div>
+                  <img src="https://img.example/avatar.jpg">
+                  <div class="comment-index-text">
+                    <a>Alice</a>
+                    <span>5分鐘前</span>
+                  </div>
+                  <div class="comment-index-text">Nice video</div>
+                </div>
+                <div id="comment-like-form-wrapper">
+                  <input name="foreign_id" value="99">
+                  <input name="comment-likes-count" value="7">
+                  <input name="comment-likes-sum" value="5">
+                  <span style="display:none">icon</span>
+                  <span style="display:none">not-a-number</span>
+                </div>
+              </div>
+            </div>
+        """.trimIndent()
+        val json = JsonObject(mapOf("comments" to JsonPrimitive(html))).toString()
+
+        val comments = parser.parseComments(json)
+
+        assertEquals(1, comments.comments.size)
+        assertEquals(5, comments.comments.single().thumbUp)
+        assertEquals(7, comments.comments.single().post.commentLikesCount)
+        assertEquals(5, comments.comments.single().post.commentLikesSum)
     }
 
     @Test

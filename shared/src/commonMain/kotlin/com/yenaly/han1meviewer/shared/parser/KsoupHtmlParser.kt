@@ -500,11 +500,20 @@ class KsoupHtmlParser : HtmlParser {
             ?: return null
         val content = textClass.getOrNull(1)?.text()?.trim()?.takeIf { it.isNotBlank() }
             ?: return null
-        val thumbUp = postElement
+        val commentLikesCount = postElement
+            ?.selectFirst("input[name=comment-likes-count]")
+            ?.attr("value")
+            ?.toIntOrNull()
+        val commentLikesSum = postElement
+            ?.selectFirst("input[name=comment-likes-sum]")
+            ?.attr("value")
+            ?.toIntOrNull()
+        val fallbackThumbUp = postElement
             ?.select("span[style]")
             ?.getOrNull(1)
             ?.text()
             ?.toIntOrNull()
+        val thumbUp = commentLikesSum ?: commentLikesCount ?: fallbackThumbUp
         val id = selectFirst("div[id^=reply-section-wrapper]")
             ?.id()
             ?.substringAfterLast("-")
@@ -527,8 +536,8 @@ class KsoupHtmlParser : HtmlParser {
                 foreignId = postElement?.selectFirst("input[name=foreign_id]")?.attr("value")?.takeIf { it.isNotBlank() },
                 isPositive = postElement?.selectFirst("input[name=is_positive]")?.attr("value") == "1",
                 likeUserId = postElement?.selectFirst("input[name=comment-like-user-id]")?.attr("value")?.takeIf { it.isNotBlank() },
-                commentLikesCount = postElement?.selectFirst("input[name=comment-likes-count]")?.attr("value")?.toIntOrNull(),
-                commentLikesSum = postElement?.selectFirst("input[name=comment-likes-sum]")?.attr("value")?.toIntOrNull(),
+                commentLikesCount = commentLikesCount,
+                commentLikesSum = commentLikesSum,
                 likeCommentStatus = postElement?.selectFirst("input[name=like-comment-status]")?.attr("value") == "1",
                 unlikeCommentStatus = postElement?.selectFirst("input[name=unlike-comment-status]")?.attr("value") == "1",
             ),
