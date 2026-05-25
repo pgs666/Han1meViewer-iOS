@@ -3,12 +3,14 @@ import Han1meShared
 
 struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
-    private let environment: SharedAppEnvironment
+    private let videoFeature: VideoFeature
+    private let commentFeature: CommentFeature
     private let onOpenSearch: (HomeSectionRow) -> Void
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(environment: SharedAppEnvironment, onOpenSearch: @escaping (HomeSectionRow) -> Void = { _ in }) {
-        self.environment = environment
+        self.videoFeature = environment.videoFeature()
+        self.commentFeature = environment.commentFeature()
         self.onOpenSearch = onOpenSearch
         _viewModel = StateObject(wrappedValue: HomeViewModel(homeFeature: environment.homeFeature()))
     }
@@ -63,8 +65,8 @@ struct HomeView: View {
                     if let banner = snapshot.banner {
                         HomeBannerView(
                             banner: banner,
-                            videoFeature: environment.videoFeature(),
-                            commentFeature: environment.commentFeature(),
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature,
                             usesCompactBanner: horizontalSizeClass == .regular
                         )
                         .padding(.horizontal, 16)
@@ -74,8 +76,8 @@ struct HomeView: View {
                     ForEach(snapshot.sections) { section in
                         HomeCategorySection(
                             section: section,
-                            videoFeature: environment.videoFeature(),
-                            commentFeature: environment.commentFeature(),
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature,
                             onMore: onOpenSearch
                         )
                     }

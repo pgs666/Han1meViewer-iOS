@@ -5,7 +5,8 @@ struct UserVideoListView: View {
     @StateObject private var viewModel: UserVideoListViewModel
     private let title: String
     private let emptyMessage: String
-    private let environment: SharedAppEnvironment
+    private let videoFeature: VideoFeature
+    private let commentFeature: CommentFeature
 
     init(
         title: String,
@@ -15,7 +16,8 @@ struct UserVideoListView: View {
     ) {
         self.title = title
         self.emptyMessage = emptyMessage
-        self.environment = environment
+        self.videoFeature = environment.videoFeature()
+        self.commentFeature = environment.commentFeature()
         _viewModel = StateObject(wrappedValue: UserVideoListViewModel(feature: feature))
     }
 
@@ -27,7 +29,8 @@ struct UserVideoListView: View {
     ) {
         self.title = title
         self.emptyMessage = emptyMessage
-        self.environment = environment
+        self.videoFeature = environment.videoFeature()
+        self.commentFeature = environment.commentFeature()
         _viewModel = StateObject(wrappedValue: UserVideoListViewModel(feature: feature))
     }
 
@@ -148,8 +151,8 @@ struct UserVideoListView: View {
             NavigationLink {
                 VideoDetailView(
                     videoCode: video.videoCode,
-                    videoFeature: environment.videoFeature(),
-                    commentFeature: environment.commentFeature()
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
                 )
             } label: {
                 UserVideoListRowView(video: video)
@@ -165,8 +168,8 @@ struct UserVideoListView: View {
             NavigationLink {
                 VideoDetailView(
                     videoCode: video.videoCode,
-                    videoFeature: environment.videoFeature(),
-                    commentFeature: environment.commentFeature()
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
                 )
             } label: {
                 UserVideoListRowView(video: video)

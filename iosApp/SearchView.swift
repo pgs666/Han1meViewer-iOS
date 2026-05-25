@@ -8,10 +8,12 @@ struct SearchView: View {
     @State private var catalog = SearchOptionCatalog.empty
     @StateObject private var viewModel: SearchViewModel
     @Binding private var launchRequest: SearchLaunchRequest?
-    private let environment: SharedAppEnvironment
+    private let videoFeature: VideoFeature
+    private let commentFeature: CommentFeature
 
     init(environment: SharedAppEnvironment, launchRequest: Binding<SearchLaunchRequest?> = .constant(nil)) {
-        self.environment = environment
+        self.videoFeature = environment.videoFeature()
+        self.commentFeature = environment.commentFeature()
         _launchRequest = launchRequest
         _viewModel = StateObject(wrappedValue: SearchViewModel(searchFeature: environment.searchFeature()))
     }
@@ -210,8 +212,8 @@ struct SearchView: View {
                         NavigationLink {
                             VideoDetailView(
                                 videoCode: video.videoCode,
-                                videoFeature: environment.videoFeature(),
-                                commentFeature: environment.commentFeature()
+                                videoFeature: videoFeature,
+                                commentFeature: commentFeature
                             )
                         } label: {
                             SearchResultRow(video: video)

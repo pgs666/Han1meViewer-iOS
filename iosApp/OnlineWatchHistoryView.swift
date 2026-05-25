@@ -3,10 +3,12 @@ import Han1meShared
 
 struct OnlineWatchHistoryView: View {
     @StateObject private var viewModel: OnlineWatchHistoryViewModel
-    private let environment: SharedAppEnvironment
+    private let videoFeature: VideoFeature
+    private let commentFeature: CommentFeature
 
     init(environment: SharedAppEnvironment) {
-        self.environment = environment
+        self.videoFeature = environment.videoFeature()
+        self.commentFeature = environment.commentFeature()
         _viewModel = StateObject(
             wrappedValue: OnlineWatchHistoryViewModel(feature: environment.onlineWatchHistoryFeature())
         )
@@ -89,8 +91,8 @@ struct OnlineWatchHistoryView: View {
                             NavigationLink {
                                 VideoDetailView(
                                     videoCode: video.videoCode,
-                                    videoFeature: environment.videoFeature(),
-                                    commentFeature: environment.commentFeature()
+                                    videoFeature: videoFeature,
+                                    commentFeature: commentFeature
                                 )
                             } label: {
                                 OnlineWatchHistoryRowView(video: video)
