@@ -104,6 +104,7 @@ class KsoupHtmlParserTest {
         assertEquals("12345", video.videoCode)
         assertEquals("720P", video.sources.single().label)
         assertEquals("https://video.example/720.mp4", video.sources.single().url)
+        assertEquals("1000", video.views)
         assertEquals(listOf("Tag B"), video.tags)
         assertNotNull(video.uploadTime)
     }

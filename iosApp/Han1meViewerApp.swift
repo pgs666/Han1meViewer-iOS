@@ -16,6 +16,11 @@ struct Han1meViewerApp: App {
     var body: some Scene {
         WindowGroup {
             rootView
+                .onReceive(NotificationCenter.default.publisher(for: SearchNavigationCenter.requestNotification)) { notification in
+                    if let keyword = notification.userInfo?[SearchNavigationCenter.keywordKey] as? String {
+                        openSearch(keyword: keyword)
+                    }
+                }
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
@@ -110,9 +115,13 @@ struct Han1meViewerApp: App {
         }
 
         if let keyword = DeepLinkParser.searchKeyword(from: url) {
-            searchLaunchRequest = SearchLaunchRequest(sectionKey: "keyword", sectionTitle: keyword, keyword: keyword)
-            selectedTab = .search
+            openSearch(keyword: keyword)
         }
+    }
+
+    private func openSearch(keyword: String) {
+        searchLaunchRequest = SearchLaunchRequest(sectionKey: "keyword", sectionTitle: keyword, keyword: keyword)
+        selectedTab = .search
     }
 }
 

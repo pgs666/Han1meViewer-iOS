@@ -563,7 +563,7 @@ class KsoupHtmlParser : HtmlParser {
         val ISO_DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
         val VIDEO_SOURCE_REGEX = Regex("""const source = '(.+)'""")
-        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^(.+?)\s+(\d{4}-\d{2}-\d{2})$""")
+        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^觀看次數：(.+)次\s+(\d{4}-\d{2}-\d{2})$""")
         val COMMENT_COUNT_REGEX = Regex("""\d+""")
         val DEFAULT_HOME_SECTION_KEYS = listOf(
             "latestRelease",
