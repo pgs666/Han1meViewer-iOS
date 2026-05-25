@@ -16,7 +16,7 @@ import io.ktor.http.HttpHeaders
 
 class KtorSearchRepository(
     sessionStore: SessionStore,
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : SearchRepository {
@@ -24,7 +24,7 @@ class KtorSearchRepository(
 
     override suspend fun search(params: SearchParams, page: Int): PageResult<HanimeInfo> {
         val response = client.get("$baseUrl/search") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             parameter("page", page)
             params.keyword.takeIf { it.isNotBlank() }?.let { keyword -> parameter("query", keyword) }
@@ -40,12 +40,5 @@ class KtorSearchRepository(
         cookieBridge.saveResponseCookies(response)
 
         return parser.parseSearch(response.bodyAsText(), params, page)
-    }
-
-    private companion object {
-        const val DEFAULT_BASE_URL = "https://hanime1.me"
-        const val DEFAULT_USER_AGENT =
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
-                "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     }
 }

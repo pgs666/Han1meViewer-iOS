@@ -21,7 +21,7 @@ import io.ktor.http.parameters
 
 class KtorCommentRepository(
     sessionStore: SessionStore,
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : CommentRepository {
@@ -29,7 +29,7 @@ class KtorCommentRepository(
 
     override suspend fun getComments(type: CommentTargetType, code: String): VideoComments {
         val response = client.get("$baseUrl/loadComment") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "application/json, text/javascript, */*; q=0.01")
             header("X-Requested-With", "XMLHttpRequest")
             parameter("type", type.value)
@@ -42,7 +42,7 @@ class KtorCommentRepository(
 
     override suspend fun getCommentReplies(commentId: String): VideoComments {
         val response = client.get("$baseUrl/loadReplies") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "application/json, text/javascript, */*; q=0.01")
             header("X-Requested-With", "XMLHttpRequest")
             parameter("id", commentId)
@@ -73,7 +73,7 @@ class KtorCommentRepository(
                 append("comment-is-political", "0")
             },
         ) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
@@ -95,7 +95,7 @@ class KtorCommentRepository(
                 append("reply-comment-text", text)
             },
         ) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
@@ -124,7 +124,7 @@ class KtorCommentRepository(
                 append("unlike-comment-status", if (comment.post.unlikeCommentStatus) "1" else "0")
             },
         ) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
@@ -153,17 +153,10 @@ class KtorCommentRepository(
                 append("reason", reason)
             },
         ) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
-    }
-
-    private companion object {
-        const val DEFAULT_BASE_URL = "https://hanime1.me"
-        const val DEFAULT_USER_AGENT =
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
-                "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     }
 }

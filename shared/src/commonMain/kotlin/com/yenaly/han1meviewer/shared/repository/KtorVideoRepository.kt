@@ -15,7 +15,7 @@ import io.ktor.http.parameters
 
 class KtorVideoRepository(
     sessionStore: SessionStore,
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : VideoRepository {
@@ -23,7 +23,7 @@ class KtorVideoRepository(
 
     override suspend fun getVideo(videoCode: String): HanimeVideo {
         val response = client.get("$baseUrl/watch?v=$videoCode") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             cookieBridge.applyStoredCookies(this)
         }
@@ -51,7 +51,7 @@ class KtorVideoRepository(
                 append("like-is-positive", "1")
             },
         ) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
@@ -76,7 +76,7 @@ class KtorVideoRepository(
                 append("user_id", "")
             },
         ) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
@@ -100,17 +100,10 @@ class KtorVideoRepository(
                 append("subscribe-status", if (isSubscribed) "" else "1")
             },
         ) {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
-    }
-
-    private companion object {
-        const val DEFAULT_BASE_URL = "https://hanime1.me"
-        const val DEFAULT_USER_AGENT =
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
-                "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     }
 }

@@ -18,7 +18,7 @@ import io.ktor.http.parameters
 
 class KtorUserVideoListRepository(
     sessionStore: SessionStore,
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : UserVideoListRepository {
@@ -30,7 +30,7 @@ class KtorUserVideoListRepository(
         page: Int,
     ): UserVideoListPage {
         val response = client.get("$baseUrl/user/$userId/${type.path}") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             parameter("page", page)
             cookieBridge.applyStoredCookies(this)
@@ -42,7 +42,7 @@ class KtorUserVideoListRepository(
 
     override suspend fun getPlaylistVideos(listCode: String, page: Int): UserVideoListPage {
         val response = client.get("$baseUrl/playlist") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             parameter("list", listCode)
             parameter("page", page)
@@ -73,7 +73,7 @@ class KtorUserVideoListRepository(
                         append("user_id", "")
                     },
                 ) {
-                    header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+                    header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
                     header("X-CSRF-TOKEN", token)
                     cookieHeader?.let { header(HttpHeaders.Cookie, it) }
                 }
@@ -93,7 +93,7 @@ class KtorUserVideoListRepository(
                         append("like-is-positive", "1")
                     },
                 ) {
-                    header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+                    header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
                     header("X-CSRF-TOKEN", video.csrfToken ?: token)
                     cookieHeader?.let { header(HttpHeaders.Cookie, it) }
                 }
@@ -104,19 +104,12 @@ class KtorUserVideoListRepository(
 
     private suspend fun getVideoForMutation(videoCode: String): HanimeVideo {
         val response = client.get("$baseUrl/watch?v=$videoCode") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             cookieBridge.applyStoredCookies(this)
         }
         cookieBridge.saveResponseCookies(response)
 
         return parser.parseVideo(response.bodyAsText(), videoCode)
-    }
-
-    private companion object {
-        const val DEFAULT_BASE_URL = "https://hanime1.me"
-        const val DEFAULT_USER_AGENT =
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
-                "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     }
 }

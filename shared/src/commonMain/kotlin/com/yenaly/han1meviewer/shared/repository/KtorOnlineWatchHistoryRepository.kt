@@ -23,7 +23,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class KtorOnlineWatchHistoryRepository(
     sessionStore: SessionStore,
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : OnlineWatchHistoryRepository {
@@ -35,7 +35,7 @@ class KtorOnlineWatchHistoryRepository(
         page: Int,
     ): UserVideoListPage {
         val response = client.get("$baseUrl/user/$userId/histories") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             parameter("sort", sort.value)
             parameter("page", page)
@@ -50,7 +50,7 @@ class KtorOnlineWatchHistoryRepository(
         val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.delete("$baseUrl/user/tab-item/$videoCode") {
-            header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "application/json, text/plain, */*")
             header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
@@ -67,12 +67,5 @@ class KtorOnlineWatchHistoryRepository(
         if (!success) {
             throwMutationFailure("Failed to delete online watch history item.")
         }
-    }
-
-    private companion object {
-        const val DEFAULT_BASE_URL = "https://hanime1.me"
-        const val DEFAULT_USER_AGENT =
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
-                "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     }
 }
