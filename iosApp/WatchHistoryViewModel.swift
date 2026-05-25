@@ -37,17 +37,11 @@ final class WatchHistoryViewModel: ObservableObject {
         let feature = watchHistoryFeature
         loadTask = Task { [weak self] in
             guard let self else { return }
-            do {
-                let snapshot = await Task.detached {
-                    feature.loadRecent()
-                }.value
-                guard !Task.isCancelled, generation == requestGeneration else { return }
-                state = .loaded(WatchHistoryScreenSnapshot(snapshot))
-            } catch {
-                guard !Task.isCancelled, generation == requestGeneration else { return }
-                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-                state = .failed(ErrorMessage.userFriendly(error))
-            }
+            let snapshot = await Task.detached {
+                feature.loadRecent()
+            }.value
+            guard !Task.isCancelled, generation == requestGeneration else { return }
+            state = .loaded(WatchHistoryScreenSnapshot(snapshot))
         }
     }
 
@@ -58,17 +52,11 @@ final class WatchHistoryViewModel: ObservableObject {
         let feature = watchHistoryFeature
         loadTask = Task { [weak self] in
             guard let self else { return }
-            do {
-                let snapshot = await Task.detached {
-                    feature.delete(videoCode: videoCode)
-                }.value
-                guard !Task.isCancelled, generation == requestGeneration else { return }
-                state = .loaded(WatchHistoryScreenSnapshot(snapshot))
-            } catch {
-                guard !Task.isCancelled, generation == requestGeneration else { return }
-                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-                state = .failed(ErrorMessage.userFriendly(error))
-            }
+            let snapshot = await Task.detached {
+                feature.delete(videoCode: videoCode)
+            }.value
+            guard !Task.isCancelled, generation == requestGeneration else { return }
+            state = .loaded(WatchHistoryScreenSnapshot(snapshot))
         }
     }
 }
