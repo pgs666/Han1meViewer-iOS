@@ -30,10 +30,11 @@ struct OnlineWatchHistoryView: View {
                     .disabled(isLoading)
                 }
             }
-            .onAppear {
-                if case .idle = viewModel.state {
-                    viewModel.load()
-                }
+            .task {
+                viewModel.loadIfNeeded()
+            }
+            .onDisappear {
+                viewModel.cancelLoading()
             }
             .alert("操作失败", isPresented: actionErrorBinding) {
                 Button("好", role: .cancel) {

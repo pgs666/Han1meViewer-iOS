@@ -62,6 +62,12 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         }
     }
 
+    func loadIfNeeded() {
+        if case .idle = state {
+            load()
+        }
+    }
+
     func changeSortMode(_ mode: SortMode) {
         guard sortMode != mode else {
             return
@@ -117,6 +123,19 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
                 actionErrorMessage = ErrorMessage.userFriendly(error)
                 load()
             }
+        }
+    }
+
+    func cancelLoading() {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        switch state {
+        case .loading:
+            state = .idle
+        case .loadingMore(let snapshot):
+            state = .loaded(snapshot)
+        case .idle, .loaded, .failed:
+            break
         }
     }
 

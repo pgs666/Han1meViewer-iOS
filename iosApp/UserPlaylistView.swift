@@ -23,10 +23,11 @@ struct UserPlaylistView: View {
                     .disabled(isLoading)
                 }
             }
-            .onAppear {
-                if case .idle = viewModel.state {
-                    viewModel.load()
-                }
+            .task {
+                viewModel.loadIfNeeded()
+            }
+            .onDisappear {
+                viewModel.cancelLoading()
             }
     }
 

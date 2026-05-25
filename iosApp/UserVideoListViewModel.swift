@@ -62,6 +62,12 @@ final class UserVideoListViewModel: ObservableObject {
         }
     }
 
+    func loadIfNeeded() {
+        if case .idle = state {
+            load()
+        }
+    }
+
     func loadMoreIfNeeded(currentVideoID: String?) {
         guard hasNextPage, !isLoading else {
             return
@@ -110,6 +116,19 @@ final class UserVideoListViewModel: ObservableObject {
                 actionErrorMessage = ErrorMessage.userFriendly(error)
                 load()
             }
+        }
+    }
+
+    func cancelLoading() {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        switch state {
+        case .loading:
+            state = .idle
+        case .loadingMore(let snapshot):
+            state = .loaded(snapshot)
+        case .idle, .loaded, .failed:
+            break
         }
     }
 
