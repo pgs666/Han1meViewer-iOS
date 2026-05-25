@@ -29,10 +29,9 @@ class OnlineWatchHistoryFeature(
             hasNext = pageData.hasNext,
             csrfToken = pageData.csrfToken,
             authRequired = false,
-            videos = pageData.items.mapNotNull { info ->
-                val videoCode = info.videoCode ?: return@mapNotNull null
+            videos = pageData.items.map { info ->
                 OnlineWatchHistoryItemSnapshot(
-                    videoCode = videoCode,
+                    videoCode = info.videoCode,
                     title = info.title,
                     coverUrl = info.coverUrl,
                     duration = info.duration,

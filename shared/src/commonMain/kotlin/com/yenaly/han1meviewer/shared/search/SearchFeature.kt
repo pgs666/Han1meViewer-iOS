@@ -61,10 +61,9 @@ class SearchFeature(
                 searchedAtEpochMillis = currentEpochMillis(),
             )
         }
-        val items = result.items.mapNotNull { item ->
-            val videoCode = item.videoCode ?: return@mapNotNull null
+        val items = result.items.map { item ->
             SearchVideoSnapshot(
-                videoCode = videoCode,
+                videoCode = item.videoCode,
                 title = item.title,
                 coverUrl = item.coverUrl,
                 duration = item.duration,
