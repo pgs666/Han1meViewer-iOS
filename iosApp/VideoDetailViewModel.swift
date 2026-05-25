@@ -16,6 +16,9 @@ final class VideoDetailViewModel: ObservableObject {
     @Published private(set) var runningActionIDs: Set<String> = []
     @Published private(set) var player: AVPlayer?
     @Published var selectedPlaybackSourceID = ""
+    @Published private(set) var selectedPlaybackRate: Float = 1.0
+
+    let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     private let videoFeature: VideoFeature
     private var loadedVideoCode: String?
@@ -93,6 +96,12 @@ final class VideoDetailViewModel: ObservableObject {
     func selectPlaybackSource(snapshot: VideoDetailScreenSnapshot, sourceID: String) {
         selectedPlaybackSourceID = sourceID
         configurePlayer(snapshot: snapshot, sourceID: sourceID, preservePosition: true)
+    }
+
+    func selectPlaybackRate(_ rate: Float) {
+        guard playbackRates.contains(rate) else { return }
+        selectedPlaybackRate = rate
+        applyPlaybackRateIfNeeded()
     }
 
     func persistPlaybackPosition() {
@@ -227,6 +236,7 @@ final class VideoDetailViewModel: ObservableObject {
         if currentPlayerVideoCode == snapshot.videoCode,
            currentPlayerSourceID == source.id,
            player != nil {
+            applyPlaybackRateIfNeeded()
             return
         }
 
@@ -255,12 +265,24 @@ final class VideoDetailViewModel: ObservableObject {
                           shouldResume else {
                         return
                     }
-                    nextPlayer.play()
+                    self.resume(nextPlayer)
                 }
             }
         } else if shouldResume {
-            nextPlayer.play()
+            resume(nextPlayer)
         }
+    }
+
+    private func resume(_ player: AVPlayer) {
+        player.playImmediately(atRate: selectedPlaybackRate)
+    }
+
+    private func applyPlaybackRateIfNeeded() {
+        guard let player,
+              player.timeControlStatus == .playing || player.rate != 0 else {
+            return
+        }
+        player.rate = selectedPlaybackRate
     }
 
     private func releasePlayer() {

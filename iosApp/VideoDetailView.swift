@@ -175,12 +175,16 @@ private struct AndroidStylePlayerHeader: View {
                 .background(Color.black)
 
             if !snapshot.playbackSources.isEmpty {
-                Picker("清晰度", selection: $viewModel.selectedPlaybackSourceID) {
-                    ForEach(snapshot.playbackSources) { source in
-                        Text(source.label).tag(source.id)
+                VStack(spacing: 10) {
+                    Picker("清晰度", selection: $viewModel.selectedPlaybackSourceID) {
+                        ForEach(snapshot.playbackSources) { source in
+                            Text(source.label).tag(source.id)
+                        }
                     }
+                    .pickerStyle(.segmented)
+
+                    playbackRatePicker
                 }
-                .pickerStyle(.segmented)
                 .padding(12)
                 .background(Color(.systemBackground))
             }
@@ -246,6 +250,38 @@ private struct AndroidStylePlayerHeader: View {
                 .accessibilityLabel("全屏播放")
             }
         }
+    }
+
+    private var playbackRatePicker: some View {
+        HStack(spacing: 10) {
+            Text(String(localized: "video.playback.speed"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Picker(
+                String(localized: "video.playback.speed"),
+                selection: Binding(
+                    get: { viewModel.selectedPlaybackRate },
+                    set: { viewModel.selectPlaybackRate($0) }
+                )
+            ) {
+                ForEach(viewModel.playbackRates, id: \.self) { rate in
+                    Text(playbackRateLabel(rate)).tag(rate)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private func playbackRateLabel(_ rate: Float) -> String {
+        var label = String(format: "%.2f", rate)
+        while label.contains(".") && label.last == "0" {
+            label.removeLast()
+        }
+        if label.last == "." {
+            label.removeLast()
+        }
+        return "\(label)x"
     }
 }
 

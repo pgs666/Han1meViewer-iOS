@@ -176,6 +176,7 @@
     "video.action.subscription.login_required" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Please sign in before subscribing" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先登录再订阅" } } } },
     "video.action.subscription.added" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscribed" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已订阅" } } } },
     "video.action.subscription.removed" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsubscribed" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已取消订阅" } } } },
+    "video.playback.speed" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Speed" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "倍速" } } } },
     "video.views.count" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ views" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 次观看" } } } },
     "video.playlist.add_item" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "加入 %@" } } } },
     "video.playlist.remove_item" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除 %@" } } } },
