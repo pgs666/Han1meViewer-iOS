@@ -2,15 +2,13 @@ package com.yenaly.han1meviewer.shared.video
 
 import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
 import com.yenaly.han1meviewer.shared.repository.VideoRepository
+import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 import kotlinx.serialization.Serializable
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 class VideoFeature(
     private val repository: VideoRepository,
     private val watchHistoryStore: WatchHistoryStore? = null,
 ) {
-    @OptIn(ExperimentalTime::class)
     @Throws(Exception::class)
     suspend fun loadVideo(videoCode: String): VideoDetailSnapshot {
         val video = repository.getVideo(videoCode)
@@ -25,7 +23,7 @@ class VideoFeature(
             videoCode = video.videoCode,
             title = video.title.ifBlank { "Untitled" },
             coverUrl = video.coverUrl,
-            watchedAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
+            watchedAtEpochMillis = currentEpochMillis(),
             playbackPositionMillis = playbackPositionMillis,
         )
 
@@ -100,7 +98,6 @@ class VideoFeature(
         )
     }
 
-    @OptIn(ExperimentalTime::class)
     fun recordPlaybackPosition(
         videoCode: String,
         title: String,
@@ -111,7 +108,7 @@ class VideoFeature(
             videoCode = videoCode,
             title = title.ifBlank { "Untitled" },
             coverUrl = coverUrl,
-            watchedAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
+            watchedAtEpochMillis = currentEpochMillis(),
             playbackPositionMillis = playbackPositionMillis.coerceAtLeast(0L),
         )
     }

@@ -2,8 +2,7 @@ package com.yenaly.han1meviewer.shared.session
 
 import com.yenaly.han1meviewer.shared.db.Han1meDatabase
 import com.yenaly.han1meviewer.shared.model.SessionCookie
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
+import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 
 class SqlDelightSessionStore(
     private val database: Han1meDatabase,
@@ -50,6 +49,4 @@ class SqlDelightSessionStore(
         )
     }
 
-    @OptIn(ExperimentalTime::class)
-    private fun currentEpochMillis(): Long = Clock.System.now().toEpochMilliseconds()
 }

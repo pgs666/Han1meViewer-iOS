@@ -1,9 +1,8 @@
 package com.yenaly.han1meviewer.shared.model
 
+import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 import kotlinx.serialization.Serializable
 import kotlinx.datetime.LocalDate
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 @Serializable
 data class HanimeInfo(
@@ -38,9 +37,6 @@ data class HomePage(
     val userId: String?,
     val capturedAtEpochMillis: Long = currentEpochMillis(),
 )
-
-@OptIn(ExperimentalTime::class)
-private fun currentEpochMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
 @Serializable
 data class HomeBanner(
@@ -271,10 +267,4 @@ data class VideoCommentPost(
     val commentLikesSum: Int? = null,
     val likeCommentStatus: Boolean = false,
     val unlikeCommentStatus: Boolean = false,
-)
-
-@Serializable
-data class ReportReason(
-    val value: String,
-    val reasonKey: String? = null,
 )

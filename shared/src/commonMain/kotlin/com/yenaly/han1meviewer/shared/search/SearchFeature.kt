@@ -2,15 +2,13 @@ package com.yenaly.han1meviewer.shared.search
 
 import com.yenaly.han1meviewer.shared.model.SearchParams
 import com.yenaly.han1meviewer.shared.repository.SearchRepository
+import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 import kotlinx.serialization.Serializable
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 class SearchFeature(
     private val repository: SearchRepository,
     private val historyStore: SearchHistoryStore? = null,
 ) {
-    @OptIn(ExperimentalTime::class)
     @Throws(Exception::class)
     suspend fun search(keyword: String, page: Int): SearchSnapshot {
         val trimmedKeyword = keyword.trim()
@@ -48,7 +46,6 @@ class SearchFeature(
         )
     }
 
-    @OptIn(ExperimentalTime::class)
     private suspend fun search(
         params: SearchParams,
         page: Int,
@@ -61,7 +58,7 @@ class SearchFeature(
             historyStore?.record(
                 keyword = trimmedKeyword,
                 filterSummary = filterSummary,
-                searchedAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
+                searchedAtEpochMillis = currentEpochMillis(),
             )
         }
         val items = result.items.mapNotNull { item ->

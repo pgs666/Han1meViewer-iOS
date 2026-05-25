@@ -1,8 +1,7 @@
 package com.yenaly.han1meviewer.shared.session
 
 import com.yenaly.han1meviewer.shared.model.SessionCookie
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
+import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
@@ -78,7 +77,4 @@ object SetCookieParser {
             else -> null
         }
     }
-
-    @OptIn(ExperimentalTime::class)
-    private fun currentEpochMillis(): Long = Clock.System.now().toEpochMilliseconds()
 }
