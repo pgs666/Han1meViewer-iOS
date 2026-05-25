@@ -59,13 +59,14 @@ class KtorUserVideoListRepository(
         videoCode: String,
         csrfToken: String?,
     ) {
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = when (type) {
             UserVideoListType.WatchLater -> {
                 client.submitForm(
                     url = "$baseUrl/save",
                     formParameters = parameters {
-                        append("_token", csrfToken.orEmpty())
+                        append("_token", token)
                         append("input_id", "save")
                         append("video_id", videoCode)
                         append("is_checked", "false")
@@ -73,7 +74,7 @@ class KtorUserVideoListRepository(
                     },
                 ) {
                     header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-                    header("X-CSRF-TOKEN", csrfToken.orEmpty())
+                    header("X-CSRF-TOKEN", token)
                     cookieHeader?.let { header(HttpHeaders.Cookie, it) }
                 }
             }
@@ -87,13 +88,13 @@ class KtorUserVideoListRepository(
                     formParameters = parameters {
                         append("like-foreign-id", videoCode)
                         append("like-status", "1")
-                        append("_token", (video.csrfToken ?: csrfToken).orEmpty())
+                        append("_token", video.csrfToken ?: token)
                         append("like-user-id", video.currentUserId ?: userId)
                         append("like-is-positive", "1")
                     },
                 ) {
                     header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-                    header("X-CSRF-TOKEN", (video.csrfToken ?: csrfToken).orEmpty())
+                    header("X-CSRF-TOKEN", video.csrfToken ?: token)
                     cookieHeader?.let { header(HttpHeaders.Cookie, it) }
                 }
             }

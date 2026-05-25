@@ -7,9 +7,12 @@
 - Added mutation guard helpers so missing CSRF/user IDs fail before sending empty values.
 - Changed online watch history delete failures from `IllegalStateException` to `DomainException`.
 - Removed private orientation KVC calls from the iOS orientation controller.
+- Tightened Cloudflare body detection to concrete challenge markers instead of generic `cloudflare` text.
+- Applied the CSRF guard to comment and user-video-list mutations.
 
 ## Validation
 
 - `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64 ./gradlew :shared:jvmTest --parallel --max-workers=$(nproc) && git diff --check` passed locally.
 - `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64 ./gradlew --stop` stopped the Gradle daemon.
 - `ps -ef | grep -E 'GradleDaemon|KotlinCompileDaemon|[g]radle' | grep -v grep || true` returned no leftover Gradle/Kotlin daemon process.
+- Re-ran `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64 ./gradlew :shared:jvmTest --parallel --max-workers=$(nproc) && git diff --check` after the Cloudflare/CSRF follow-up; it passed locally.

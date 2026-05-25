@@ -74,9 +74,15 @@ private suspend fun io.ktor.client.statement.HttpResponse.isCloudflareChallenge(
         return false
     }
     val text = runCatching { bodyAsText() }.getOrDefault("")
-    return text.contains("cf-browser-verification", ignoreCase = true) ||
-        text.contains("cf-challenge", ignoreCase = true) ||
-        text.contains("cloudflare", ignoreCase = true)
+    return text.hasCloudflareChallengeBody()
+}
+
+internal fun String.hasCloudflareChallengeBody(): Boolean {
+    return contains("cf-browser-verification", ignoreCase = true) ||
+        contains("cf-challenge", ignoreCase = true) ||
+        contains("challenge-platform", ignoreCase = true) ||
+        contains("cf_chl_opt", ignoreCase = true) ||
+        contains("/cdn-cgi/challenge-platform/", ignoreCase = true)
 }
 
 private fun Headers.hasCloudflareMitigationHeader(): Boolean {

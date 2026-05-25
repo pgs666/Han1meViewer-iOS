@@ -59,11 +59,12 @@ class KtorCommentRepository(
         type: CommentTargetType,
         text: String,
     ) {
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
             url = "$baseUrl/createComment",
             formParameters = parameters {
-                append("_token", csrfToken.orEmpty())
+                append("_token", token)
                 append("comment-user-id", currentUserId)
                 append("comment-type", type.value)
                 append("comment-foreign-id", targetId)
@@ -73,7 +74,7 @@ class KtorCommentRepository(
             },
         ) {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
@@ -84,17 +85,18 @@ class KtorCommentRepository(
         replyCommentId: String,
         text: String,
     ) {
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
             url = "$baseUrl/replyComment",
             formParameters = parameters {
-                append("_token", csrfToken.orEmpty())
+                append("_token", token)
                 append("reply-comment-id", replyCommentId)
                 append("reply-comment-text", text)
             },
         ) {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
@@ -106,11 +108,12 @@ class KtorCommentRepository(
         isPositive: Boolean,
         comment: VideoComment,
     ) {
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
             url = "$baseUrl/commentLike",
             formParameters = parameters {
-                append("_token", csrfToken.orEmpty())
+                append("_token", token)
                 append("foreign_type", place.value)
                 append("foreign_id", comment.post.foreignId.orEmpty())
                 append("is_positive", if (isPositive) "1" else "0")
@@ -122,7 +125,7 @@ class KtorCommentRepository(
             },
         ) {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
@@ -138,11 +141,12 @@ class KtorCommentRepository(
     ) {
         val currentUserId = userId?.takeIf { it.isNotBlank() }
             ?: throw DomainException(DomainError.Auth("Login is required to report comments."))
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
             url = "$baseUrl/user/$currentUserId/report",
             formParameters = parameters {
-                append("_token", csrfToken.orEmpty())
+                append("_token", token)
                 append("redirect-url", redirectUrl)
                 append("reportable-id", reportableId.orEmpty())
                 append("reportable-type", reportableType.orEmpty())
@@ -150,7 +154,7 @@ class KtorCommentRepository(
             },
         ) {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
