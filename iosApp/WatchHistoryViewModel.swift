@@ -34,10 +34,13 @@ final class WatchHistoryViewModel: ObservableObject {
         loadTask?.cancel()
         requestGeneration += 1
         let generation = requestGeneration
+        let feature = watchHistoryFeature
         loadTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let snapshot = watchHistoryFeature.loadRecent()
+                let snapshot = await Task.detached {
+                    feature.loadRecent()
+                }.value
                 guard !Task.isCancelled, generation == requestGeneration else { return }
                 state = .loaded(WatchHistoryScreenSnapshot(snapshot))
             } catch {
@@ -49,12 +52,23 @@ final class WatchHistoryViewModel: ObservableObject {
     }
 
     func delete(videoCode: String) {
-        do {
-            let snapshot = watchHistoryFeature.delete(videoCode: videoCode)
-            state = .loaded(WatchHistoryScreenSnapshot(snapshot))
-        } catch {
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-            state = .failed(ErrorMessage.userFriendly(error))
+        loadTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        let feature = watchHistoryFeature
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let snapshot = await Task.detached {
+                    feature.delete(videoCode: videoCode)
+                }.value
+                guard !Task.isCancelled, generation == requestGeneration else { return }
+                state = .loaded(WatchHistoryScreenSnapshot(snapshot))
+            } catch {
+                guard !Task.isCancelled, generation == requestGeneration else { return }
+                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+                state = .failed(ErrorMessage.userFriendly(error))
+            }
         }
     }
 }

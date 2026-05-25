@@ -1,4 +1,4 @@
-﻿package com.yenaly.han1meviewer.shared.parser
+package com.yenaly.han1meviewer.shared.parser
 
 import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Element
@@ -33,7 +33,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class KsoupHtmlParser : HtmlParser {
     override fun parseHome(html: String): HomePage {
-        val body = Ksoup.parse(html).body()
+        val body = parseHtml(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
         val userInfo = body.selectFirst("div#user-modal-dp-wrapper")
         val avatarUrl = userInfo?.selectFirst("img")?.absUrl("src")
@@ -80,7 +80,7 @@ class KsoupHtmlParser : HtmlParser {
         params: SearchParams,
         page: Int,
     ): PageResult<HanimeInfo> {
-        val body = Ksoup.parse(html).body()
+        val body = parseHtml(html).body()
         val normalContainer = body.selectFirst(".content-padding-new")
         val simplifiedContainer = body.selectFirst(".home-rows-videos-wrapper")
         val items = when {
@@ -97,7 +97,7 @@ class KsoupHtmlParser : HtmlParser {
     }
 
     override fun parseVideo(html: String, videoCode: String): HanimeVideo {
-        val body = Ksoup.parse(html).body()
+        val body = parseHtml(html).body()
         val title = body.selectFirst("#shareBtn-title")?.text()?.trim().orEmpty()
         val detailWrapper = body.selectFirst("div.video-details-wrapper")
         val caption = detailWrapper?.selectFirst("div[class^=video-caption-text]")
@@ -231,7 +231,7 @@ class KsoupHtmlParser : HtmlParser {
     }
 
     override fun parseSubscriptions(html: String): MySubscriptions {
-        val body = Ksoup.parse(html).body()
+        val body = parseHtml(html).body()
         val subscriptionsRoot = body.selectFirst("div.subscriptions-nav")
             ?: return MySubscriptions(
                 subscriptions = emptyList(),
@@ -296,7 +296,7 @@ class KsoupHtmlParser : HtmlParser {
     }
 
     override fun parseUserVideoList(html: String, page: Int): UserVideoListPage {
-        val body = Ksoup.parse(html).body()
+        val body = parseHtml(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
         val description = body.selectFirst("#playlist-show-description")?.ownText()
             ?: body.selectFirst("p.playlist-description")?.text()
@@ -314,7 +314,7 @@ class KsoupHtmlParser : HtmlParser {
     }
 
     override fun parseUserPlaylists(html: String, page: Int): UserPlaylistPage {
-        val body = Ksoup.parse(html).body()
+        val body = parseHtml(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
         val playlists = body.select(".user-tab-item-wrapper").mapNotNull { item ->
             val detailUrl = item.selectFirst("a.video-link")?.absUrl("href")
@@ -349,7 +349,7 @@ class KsoupHtmlParser : HtmlParser {
 
     override fun parseComments(json: String): VideoComments {
         val html = json.htmlField("comments")
-        val body = Ksoup.parse(html).body()
+        val body = parseHtml(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
         val currentUserId = body.selectFirst("input[name=comment-user-id]")?.attr("value")
         val commentsRoot = body.getElementById("comment-start")
@@ -370,7 +370,7 @@ class KsoupHtmlParser : HtmlParser {
 
     override fun parseCommentReplies(json: String): VideoComments {
         val html = json.htmlField("replies")
-        val replyStart = Ksoup.parse(html).body().selectFirst("div[id^=reply-start]")
+        val replyStart = parseHtml(html).body().selectFirst("div[id^=reply-start]")
             ?: return VideoComments(comments = emptyList())
 
         val comments = replyStart.children()
@@ -468,8 +468,10 @@ class KsoupHtmlParser : HtmlParser {
 
     private fun List<Element>.toCommentWrapper(): Element? {
         val html = joinToString(separator = "") { it.outerHtml() }
-        return Ksoup.parse("<div>$html</div>").body().selectFirst("div")
+        return parseHtml("<div>$html</div>").body().selectFirst("div")
     }
+
+    private fun parseHtml(html: String) = Ksoup.parse(html, BASE_URI)
 
     private fun String.htmlField(fieldName: String): String {
         return runCatching {
@@ -520,8 +522,8 @@ class KsoupHtmlParser : HtmlParser {
             replyCount = replyCount,
             id = id,
             post = VideoCommentPost(
-                foreignId = postElement?.getElementById("foreign_id")?.attr("value")?.takeIf { it.isNotBlank() },
-                isPositive = postElement?.getElementById("is_positive")?.attr("value") == "1",
+                foreignId = postElement?.selectFirst("input[name=foreign_id]")?.attr("value")?.takeIf { it.isNotBlank() },
+                isPositive = postElement?.selectFirst("input[name=is_positive]")?.attr("value") == "1",
                 likeUserId = postElement?.selectFirst("input[name=comment-like-user-id]")?.attr("value")?.takeIf { it.isNotBlank() },
                 commentLikesCount = postElement?.selectFirst("input[name=comment-likes-count]")?.attr("value")?.toIntOrNull(),
                 commentLikesSum = postElement?.selectFirst("input[name=comment-likes-sum]")?.attr("value")?.toIntOrNull(),
@@ -566,7 +568,8 @@ class KsoupHtmlParser : HtmlParser {
         val ISO_DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
         val VIDEO_SOURCE_REGEX = Regex("""const source = ["'`](.+?)["'`]""")
-        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^觀看次數：(.+?)次\s+(\d{4}-\d{2}-\d{2})$""")
+        const val BASE_URI = "https://hanime1.me"
+        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^(?:觀看次數|观看次数|Views?)[:：]\s*(.+?)(?:次|views?)?\s+(\d{4}-\d{2}-\d{2})$""", RegexOption.IGNORE_CASE)
         val COMMENT_COUNT_REGEX = Regex("""\d+""")
         val DEFAULT_HOME_SECTION_KEYS = listOf(
             "latestRelease",

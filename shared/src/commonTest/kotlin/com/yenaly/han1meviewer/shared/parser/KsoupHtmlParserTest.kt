@@ -127,8 +127,8 @@ class KsoupHtmlParserTest {
                   <span class="report-btn" data-reportable-id="99" data-reportable-type="comment"></span>
                 </div>
                 <div id="comment-like-form-wrapper">
-                  <input id="foreign_id" value="99">
-                  <input id="is_positive" value="0">
+                  <input name="foreign_id" value="99">
+                  <input name="is_positive" value="0">
                   <input name="comment-like-user-id" value="42">
                   <input name="comment-likes-count" value="3">
                   <input name="comment-likes-sum" value="3">
@@ -151,6 +151,7 @@ class KsoupHtmlParserTest {
         assertEquals(1, comments.comments.size)
         assertEquals("Alice", comments.comments.single().username)
         assertEquals("99", comments.comments.single().replyTargetIdOrNull)
+        assertEquals("99", comments.comments.single().post.foreignId)
         assertEquals(2, comments.comments.single().replyCount)
         assertTrue(comments.comments.single().hasMoreReplies)
     }
@@ -169,8 +170,8 @@ class KsoupHtmlParserTest {
                 <span class="report-btn" data-reportable-id="100" data-reportable-type="reply"></span>
               </div>
               <div>
-                <input id="foreign_id" value="100">
-                <input id="is_positive" value="1">
+                <input name="foreign_id" value="100">
+                <input name="is_positive" value="1">
                 <input name="comment-like-user-id" value="42">
                 <input name="comment-likes-count" value="1">
                 <input name="comment-likes-sum" value="1">
@@ -188,6 +189,8 @@ class KsoupHtmlParserTest {
         assertEquals(1, replies.comments.size)
         assertEquals("Bob", replies.comments.single().username)
         assertTrue(replies.comments.single().isChildComment)
+        assertEquals("100", replies.comments.single().post.foreignId)
+        assertTrue(replies.comments.single().post.isPositive)
         assertTrue(replies.comments.single().post.likeCommentStatus)
     }
 

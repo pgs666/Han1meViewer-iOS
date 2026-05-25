@@ -41,6 +41,25 @@ internal fun createHan1meHttpClient(): HttpClient = HttpClient {
                     )
                 )
             }
+            when (response.status) {
+                HttpStatusCode.Unauthorized,
+                HttpStatusCode.Forbidden -> throw DomainException(
+                    DomainError.Auth("Login session expired. Please sign in again.")
+                )
+                HttpStatusCode.NotFound -> throw DomainException(
+                    DomainError.Network("Requested content was not found.", response.status.value)
+                )
+                HttpStatusCode.TooManyRequests -> throw DomainException(
+                    DomainError.Network("Too many requests. Please try again later.", response.status.value)
+                )
+                else -> {
+                    if (response.status.value >= 500) {
+                        throw DomainException(
+                            DomainError.Network("Server error. Please try again later.", response.status.value)
+                        )
+                    }
+                }
+            }
         }
     }
 }

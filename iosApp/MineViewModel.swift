@@ -44,6 +44,11 @@ final class MineViewModel: ObservableObject {
         let generation = requestGeneration
         sessionTask = Task { [weak self] in
             guard let self else { return }
+            defer {
+                if generation == requestGeneration {
+                    isCheckingLogin = false
+                }
+            }
             do {
                 let session = try await webLoginFeature.currentSessionSnapshot()
                 guard !Task.isCancelled, generation == requestGeneration else { return }
@@ -53,14 +58,12 @@ final class MineViewModel: ObservableObject {
                 } else {
                     profile = MineProfileSnapshot()
                 }
-                isCheckingLogin = false
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled, generation == requestGeneration else { return }
                 CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 errorMessage = ErrorMessage.userFriendly(error)
-                isCheckingLogin = false
             }
         }
     }
@@ -87,8 +90,14 @@ final class MineViewModel: ObservableObject {
         profileTask?.cancel()
         logoutTask?.cancel()
         requestGeneration += 1
+        let generation = requestGeneration
         logoutTask = Task { [weak self] in
             guard let self else { return }
+            defer {
+                if generation == requestGeneration {
+                    isCheckingLogin = false
+                }
+            }
             do {
                 _ = try await webLoginFeature.logout()
                 await clearWebViewCookies()
@@ -96,7 +105,6 @@ final class MineViewModel: ObservableObject {
                 didLoadLoginState = true
                 isLoggedIn = false
                 profile = MineProfileSnapshot()
-                isCheckingLogin = false
                 onSuccess()
             } catch is CancellationError {
                 return
@@ -104,7 +112,6 @@ final class MineViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 errorMessage = ErrorMessage.userFriendly(error)
-                isCheckingLogin = false
             }
         }
     }
