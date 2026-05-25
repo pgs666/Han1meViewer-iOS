@@ -120,8 +120,11 @@ struct MineView: View {
                 }
             }
             .navigationTitle("我的")
-            .onAppear {
+            .task {
                 viewModel.refreshLoginState()
+            }
+            .onDisappear {
+                viewModel.cancelSessionRefresh()
             }
             .alert(item: $activeAlert) { alert in
                 switch alert {

@@ -68,6 +68,11 @@ final class MineViewModel: ObservableObject {
         }
     }
 
+    func cancelSessionRefresh() {
+        sessionTask?.cancel()
+        profileTask?.cancel()
+    }
+
     func markLoggedIn() {
         didLoadLoginState = true
         isLoggedIn = true

@@ -42,6 +42,12 @@ final class FollowingViewModel: ObservableObject {
         }
     }
 
+    func loadIfNeeded() {
+        if case .idle = state {
+            load()
+        }
+    }
+
     func loadMoreIfNeeded(currentVideoID: String?) {
         guard hasNextPage, !isLoading else {
             return
@@ -58,6 +64,19 @@ final class FollowingViewModel: ObservableObject {
         state = .loadingMore(snapshot)
         loadMoreTask = Task { [weak self] in
             await self?.loadFollowing(page: nextPage, appendingTo: snapshot, generation: generation)
+        }
+    }
+
+    func cancelLoading() {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        switch state {
+        case .loading:
+            state = .idle
+        case .loadingMore(let snapshot):
+            state = .loaded(snapshot)
+        case .idle, .loaded, .failed:
+            break
         }
     }
 
