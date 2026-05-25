@@ -62,10 +62,9 @@ class VideoFeature(
             uploadDate = video.uploadTime?.toString(),
             tags = video.tags,
             playlistName = video.playlist?.name,
-            playlistVideos = video.playlist?.videos.orEmpty().mapNotNull { item ->
-                val playlistVideoCode = item.videoCode ?: return@mapNotNull null
+            playlistVideos = video.playlist?.videos.orEmpty().map { item ->
                 VideoRelatedSnapshot(
-                    videoCode = playlistVideoCode,
+                    videoCode = item.videoCode,
                     title = item.title,
                     coverUrl = item.coverUrl,
                     duration = item.duration,
@@ -82,10 +81,9 @@ class VideoFeature(
                     isSelected = item.isSelected,
                 )
             },
-            relatedVideos = video.relatedHanimes.mapNotNull { item ->
-                val relatedVideoCode = item.videoCode ?: return@mapNotNull null
+            relatedVideos = video.relatedHanimes.map { item ->
                 VideoRelatedSnapshot(
-                    videoCode = relatedVideoCode,
+                    videoCode = item.videoCode,
                     title = item.title,
                     coverUrl = item.coverUrl,
                     duration = item.duration,

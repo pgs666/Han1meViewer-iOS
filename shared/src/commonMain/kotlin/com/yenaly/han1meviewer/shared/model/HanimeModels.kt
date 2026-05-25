@@ -7,7 +7,7 @@ import kotlinx.datetime.LocalDate
 @Serializable
 data class HanimeInfo(
     val title: String,
-    val videoCode: String?,
+    val videoCode: String,
     val coverUrl: String?,
     val detailUrl: String?,
     val duration: String? = null,

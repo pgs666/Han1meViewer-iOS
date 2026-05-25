@@ -45,10 +45,9 @@ class UserVideoListFeature(
             page = page,
             hasNext = hasNext,
             listDescription = listDescription,
-            videos = items.mapNotNull { item ->
-                val videoCode = item.videoCode ?: return@mapNotNull null
+            videos = items.map { item ->
                 UserVideoListItemSnapshot(
-                    videoCode = videoCode,
+                    videoCode = item.videoCode,
                     title = item.title,
                     coverUrl = item.coverUrl,
                     duration = item.duration,
@@ -76,10 +75,9 @@ class PlaylistVideoListFeature(
             page = page,
             hasNext = hasNext,
             listDescription = listDescription,
-            videos = items.mapNotNull { item ->
-                val videoCode = item.videoCode ?: return@mapNotNull null
+            videos = items.map { item ->
                 UserVideoListItemSnapshot(
-                    videoCode = videoCode,
+                    videoCode = item.videoCode,
                     title = item.title,
                     coverUrl = item.coverUrl,
                     duration = item.duration,

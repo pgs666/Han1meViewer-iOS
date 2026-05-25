@@ -24,10 +24,9 @@ class HomeFeature(
             throw DomainException(DomainError.Auth("Login session expired. Please sign in again."))
         }
         val sections = homePage.sections.mapNotNull { section ->
-            val videos = section.items.mapNotNull { item ->
-                val videoCode = item.videoCode ?: return@mapNotNull null
+            val videos = section.items.map { item ->
                 HomeVideoSnapshot(
-                    videoCode = videoCode,
+                    videoCode = item.videoCode,
                     title = item.title,
                     coverUrl = item.coverUrl,
                     duration = item.duration,
