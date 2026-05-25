@@ -13,6 +13,66 @@ class KsoupHtmlParserTest {
     private val parser = KsoupHtmlParser()
 
     @Test
+    fun parseHomeUsesAndroidSectionIndexesAndBannerCommentFallback() {
+        val rowHtml = (0..13).joinToString(separator = "\n") { index ->
+            """
+            <div>
+              <div class="horizontal-card">
+                <a href="/watch?v=${1000 + index}"></a>
+                <img src="/covers/$index.jpg">
+                <div class="title">Video $index</div>
+              </div>
+            </div>
+            """.trimIndent()
+        }
+        val html = """
+            <html>
+              <body>
+                <div id="user-modal-dp-wrapper">
+                  <img src="/avatar.jpg">
+                  <div id="user-modal-name">Alice</div>
+                </div>
+                <a id="user-modal-trigger" href="/user/42"></a>
+                <div>
+                  <img src="/ignored.jpg">
+                  <img src="/banner.jpg" alt="Banner title">
+                </div>
+                <div id="home-banner-wrapper">
+                  <h4>Banner description</h4>
+                  <!-- /watch?v=9999 -->
+                </div>
+                <div id="home-rows-wrapper">
+                  $rowHtml
+                </div>
+              </body>
+            </html>
+        """.trimIndent()
+
+        val home = parser.parseHome(html)
+
+        assertEquals("9999", home.banner?.videoCode)
+        assertEquals(
+            listOf(
+                "latestRelease",
+                "latestHanime",
+                "ecchiAnime",
+                "shortEpisodeAnime",
+                "motionAnime",
+                "threeDCG",
+                "twoPointFiveDAnime",
+                "twoDAnime",
+                "aiGenerated",
+                "mmd",
+                "cosplay",
+                "watchingNow",
+            ),
+            home.sections.map { it.key },
+        )
+        assertEquals("1005", home.sections.first { it.key == "motionAnime" }.items.single().videoCode)
+        assertEquals("1010", home.sections.first { it.key == "aiGenerated" }.items.single().videoCode)
+    }
+
+    @Test
     fun parsesNormalSearchCards() {
         val html = """
             <html>

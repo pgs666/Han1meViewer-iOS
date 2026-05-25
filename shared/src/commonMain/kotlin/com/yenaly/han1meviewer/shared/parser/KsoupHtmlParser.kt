@@ -47,20 +47,22 @@ class KsoupHtmlParser : HtmlParser {
         val bannerPic = bannerImage?.select("img")?.let { images ->
             images.getOrNull(1)?.absUrl("src") ?: images.getOrNull(0)?.absUrl("src")
         }
+        val bannerVideoCode = body.select("script")
+            .firstOrNull { it.data().contains("watch?v=") }
+            ?.data()
+            ?.toVideoCode()
+            ?: bannerWrapper?.html()?.toVideoCode()
         val banner = if (bannerTitle != null && bannerPic != null) {
             HomeBanner(
                 title = bannerTitle,
                 description = bannerWrapper.selectFirst("h4")?.ownText(),
                 imageUrl = bannerPic,
-                videoCode = body.select("script")
-                    .firstOrNull { it.data().contains("watch?v=") }
-                    ?.data()
-                    ?.toVideoCode()
+                videoCode = bannerVideoCode,
             )
         } else null
 
         val rows = body.select("div#home-rows-wrapper > div")
-        val sections = DEFAULT_HOME_SECTION_KEYS.mapIndexedNotNull { index, key ->
+        val sections = HOME_SECTION_MAPPINGS.mapNotNull { (index, key) ->
             val items = rows.getOrNull(index).toHanimeInfoList()
             if (items.isEmpty()) null else HomeSection(key = key, title = key, items = items)
         }
@@ -571,21 +573,19 @@ class KsoupHtmlParser : HtmlParser {
         const val BASE_URI = "https://hanime1.me"
         val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^(?:觀看次數|观看次数|Views?)[:：]\s*(.+?)(?:次|views?)?\s+(\d{4}-\d{2}-\d{2})$""", RegexOption.IGNORE_CASE)
         val COMMENT_COUNT_REGEX = Regex("""\d+""")
-        val DEFAULT_HOME_SECTION_KEYS = listOf(
-            "latestRelease",
-            "latestHanime",
-            "ecchiAnime",
-            "shortEpisodeAnime",
-            "unknown4",
-            "motionAnime",
-            "threeDCG",
-            "twoPointFiveDAnime",
-            "twoDAnime",
-            "unknown9",
-            "aiGenerated",
-            "mmd",
-            "cosplay",
-            "watchingNow",
+        val HOME_SECTION_MAPPINGS = listOf(
+            0 to "latestRelease",
+            1 to "latestHanime",
+            2 to "ecchiAnime",
+            3 to "shortEpisodeAnime",
+            5 to "motionAnime",
+            6 to "threeDCG",
+            7 to "twoPointFiveDAnime",
+            8 to "twoDAnime",
+            10 to "aiGenerated",
+            11 to "mmd",
+            12 to "cosplay",
+            13 to "watchingNow",
         )
     }
 }
