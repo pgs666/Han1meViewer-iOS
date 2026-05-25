@@ -90,7 +90,7 @@
 ## 🛠️ 开发环境
 
 - **Xcode** 26.0+（iOS 15.0+ Deployment Target）
-- **JDK** 17+（Gradle 构建 KMP 框架）
+- **JDK** 21+（Gradle 9.4.1 构建 KMP 框架）
 - **Kotlin** 2.3.21
 - **Swift** 5.0
 

@@ -22,6 +22,9 @@ struct CommentView: View {
             content
         }
         .padding(.horizontal, 16)
+        .refreshable {
+            viewModel.load()
+        }
         .task {
             viewModel.loadIfNeeded()
         }

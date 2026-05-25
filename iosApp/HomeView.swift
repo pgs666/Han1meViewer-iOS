@@ -46,6 +46,10 @@ struct HomeView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    Button("重试") {
+                        viewModel.load()
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity)

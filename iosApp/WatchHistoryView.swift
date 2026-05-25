@@ -13,6 +13,9 @@ struct WatchHistoryView: View {
     var body: some View {
         content
             .navigationTitle("观看历史")
+            .refreshable {
+                viewModel.load()
+            }
             .onAppear {
                 viewModel.loadIfNeeded()
             }

@@ -32,21 +32,11 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Run shared JVM tests
+        run: ./gradlew :shared:jvmTest --no-daemon
+
       - name: Generate Xcode project
         run: xcodegen generate
-
-      - name: Build iOS app
-        run: |
-          xcodebuild \
-            -project Han1meViewer.xcodeproj \
-            -scheme Han1meViewer \
-            -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
 
       - name: Build unsigned device app
         run: |
