@@ -263,6 +263,6 @@ struct UserVideoListRow: Identifiable {
                 guard let value, !value.isEmpty else { return nil }
                 return value
             }
-            .joined(separator: " / ")
+            .joined(separator: " · ")
     }
 }
