@@ -36,9 +36,14 @@ final class CommentViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
-    @Published var sortMode: SortMode = .latest
+    @Published var sortMode: SortMode = .latest {
+        didSet {
+            updateSortedComments()
+        }
+    }
     @Published var actionMessage: String?
     @Published private(set) var runningActionIDs: Set<String> = []
+    @Published private(set) var sortedComments: [CommentRow] = []
 
     private let feature: CommentFeature
     private let videoCode: String
@@ -65,6 +70,7 @@ final class CommentViewModel: ObservableObject {
         requestGeneration += 1
         let generation = requestGeneration
         state = .loading
+        sortedComments = []
         loadTask = Task { [weak self] in
             await self?.loadComments(generation: generation)
         }
@@ -136,6 +142,7 @@ final class CommentViewModel: ObservableObject {
             actionMessage = "请先登录"
             throw CommentViewModelError.loginRequired
         }
+        let generation = requestGeneration
         let actionID = "like-\(comment.id)-\(isPositive)"
         guard !runningActionIDs.contains(actionID) else {
             return comment
@@ -150,6 +157,9 @@ final class CommentViewModel: ObservableObject {
             comment: comment.snapshot,
             isPositive: isPositive
         )
+        guard !Task.isCancelled, generation == requestGeneration else {
+            throw CancellationError()
+        }
         let row = CommentRow(updated)
         updateComment(comment.id, with: row)
         return row
@@ -181,22 +191,28 @@ final class CommentViewModel: ObservableObject {
         return CommentThreadScreenSnapshot(snapshot)
     }
 
-    var sortedComments: [CommentRow] {
-        guard let snapshot = currentSnapshot else {
-            return []
-        }
+    private func sortedComments(for snapshot: CommentThreadScreenSnapshot) -> [CommentRow] {
+        let comments = snapshot.comments
         switch sortMode {
         case .latest:
-            return snapshot.comments
+            return comments
         case .earliest:
-            return Array(snapshot.comments.reversed())
+            return Array(comments.reversed())
         case .mostReplies:
-            return snapshot.comments.sorted { ($0.replyCount ?? 0) > ($1.replyCount ?? 0) }
+            return comments.sorted { ($0.replyCount ?? 0) > ($1.replyCount ?? 0) }
         case .mostLikes:
-            return snapshot.comments.sorted { ($0.thumbUp ?? 0) > ($1.thumbUp ?? 0) }
+            return comments.sorted { ($0.thumbUp ?? 0) > ($1.thumbUp ?? 0) }
         case .mostDislikes:
-            return snapshot.comments.sorted { ($0.thumbUp ?? 0) < ($1.thumbUp ?? 0) }
+            return comments.sorted { ($0.thumbUp ?? 0) < ($1.thumbUp ?? 0) }
         }
+    }
+
+    private func updateSortedComments() {
+        guard let snapshot = currentSnapshot else {
+            sortedComments = []
+            return
+        }
+        sortedComments = sortedComments(for: snapshot)
     }
 
     var reportReasons: [ReportReasonRow] {
@@ -220,13 +236,16 @@ final class CommentViewModel: ObservableObject {
         do {
             let snapshot = try await feature.loadVideoComments(videoCode: videoCode)
             guard !Task.isCancelled, generation == requestGeneration else { return }
-            state = .loaded(CommentThreadScreenSnapshot(snapshot))
+            let screenSnapshot = CommentThreadScreenSnapshot(snapshot)
+            state = .loaded(screenSnapshot)
+            sortedComments = sortedComments(for: screenSnapshot)
         } catch is CancellationError {
             return
         } catch {
             guard !Task.isCancelled, generation == requestGeneration else { return }
             CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
+            sortedComments = []
         }
     }
 
@@ -255,7 +274,9 @@ final class CommentViewModel: ObservableObject {
         guard let snapshot = currentSnapshot else {
             return
         }
-        state = .loaded(snapshot.updatingComment(id: id, with: updated))
+        let nextSnapshot = snapshot.updatingComment(id: id, with: updated)
+        state = .loaded(nextSnapshot)
+        sortedComments = sortedComments(for: nextSnapshot)
     }
 }
 

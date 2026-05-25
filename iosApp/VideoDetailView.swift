@@ -1,5 +1,6 @@
 ﻿import AVKit
 import SwiftUI
+import UIKit
 import Han1meShared
 
 struct VideoDetailView: View {
@@ -527,6 +528,7 @@ private struct ActionButtonRow: View {
     @ObservedObject var viewModel: VideoDetailViewModel
     @Environment(\.openURL) private var openURL
     @State private var isShowingMyList = false
+    @State private var isShowingShareSheet = false
 
     private var videoURL: URL? {
         URL(string: "https://hanime1.me/watch?v=\(snapshot.videoCode)")
@@ -581,8 +583,8 @@ private struct ActionButtonRow: View {
                     title: "分享",
                     systemImage: "square.and.arrow.up",
                     action: {
-                        if let videoURL {
-                            openURL(videoURL)
+                        if videoURL != nil {
+                            isShowingShareSheet = true
                         }
                     }
                 )
@@ -619,7 +621,30 @@ private struct ActionButtonRow: View {
                 }
             }
         }
+        .sheet(isPresented: $isShowingShareSheet) {
+            if let videoURL {
+                ActivityView(activityItems: [videoURL])
+            }
+        }
     }
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        controller.popoverPresentationController?.sourceView = controller.view
+        controller.popoverPresentationController?.sourceRect = CGRect(
+            x: controller.view.bounds.midX,
+            y: controller.view.bounds.midY,
+            width: 0,
+            height: 0
+        )
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 private struct LabelButton: View {
@@ -629,18 +654,27 @@ private struct LabelButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                Text(title)
-                    .font(.caption)
-                    .lineLimit(1)
-            }
-            .frame(minWidth: 76)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            LabelButtonContent(title: title, systemImage: systemImage)
         }
         .buttonStyle(.borderless)
+    }
+}
+
+private struct LabelButtonContent: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.title3)
+            Text(title)
+                .font(.caption)
+                .lineLimit(1)
+        }
+        .frame(minWidth: 76)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
     }
 }
 
