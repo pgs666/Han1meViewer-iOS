@@ -63,7 +63,11 @@ class SharedAppEnvironment(
     }
 
     fun homeFeature(): HomeFeature {
-        return HomeFeature(homeRepository)
+        return HomeFeature(
+            repository = homeRepository,
+            sessionStore = sessionStore,
+            onSessionCleared = ::clearCachedCurrentUserId,
+        )
     }
 
     fun followingFeature(): FollowingFeature {

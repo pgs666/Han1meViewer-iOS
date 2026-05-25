@@ -1,14 +1,28 @@
 package com.yenaly.han1meviewer.shared.home
 
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
+import com.yenaly.han1meviewer.shared.model.DomainError
+import com.yenaly.han1meviewer.shared.model.DomainException
 import com.yenaly.han1meviewer.shared.repository.HomeRepository
+import com.yenaly.han1meviewer.shared.session.SessionStore
 import kotlinx.serialization.Serializable
 
 class HomeFeature(
     private val repository: HomeRepository,
+    private val sessionStore: SessionStore? = null,
+    private val onSessionCleared: () -> Unit = {},
 ) {
     @Throws(Exception::class)
     suspend fun loadHome(): HomeFeedSnapshot {
         val homePage = repository.getHomePage()
+        if (sessionStore?.loadCookies()?.hasConfirmedLogin() == true &&
+            homePage.userId.isNullOrBlank() &&
+            homePage.username.isNullOrBlank()
+        ) {
+            sessionStore.clear()
+            onSessionCleared()
+            throw DomainException(DomainError.Auth("Login session expired. Please sign in again."))
+        }
         val sections = homePage.sections.mapNotNull { section ->
             val videos = section.items.mapNotNull { item ->
                 val videoCode = item.videoCode ?: return@mapNotNull null

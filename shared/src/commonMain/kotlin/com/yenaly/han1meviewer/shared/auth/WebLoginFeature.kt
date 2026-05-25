@@ -1,8 +1,9 @@
 package com.yenaly.han1meviewer.shared.auth
 
-import com.yenaly.han1meviewer.shared.model.SessionCookie
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
+import com.yenaly.han1meviewer.shared.model.SessionCookie
 import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import kotlinx.coroutines.CancellationException
@@ -43,12 +44,7 @@ class WebLoginFeature(
             return snapshot
         }
         sessionStore.saveCookies(
-            sessionStore.loadCookies() + SessionCookie(
-                name = confirmedLoginCookieName,
-                value = "true",
-                domain = appCookieDomain,
-                secure = true,
-            )
+            sessionStore.loadCookies() + LoginSessionMarker.cookie()
         )
 
         return AuthSnapshot(
@@ -98,11 +94,7 @@ class WebLoginFeature(
     }
 
     private fun List<SessionCookie>.hasLoginSession(): Boolean {
-        return any { cookie ->
-            cookie.name == confirmedLoginCookieName &&
-                cookie.value == "true" &&
-                cookie.domain == appCookieDomain
-        }
+        return hasConfirmedLogin()
     }
 
     private suspend fun verifyCurrentSession(): AuthSnapshot {
@@ -154,10 +146,6 @@ class WebLoginFeature(
             }
     }
 
-    private companion object {
-        const val confirmedLoginCookieName = "han1me_ios_web_login_confirmed"
-        const val appCookieDomain = "han1meviewer.local"
-    }
 }
 
 @Serializable
