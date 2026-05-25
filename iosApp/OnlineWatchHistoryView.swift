@@ -99,7 +99,7 @@ struct OnlineWatchHistoryView: View {
                                 OnlineWatchHistoryRowView(video: video)
                             }
                             .onAppear {
-                                viewModel.loadMoreIfNeeded(currentVideoID: video.id)
+                                viewModel.loadMoreIfNeeded(currentItemID: video.id)
                             }
                         }
                         .onDelete(perform: viewModel.delete)
@@ -119,12 +119,7 @@ struct OnlineWatchHistoryView: View {
     }
 
     private var isLoading: Bool {
-        switch viewModel.state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
+        viewModel.state.isLoading
     }
 
     private var actionErrorBinding: Binding<Bool> {
@@ -149,7 +144,7 @@ struct OnlineWatchHistoryView: View {
             loadMoreError: snapshot.loadMoreError,
             isEmpty: snapshot.videos.isEmpty,
             onRetry: {
-                viewModel.loadMoreIfNeeded(currentVideoID: snapshot.videos.last?.id)
+                viewModel.loadMoreIfNeeded(currentItemID: snapshot.videos.last?.id)
             }
         )
     }

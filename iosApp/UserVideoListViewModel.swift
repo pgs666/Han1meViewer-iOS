@@ -2,26 +2,12 @@ import Foundation
 import Han1meShared
 
 @MainActor
-final class UserVideoListViewModel: ObservableObject {
-    enum State {
-        case idle
-        case loading
-        case loaded(UserVideoListScreenSnapshot)
-        case loadingMore(UserVideoListScreenSnapshot)
-        case failed(String)
-    }
-
-    @Published private(set) var state: State = .idle
+final class UserVideoListViewModel: PaginatedViewModel<UserVideoListScreenSnapshot> {
     @Published var actionErrorMessage: String?
 
     private let loadPage: (Int32) async throws -> UserVideoListSnapshot
     private let removeVideo: ((String) async throws -> UserVideoListMutationSnapshot)?
-    private var currentPage: Int32 = 0
-    private var hasNextPage = false
-    private var loadTask: Task<Void, Never>?
-    private var loadMoreTask: Task<Void, Never>?
     private var mutationTask: Task<Void, Never>?
-    private var requestGeneration = 0
 
     init(feature: UserVideoListFeature) {
         self.loadPage = { page in
@@ -43,57 +29,9 @@ final class UserVideoListViewModel: ObservableObject {
         removeVideo != nil
     }
 
-    deinit {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        mutationTask?.cancel()
-    }
-
-    func load() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        requestGeneration += 1
-        let generation = requestGeneration
-        currentPage = 0
-        hasNextPage = false
-        state = .loading
-        loadTask = Task { [weak self] in
-            await self?.load(page: 1, appendingTo: nil, generation: generation)
-        }
-    }
-
-    func loadIfNeeded() {
-        if case .idle = state {
-            load()
-        }
-    }
-
-    func loadMoreIfNeeded(currentVideoID: String?) {
-        guard hasNextPage, !isLoading else {
-            return
-        }
-        guard case .loaded(let snapshot) = state else {
-            return
-        }
-        guard snapshot.videos.last?.id == currentVideoID else {
-            return
-        }
-
-        let nextPage = currentPage + 1
-        let generation = requestGeneration
-        state = .loadingMore(snapshot)
-        loadMoreTask = Task { [weak self] in
-            await self?.load(page: nextPage, appendingTo: snapshot, generation: generation)
-        }
-    }
-
     func delete(at offsets: IndexSet) {
-        guard let removeVideo else {
-            return
-        }
-        guard case .loaded(let snapshot) = state else {
-            return
-        }
+        guard let removeVideo else { return }
+        guard case .loaded(let snapshot) = state else { return }
 
         let videoCodes = offsets.map { snapshot.videos[$0].videoCode }
         state = .loaded(snapshot.removing(videoCodes: videoCodes))
@@ -119,62 +57,33 @@ final class UserVideoListViewModel: ObservableObject {
         }
     }
 
-    func cancelLoading() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        switch state {
-        case .loading:
-            state = .idle
-        case .loadingMore(let snapshot):
-            state = .loaded(snapshot)
-        case .idle, .loaded, .failed:
-            break
-        }
-    }
-
-    private var isLoading: Bool {
-        switch state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
-    }
-
-    private func load(page: Int32, appendingTo existingSnapshot: UserVideoListScreenSnapshot?, generation: Int) async {
+    override func executeLoad(page: Int32, appendingTo existingSnapshot: UserVideoListScreenSnapshot?, generation: Int) async {
         do {
             let snapshot = try await loadPage(page)
-            guard !Task.isCancelled, generation == requestGeneration else { return }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
             if snapshot.authRequired {
-                state = .failed(String(localized: "user_list.auth.required"))
-                currentPage = 0
-                hasNextPage = false
+                setFailed(String(localized: "user_list.auth.required"))
                 return
             }
             let screenSnapshot = UserVideoListScreenSnapshot(snapshot, appendingTo: existingSnapshot)
-            currentPage = screenSnapshot.page
-            hasNextPage = screenSnapshot.hasNext
-            state = .loaded(screenSnapshot)
+            applyLoadResult(screenSnapshot)
         } catch is CancellationError {
             return
         } catch {
-            guard !Task.isCancelled, generation == requestGeneration else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-            if let existingSnapshot {
-                state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
-            } else {
-                state = .failed(ErrorMessage.userFriendly(error))
-            }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
+            applyLoadError(error, appendingTo: existingSnapshot)
         }
     }
 }
 
-struct UserVideoListScreenSnapshot {
+struct UserVideoListScreenSnapshot: PaginatedSnapshot {
     let page: Int32
     let hasNext: Bool
     let listDescription: String?
     let videos: [UserVideoListRow]
     let loadMoreError: String?
+
+    var lastItemID: String? { videos.last?.id }
 
     init(_ snapshot: UserVideoListSnapshot, appendingTo existingSnapshot: UserVideoListScreenSnapshot? = nil) {
         page = snapshot.page
@@ -235,7 +144,6 @@ struct UserVideoListScreenSnapshot {
             loadMoreError: loadMoreError
         )
     }
-
 }
 
 struct UserVideoListRow: Identifiable {

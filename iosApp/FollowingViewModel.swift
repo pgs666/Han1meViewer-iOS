@@ -2,127 +2,40 @@ import Foundation
 import Han1meShared
 
 @MainActor
-final class FollowingViewModel: ObservableObject {
-    enum State {
-        case idle
-        case loading
-        case loaded(FollowingScreenSnapshot)
-        case loadingMore(FollowingScreenSnapshot)
-        case failed(String)
-    }
-
-    @Published private(set) var state: State = .idle
-
+final class FollowingViewModel: PaginatedViewModel<FollowingScreenSnapshot> {
     private let followingFeature: FollowingFeature
-    private var currentPage: Int32 = 0
-    private var hasNextPage = false
-    private var loadTask: Task<Void, Never>?
-    private var loadMoreTask: Task<Void, Never>?
-    private var requestGeneration = 0
 
     init(followingFeature: FollowingFeature) {
         self.followingFeature = followingFeature
     }
 
-    deinit {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-    }
-
-    func load() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        requestGeneration += 1
-        let generation = requestGeneration
-        currentPage = 0
-        hasNextPage = false
-        state = .loading
-        loadTask = Task { [weak self] in
-            await self?.loadFollowing(page: 1, appendingTo: nil, generation: generation)
-        }
-    }
-
-    func loadIfNeeded() {
-        if case .idle = state {
-            load()
-        }
-    }
-
-    func loadMoreIfNeeded(currentVideoID: String?) {
-        guard hasNextPage, !isLoading else {
-            return
-        }
-        guard case .loaded(let snapshot) = state else {
-            return
-        }
-        guard snapshot.videos.last?.id == currentVideoID else {
-            return
-        }
-
-        let nextPage = currentPage + 1
-        let generation = requestGeneration
-        state = .loadingMore(snapshot)
-        loadMoreTask = Task { [weak self] in
-            await self?.loadFollowing(page: nextPage, appendingTo: snapshot, generation: generation)
-        }
-    }
-
-    func cancelLoading() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        switch state {
-        case .loading:
-            state = .idle
-        case .loadingMore(let snapshot):
-            state = .loaded(snapshot)
-        case .idle, .loaded, .failed:
-            break
-        }
-    }
-
-    private var isLoading: Bool {
-        switch state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
-    }
-
-    private func loadFollowing(page: Int32, appendingTo existingSnapshot: FollowingScreenSnapshot?, generation: Int) async {
+    override func executeLoad(page: Int32, appendingTo existingSnapshot: FollowingScreenSnapshot?, generation: Int) async {
         do {
             let snapshot = try await followingFeature.loadFollowing(page: page)
-            guard !Task.isCancelled, generation == requestGeneration else { return }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
             if snapshot.authRequired {
-                state = .failed(String(localized: "following.auth.required"))
-                currentPage = 0
-                hasNextPage = false
+                setFailed(String(localized: "following.auth.required"))
                 return
             }
             let screenSnapshot = FollowingScreenSnapshot(snapshot, appendingTo: existingSnapshot)
-            currentPage = screenSnapshot.page
-            hasNextPage = screenSnapshot.hasNext
-            state = .loaded(screenSnapshot)
+            applyLoadResult(screenSnapshot)
         } catch is CancellationError {
             return
         } catch {
-            guard !Task.isCancelled, generation == requestGeneration else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-            if let existingSnapshot {
-                state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
-            } else {
-                state = .failed(ErrorMessage.userFriendly(error))
-            }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
+            applyLoadError(error, appendingTo: existingSnapshot)
         }
     }
 }
 
-struct FollowingScreenSnapshot {
+struct FollowingScreenSnapshot: PaginatedSnapshot {
     let page: Int32
     let hasNext: Bool
     let artists: [FollowingArtistRow]
     let videos: [FollowingVideoRow]
     let loadMoreError: String?
+
+    var lastItemID: String? { videos.last?.id }
 
     init(_ snapshot: FollowingSnapshot, appendingTo existingSnapshot: FollowingScreenSnapshot? = nil) {
         page = snapshot.page

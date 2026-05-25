@@ -87,7 +87,7 @@ struct UserPlaylistView: View {
                                 UserPlaylistRowView(playlist: playlist)
                             }
                             .onAppear {
-                                viewModel.loadMoreIfNeeded(currentPlaylistID: playlist.id)
+                                viewModel.loadMoreIfNeeded(currentItemID: playlist.id)
                             }
                         }
                         footer(snapshot: snapshot)
@@ -99,12 +99,7 @@ struct UserPlaylistView: View {
     }
 
     private var isLoading: Bool {
-        switch viewModel.state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
+        viewModel.state.isLoading
     }
 
     @ViewBuilder
@@ -118,7 +113,7 @@ struct UserPlaylistView: View {
             loadMoreError: snapshot.loadMoreError,
             isEmpty: snapshot.playlists.isEmpty,
             onRetry: {
-                viewModel.loadMoreIfNeeded(currentPlaylistID: snapshot.playlists.last?.id)
+                viewModel.loadMoreIfNeeded(currentItemID: snapshot.playlists.last?.id)
             }
         )
     }
