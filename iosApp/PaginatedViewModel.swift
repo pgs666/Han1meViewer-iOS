@@ -18,7 +18,7 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var state: State = .idle
+    @Published var state: State = .idle
 
     private var currentPage: Int32 = 0
     private var hasNextPage = false
