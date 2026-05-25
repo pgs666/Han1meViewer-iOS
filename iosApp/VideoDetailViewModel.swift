@@ -247,8 +247,14 @@ final class VideoDetailViewModel: ObservableObject {
         didApplyRestoredPlaybackPosition = true
 
         if let seekTime {
-            nextPlayer.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
-                if shouldResume {
+            nextPlayer.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak nextPlayer] _ in
+                Task { @MainActor in
+                    guard let self,
+                          let nextPlayer,
+                          self.player === nextPlayer,
+                          shouldResume else {
+                        return
+                    }
                     nextPlayer.play()
                 }
             }

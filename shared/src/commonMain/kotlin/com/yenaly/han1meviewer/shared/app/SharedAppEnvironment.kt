@@ -28,6 +28,8 @@ import com.yenaly.han1meviewer.shared.playlist.UserPlaylistFeature
 import com.yenaly.han1meviewer.shared.userlist.PlaylistVideoListFeature
 import com.yenaly.han1meviewer.shared.userlist.UserVideoListFeature
 import com.yenaly.han1meviewer.shared.video.VideoFeature
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class SharedAppEnvironment(
     driverFactory: DatabaseDriverFactory,
@@ -46,9 +48,14 @@ class SharedAppEnvironment(
     private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore, client = httpClient)
     private val onlineWatchHistoryRepository = KtorOnlineWatchHistoryRepository(sessionStore, client = httpClient)
     private var cachedCurrentUserId: String? = null
+    private val currentUserIdLock = Mutex()
 
     fun webLoginFeature(): WebLoginFeature {
-        return WebLoginFeature(sessionStore, homeRepository)
+        return WebLoginFeature(
+            sessionStore = sessionStore,
+            homeRepository = homeRepository,
+            onSessionCleared = ::clearCachedCurrentUserId,
+        )
     }
 
     fun cloudflareFeature(): CloudflareFeature {
@@ -128,8 +135,11 @@ class SharedAppEnvironment(
 
     private suspend fun resolveCurrentUserId(): String? {
         cachedCurrentUserId?.let { return it }
-        return homeRepository.getHomePage().userId?.also { userId ->
-            cachedCurrentUserId = userId
+        return currentUserIdLock.withLock {
+            cachedCurrentUserId?.let { return@withLock it }
+            homeRepository.getHomePage().userId?.also { userId ->
+                cachedCurrentUserId = userId
+            }
         }
     }
 }

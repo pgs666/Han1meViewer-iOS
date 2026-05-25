@@ -27,6 +27,7 @@ import com.yenaly.han1meviewer.shared.model.VideoCommentPost
 import com.yenaly.han1meviewer.shared.model.VideoComments
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -222,7 +223,7 @@ class KsoupHtmlParser : HtmlParser {
             relatedHanimes = related,
             artist = artist,
             favTimes = body.selectFirst("input[name=likes-count]")?.attr("value")?.toIntOrNull(),
-            isFav = body.selectFirst("[name=like-status]")?.attr("value").isNullOrEmpty().not(),
+            isFav = body.selectFirst("input[name=like-status]")?.attr("value") == "1",
             csrfToken = body.selectFirst("input[name=_token]")?.attr("value"),
             currentUserId = body.selectFirst("input[name=like-user-id]")?.attr("value"),
             originalComic = body.selectFirst("a.video-comic-btn")?.attr("href"),
@@ -347,11 +348,7 @@ class KsoupHtmlParser : HtmlParser {
     }
 
     override fun parseComments(json: String): VideoComments {
-        val html = Json.parseToJsonElement(json)
-            .jsonObject["comments"]
-            ?.jsonPrimitive
-            ?.content
-            .orEmpty()
+        val html = json.htmlField("comments")
         val body = Ksoup.parse(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
         val currentUserId = body.selectFirst("input[name=comment-user-id]")?.attr("value")
@@ -372,11 +369,7 @@ class KsoupHtmlParser : HtmlParser {
     }
 
     override fun parseCommentReplies(json: String): VideoComments {
-        val html = Json.parseToJsonElement(json)
-            .jsonObject["replies"]
-            ?.jsonPrimitive
-            ?.content
-            .orEmpty()
+        val html = json.htmlField("replies")
         val replyStart = Ksoup.parse(html).body().selectFirst("div[id^=reply-start]")
             ?: return VideoComments(comments = emptyList())
 
@@ -478,6 +471,16 @@ class KsoupHtmlParser : HtmlParser {
         return Ksoup.parse("<div>$html</div>").body().selectFirst("div")
     }
 
+    private fun String.htmlField(fieldName: String): String {
+        return runCatching {
+            Json.parseToJsonElement(this)
+                .jsonObject[fieldName]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                .orEmpty()
+        }.getOrDefault("")
+    }
+
     private fun Element.toVideoComment(
         isChildComment: Boolean,
         postElement: Element? = this,
@@ -562,8 +565,8 @@ class KsoupHtmlParser : HtmlParser {
         val PAGE_REGEX = Regex("""\?page=(\d+)""")
         val ISO_DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
-        val VIDEO_SOURCE_REGEX = Regex("""const source = '(.+)'""")
-        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^觀看次數：(.+)次\s+(\d{4}-\d{2}-\d{2})$""")
+        val VIDEO_SOURCE_REGEX = Regex("""const source = ["'`](.+?)["'`]""")
+        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^觀看次數：(.+?)次\s+(\d{4}-\d{2}-\d{2})$""")
         val COMMENT_COUNT_REGEX = Regex("""\d+""")
         val DEFAULT_HOME_SECTION_KEYS = listOf(
             "latestRelease",

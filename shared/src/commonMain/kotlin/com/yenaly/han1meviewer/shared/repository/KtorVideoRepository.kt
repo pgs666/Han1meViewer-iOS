@@ -11,7 +11,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 import io.ktor.http.parameters
 
 class KtorVideoRepository(
@@ -20,7 +19,7 @@ class KtorVideoRepository(
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : VideoRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, Url(baseUrl).host)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
 
     override suspend fun getVideo(videoCode: String): HanimeVideo {
         val response = client.get("$baseUrl/watch?v=$videoCode") {

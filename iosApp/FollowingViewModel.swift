@@ -180,7 +180,7 @@ struct FollowingArtistRow: Identifiable {
     let name: String
     let avatarUrl: String
 
-    var id: String { name }
+    var id: String { "\(name)|\(avatarUrl)" }
 }
 
 struct FollowingVideoRow: Identifiable {

@@ -118,11 +118,13 @@ final class SearchViewModel: ObservableObject {
 
         let nextPage = currentPage + 1
         let generation = requestGeneration
+        let keyword = currentKeyword
+        let filters = currentFilters
         state = .loadingMore(snapshot)
         loadMoreTask = Task { [weak self] in
             await self?.loadSearch(
-                keyword: currentKeyword,
-                filters: currentFilters,
+                keyword: keyword,
+                filters: filters,
                 page: nextPage,
                 appendingTo: snapshot,
                 recordHistory: false,

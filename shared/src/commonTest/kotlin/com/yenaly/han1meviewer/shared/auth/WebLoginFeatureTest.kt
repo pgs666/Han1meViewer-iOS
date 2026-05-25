@@ -100,10 +100,31 @@ class WebLoginFeatureTest {
         assertTrue(store.loadCookies().isEmpty())
     }
 
+    @Test
+    fun currentSessionKeepsCookiesWhenVerificationHasTransientError() = runTest {
+        val store = MemorySessionStore()
+        val repository = FakeHomeRepository.loggedIn()
+        val feature = WebLoginFeature(store, repository)
+
+        feature.importConfirmedLoginCookieHeader(
+            cookieHeader = "hanime1_session=session-value",
+            domain = "hanime1.me",
+        )
+        repository.error = RuntimeException("timeout")
+
+        assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
+        assertTrue(store.loadCookies().isNotEmpty())
+    }
+
     private class FakeHomeRepository(
         var homePage: HomePage,
     ) : HomeRepository {
-        override suspend fun getHomePage(): HomePage = homePage
+        var error: Exception? = null
+
+        override suspend fun getHomePage(): HomePage {
+            error?.let { throw it }
+            return homePage
+        }
 
         companion object {
             fun loggedIn(): FakeHomeRepository = FakeHomeRepository(homePage(userId = "123", username = "pgs"))

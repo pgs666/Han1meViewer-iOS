@@ -2,6 +2,8 @@ package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.CommentPlace
 import com.yenaly.han1meviewer.shared.model.CommentTargetType
+import com.yenaly.han1meviewer.shared.model.DomainError
+import com.yenaly.han1meviewer.shared.model.DomainException
 import com.yenaly.han1meviewer.shared.model.VideoComment
 import com.yenaly.han1meviewer.shared.model.VideoComments
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
@@ -15,7 +17,6 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 import io.ktor.http.parameters
 
 class KtorCommentRepository(
@@ -24,7 +25,7 @@ class KtorCommentRepository(
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : CommentRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, Url(baseUrl).host)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
 
     override suspend fun getComments(type: CommentTargetType, code: String): VideoComments {
         val response = client.get("$baseUrl/loadComment") {
@@ -135,9 +136,11 @@ class KtorCommentRepository(
         reportableType: String?,
         reason: String,
     ) {
+        val currentUserId = userId?.takeIf { it.isNotBlank() }
+            ?: throw DomainException(DomainError.Auth("Login is required to report comments."))
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
-            url = "$baseUrl/user/${userId.orEmpty()}/report",
+            url = "$baseUrl/user/$currentUserId/report",
             formParameters = parameters {
                 append("_token", csrfToken.orEmpty())
                 append("redirect-url", redirectUrl)

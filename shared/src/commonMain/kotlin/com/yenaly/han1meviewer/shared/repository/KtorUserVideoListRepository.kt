@@ -14,7 +14,6 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 import io.ktor.http.parameters
 
 class KtorUserVideoListRepository(
@@ -23,7 +22,7 @@ class KtorUserVideoListRepository(
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : UserVideoListRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, Url(baseUrl).host)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
 
     override suspend fun getUserVideoList(
         userId: String,

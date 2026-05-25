@@ -40,4 +40,22 @@ class CookieHeaderProviderTest {
 
         assertNull(provider.buildCookieHeader("hanime1.me"))
     }
+
+    @Test
+    fun skipsSecureCookiesOnInsecureTransport() = runTest {
+        val store = MemorySessionStore(
+            listOf(
+                SessionCookie(
+                    name = "session",
+                    value = "abc",
+                    domain = "hanime1.me",
+                    secure = true,
+                )
+            )
+        )
+        val provider = CookieHeaderProvider(store)
+
+        assertNull(provider.buildCookieHeader("hanime1.me", isSecureTransport = false))
+        assertEquals("session=abc", provider.buildCookieHeader("hanime1.me", isSecureTransport = true))
+    }
 }

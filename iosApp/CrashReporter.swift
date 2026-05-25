@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 enum CrashReporter {
     private static let maxReportCount = 5
@@ -6,6 +7,13 @@ enum CrashReporter {
     static func install() {
         NSSetUncaughtExceptionHandler { exception in
             CrashReporter.record(exception: exception)
+        }
+        [SIGABRT, SIGSEGV, SIGBUS, SIGFPE, SIGILL].forEach { signalNumber in
+            signal(signalNumber) { signalNumber in
+                CrashReporter.record(signalNumber: signalNumber)
+                signal(signalNumber, SIG_DFL)
+                raise(signalNumber)
+            }
         }
     }
 
@@ -27,16 +35,32 @@ enum CrashReporter {
     }
 
     private static func record(exception: NSException) {
+        record(
+            title: "exception: \(exception.name.rawValue)",
+            detail: "reason: \(exception.reason ?? "unknown")",
+            callStack: exception.callStackSymbols.joined(separator: "\n")
+        )
+    }
+
+    private static func record(signalNumber: Int32) {
+        record(
+            title: "signal: \(signalNumber)",
+            detail: "reason: POSIX signal",
+            callStack: Thread.callStackSymbols.joined(separator: "\n")
+        )
+    }
+
+    private static func record(title: String, detail: String, callStack: String) {
         do {
             let directoryURL = try reportDirectoryURL()
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
             let reportURL = directoryURL.appendingPathComponent(reportFileName())
             let report = """
             time: \(ISO8601DateFormatter().string(from: Date()))
-            exception: \(exception.name.rawValue)
-            reason: \(exception.reason ?? "unknown")
+            \(title)
+            \(detail)
             callStack:
-            \(exception.callStackSymbols.joined(separator: "\n"))
+            \(callStack)
             """
             try report.write(to: reportURL, atomically: true, encoding: .utf8)
             pruneReports(in: directoryURL)

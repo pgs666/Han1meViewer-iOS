@@ -7,11 +7,12 @@ import kotlin.time.ExperimentalTime
 class CookieHeaderProvider(
     private val sessionStore: SessionStore,
 ) {
-    suspend fun buildCookieHeader(domain: String): String? {
+    suspend fun buildCookieHeader(domain: String, isSecureTransport: Boolean = true): String? {
         val now = currentEpochMillis()
         val cookies = sessionStore.loadCookies()
             .filter { cookie -> cookie.matchesDomain(domain) }
             .filter { cookie -> cookie.expiresAtEpochMillis == null || cookie.expiresAtEpochMillis > now }
+            .filter { cookie -> !cookie.secure || isSecureTransport }
 
         if (cookies.isEmpty()) return null
         return cookies.joinToString(separator = "; ") { cookie -> "${cookie.name}=${cookie.value}" }

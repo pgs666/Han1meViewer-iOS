@@ -11,7 +11,6 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 
 class KtorUserPlaylistRepository(
     sessionStore: SessionStore,
@@ -19,7 +18,7 @@ class KtorUserPlaylistRepository(
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : UserPlaylistRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, Url(baseUrl).host)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
 
     override suspend fun getPlaylists(userId: String, page: Int): UserPlaylistPage {
         val response = client.get("$baseUrl/user/$userId/playlists") {

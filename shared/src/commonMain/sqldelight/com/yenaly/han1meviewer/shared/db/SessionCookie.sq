@@ -4,6 +4,7 @@ CREATE TABLE session_cookie (
     domain TEXT NOT NULL,
     path TEXT NOT NULL DEFAULT '/',
     expires_at_epoch_millis INTEGER,
+    secure INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (name, domain, path)
 );
 
@@ -12,8 +13,13 @@ SELECT *
 FROM session_cookie;
 
 upsert:
-INSERT OR REPLACE INTO session_cookie(name, value, domain, path, expires_at_epoch_millis)
-VALUES (?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO session_cookie(name, value, domain, path, expires_at_epoch_millis, secure)
+VALUES (?, ?, ?, ?, ?, ?);
 
 deleteAll:
 DELETE FROM session_cookie;
+
+deleteExpired:
+DELETE FROM session_cookie
+WHERE expires_at_epoch_millis IS NOT NULL
+AND expires_at_epoch_millis <= ?;

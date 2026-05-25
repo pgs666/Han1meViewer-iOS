@@ -105,6 +105,7 @@ class KsoupHtmlParserTest {
         assertEquals("720P", video.sources.single().label)
         assertEquals("https://video.example/720.mp4", video.sources.single().url)
         assertEquals("1000", video.views)
+        assertEquals(true, video.isFav)
         assertEquals(listOf("Tag B"), video.tags)
         assertNotNull(video.uploadTime)
     }
@@ -188,5 +189,14 @@ class KsoupHtmlParserTest {
         assertEquals("Bob", replies.comments.single().username)
         assertTrue(replies.comments.single().isChildComment)
         assertTrue(replies.comments.single().post.likeCommentStatus)
+    }
+
+    @Test
+    fun parseCommentsTreatsNonStringPayloadAsEmpty() {
+        val json = JsonObject(mapOf("comments" to JsonObject(emptyMap()))).toString()
+
+        val comments = parser.parseComments(json)
+
+        assertEquals(0, comments.comments.size)
     }
 }

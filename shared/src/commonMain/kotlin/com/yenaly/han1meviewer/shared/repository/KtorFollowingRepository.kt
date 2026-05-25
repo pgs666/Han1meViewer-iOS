@@ -11,7 +11,6 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 
 class KtorFollowingRepository(
     sessionStore: SessionStore,
@@ -19,7 +18,7 @@ class KtorFollowingRepository(
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : FollowingRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, Url(baseUrl).host)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
 
     override suspend fun getSubscriptions(page: Int): MySubscriptions {
         val response = client.get("$baseUrl/subscriptions") {

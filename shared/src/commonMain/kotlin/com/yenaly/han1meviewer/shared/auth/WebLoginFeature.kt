@@ -1,13 +1,17 @@
 package com.yenaly.han1meviewer.shared.auth
 
 import com.yenaly.han1meviewer.shared.model.SessionCookie
+import com.yenaly.han1meviewer.shared.model.DomainError
+import com.yenaly.han1meviewer.shared.model.DomainException
 import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.session.SessionStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
 class WebLoginFeature(
     private val sessionStore: SessionStore,
     private val homeRepository: HomeRepository,
+    private val onSessionCleared: () -> Unit = {},
 ) {
     @Throws(Exception::class)
     suspend fun importCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
@@ -27,12 +31,15 @@ class WebLoginFeature(
         sessionStore.saveCookies(parseCookieHeader(cookieHeader, domain))
         val snapshot = try {
             verifyCurrentSession()
-        } catch (error: Throwable) {
-            sessionStore.clear()
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (error.shouldClearSession()) {
+                clearSession()
+            }
             throw error
         }
         if (!snapshot.isLoggedIn) {
-            sessionStore.clear()
+            clearSession()
             return snapshot
         }
         sessionStore.saveCookies(
@@ -40,6 +47,7 @@ class WebLoginFeature(
                 name = confirmedLoginCookieName,
                 value = "true",
                 domain = appCookieDomain,
+                secure = true,
             )
         )
 
@@ -63,11 +71,14 @@ class WebLoginFeature(
         return try {
             val snapshot = verifyCurrentSession()
             if (!snapshot.isLoggedIn) {
-                sessionStore.clear()
+                clearSession()
             }
             snapshot
-        } catch (error: Throwable) {
-            sessionStore.clear()
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (error.shouldClearSession()) {
+                clearSession()
+            }
             AuthSnapshot(
                 isLoggedIn = false,
                 message = error.message ?: "Login session could not be verified",
@@ -78,7 +89,7 @@ class WebLoginFeature(
 
     @Throws(Exception::class)
     suspend fun logout(): AuthSnapshot {
-        sessionStore.clear()
+        clearSession()
         return AuthSnapshot(
             isLoggedIn = false,
             message = "Logged out",
@@ -108,6 +119,22 @@ class WebLoginFeature(
         )
     }
 
+    private suspend fun clearSession() {
+        sessionStore.clear()
+        onSessionCleared()
+    }
+
+    private fun Exception.shouldClearSession(): Boolean {
+        val domainError = (this as? DomainException)?.error ?: return false
+        return when (domainError) {
+            is DomainError.Auth -> true
+            is DomainError.Network -> domainError.statusCode == 401 || domainError.statusCode == 403
+            is DomainError.CloudflareBlocked,
+            is DomainError.Parse,
+            is DomainError.Unknown -> false
+        }
+    }
+
     private fun parseCookieHeader(cookieHeader: String, domain: String): List<SessionCookie> {
         return cookieHeader.split(";")
             .mapNotNull { rawCookie ->
@@ -121,6 +148,7 @@ class WebLoginFeature(
                         name = name,
                         value = value,
                         domain = domain,
+                        secure = true,
                     )
                 }
             }

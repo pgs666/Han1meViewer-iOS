@@ -31,6 +31,7 @@ class CloudflareFeature(
                         name = name,
                         value = value,
                         domain = domain,
+                        secure = true,
                     )
                 }
             }

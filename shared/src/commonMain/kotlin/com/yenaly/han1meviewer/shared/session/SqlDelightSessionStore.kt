@@ -2,11 +2,14 @@ package com.yenaly.han1meviewer.shared.session
 
 import com.yenaly.han1meviewer.shared.db.Han1meDatabase
 import com.yenaly.han1meviewer.shared.model.SessionCookie
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 class SqlDelightSessionStore(
     private val database: Han1meDatabase,
 ) : SessionStore {
     override suspend fun loadCookies(): List<SessionCookie> {
+        database.sessionCookieQueries.deleteExpired(currentEpochMillis())
         return database.sessionCookieQueries.selectAll(::mapCookie).executeAsList()
     }
 
@@ -19,6 +22,7 @@ class SqlDelightSessionStore(
                     domain = cookie.domain,
                     path = cookie.path,
                     expires_at_epoch_millis = cookie.expiresAtEpochMillis,
+                    secure = if (cookie.secure) 1L else 0L,
                 )
             }
         }
@@ -34,6 +38,7 @@ class SqlDelightSessionStore(
         domain: String,
         path: String,
         expiresAtEpochMillis: Long?,
+        secure: Long,
     ): SessionCookie {
         return SessionCookie(
             name = name,
@@ -41,6 +46,10 @@ class SqlDelightSessionStore(
             domain = domain,
             path = path,
             expiresAtEpochMillis = expiresAtEpochMillis,
+            secure = secure != 0L,
         )
     }
+
+    @OptIn(ExperimentalTime::class)
+    private fun currentEpochMillis(): Long = Clock.System.now().toEpochMilliseconds()
 }

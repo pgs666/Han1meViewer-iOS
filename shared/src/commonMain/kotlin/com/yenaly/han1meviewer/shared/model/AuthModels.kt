@@ -9,4 +9,5 @@ data class SessionCookie(
     val domain: String,
     val path: String = "/",
     val expiresAtEpochMillis: Long? = null,
+    val secure: Boolean = false,
 )

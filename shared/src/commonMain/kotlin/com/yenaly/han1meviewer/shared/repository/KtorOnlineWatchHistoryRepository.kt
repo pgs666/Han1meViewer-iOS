@@ -15,7 +15,6 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 import io.ktor.http.parameters
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
@@ -28,7 +27,7 @@ class KtorOnlineWatchHistoryRepository(
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : OnlineWatchHistoryRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, Url(baseUrl).host)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
 
     override suspend fun getHistories(
         userId: String,
@@ -58,10 +57,12 @@ class KtorOnlineWatchHistoryRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        val success = Json.parseToJsonElement(response.bodyAsText())
-            .jsonObject["success"]
-            ?.jsonPrimitive
-            ?.booleanOrNull == true
+        val success = runCatching {
+            Json.parseToJsonElement(response.bodyAsText())
+                .jsonObject["success"]
+                ?.jsonPrimitive
+                ?.booleanOrNull == true
+        }.getOrDefault(false)
         check(success) { "Failed to delete online watch history item." }
     }
 

@@ -13,7 +13,6 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 
 class KtorSearchRepository(
     sessionStore: SessionStore,
@@ -21,7 +20,7 @@ class KtorSearchRepository(
     private val client: HttpClient = createHan1meHttpClient(),
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : SearchRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, Url(baseUrl).host)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
 
     override suspend fun search(params: SearchParams, page: Int): PageResult<HanimeInfo> {
         val response = client.get("$baseUrl/search") {

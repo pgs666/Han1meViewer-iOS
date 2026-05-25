@@ -652,7 +652,7 @@ private struct TagFlow: View {
             Text("标签")
                 .font(.headline)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], alignment: .leading, spacing: 8) {
-                ForEach(tags, id: \.self) { tag in
+                ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
                     Button(tag) {
                         SearchNavigationCenter.open(keyword: tag)
                     }
