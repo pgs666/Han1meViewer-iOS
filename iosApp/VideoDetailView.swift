@@ -28,6 +28,9 @@ struct VideoDetailView: View {
             .refreshable {
                 viewModel.load(videoCode: videoCode)
             }
+            .onDisappear {
+                viewModel.pausePlayer()
+            }
             .alert(item: $viewModel.actionMessage) { message in
                 Alert(title: Text(message.message))
             }
@@ -191,9 +194,6 @@ private struct AndroidStylePlayerHeader: View {
         }
         .onAppear {
             viewModel.preparePlayer(snapshot: snapshot)
-        }
-        .onDisappear {
-            viewModel.pausePlayer()
         }
         .onValueChange(of: viewModel.selectedPlaybackSourceID) { sourceID in
             viewModel.selectPlaybackSource(snapshot: snapshot, sourceID: sourceID)
