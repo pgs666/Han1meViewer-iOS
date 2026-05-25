@@ -43,7 +43,7 @@ private struct CloudflareChallengeView: View {
     @State private var status: ChallengeStatus = .loading
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             VStack(spacing: 0) {
                 CloudflareStatusBar(status: status)
 
@@ -67,7 +67,6 @@ private struct CloudflareChallengeView: View {
                 }
             }
         }
-        .navigationViewStyle(.stack)
     }
 }
 
@@ -140,6 +139,12 @@ private struct CloudflareWebView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {}
 
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.websiteDataStore.httpCookieStore.remove(coordinator)
+        webView.navigationDelegate = nil
+        coordinator.detachWebView()
+    }
+
     final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         private let cloudflareFeature: CloudflareFeature
         private let onResolved: () -> Void
@@ -164,6 +169,10 @@ private struct CloudflareWebView: UIViewRepresentable {
             self.webView = webView
             status = .loading
             webView.load(URLRequest(url: url))
+        }
+
+        func detachWebView() {
+            webView = nil
         }
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {

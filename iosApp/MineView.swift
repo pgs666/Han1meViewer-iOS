@@ -22,7 +22,7 @@ struct MineView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             List {
                 Section {
                     if viewModel.isLoggedIn {
@@ -155,7 +155,6 @@ struct MineView: View {
                 }
             }
         }
-        .navigationViewStyle(.stack)
     }
 
     private func logout() {

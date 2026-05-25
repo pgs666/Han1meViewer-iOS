@@ -190,7 +190,7 @@ private struct AndroidStylePlayerHeader: View {
         .onDisappear {
             viewModel.pausePlayer()
         }
-        .onChange(of: viewModel.selectedPlaybackSourceID) { sourceID in
+        .onValueChange(of: viewModel.selectedPlaybackSourceID) { sourceID in
             viewModel.selectPlaybackSource(snapshot: snapshot, sourceID: sourceID)
         }
         .fullScreenCover(isPresented: $isShowingFullscreen, onDismiss: {
@@ -298,7 +298,7 @@ private struct FullscreenVideoPlayer: View {
             metrics.start(player: player)
             AppOrientationController.shared.lockForFullscreen(to: metrics.orientation)
         }
-        .onChange(of: metrics.orientation) { orientation in
+        .onValueChange(of: metrics.orientation) { orientation in
             AppOrientationController.shared.lockForFullscreen(to: orientation)
         }
         .onDisappear {
@@ -683,8 +683,18 @@ private struct HorizontalVideoSection: View {
                     }
                 }
                 Spacer()
-                Button("更多") {}
-                    .font(.caption.weight(.semibold))
+                NavigationLink {
+                    RelatedVideoListView(
+                        title: title,
+                        videos: videos,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature,
+                        showPlaying: showPlaying
+                    )
+                } label: {
+                    Text("更多")
+                        .font(.caption.weight(.semibold))
+                }
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -700,6 +710,40 @@ private struct HorizontalVideoSection: View {
                 }
             }
         }
+    }
+}
+
+private struct RelatedVideoListView: View {
+    let title: String
+    let videos: [VideoRelatedRow]
+    let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
+    let showPlaying: Bool
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 160), spacing: 12)],
+                alignment: .leading,
+                spacing: 12
+            ) {
+                ForEach(videos) { video in
+                    NavigationLink {
+                        VideoDetailView(
+                            videoCode: video.videoCode,
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature
+                        )
+                    } label: {
+                        RelatedVideoCard(video: video, showPlaying: showPlaying)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(16)
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

@@ -5,10 +5,10 @@ import Han1meShared
 struct SearchView: View {
     @State private var keyword = ""
     @State private var isShowingFilters = false
+    @State private var catalog = SearchOptionCatalog.empty
     @StateObject private var viewModel: SearchViewModel
     @Binding private var launchRequest: SearchLaunchRequest?
     private let environment: SharedAppEnvironment
-    private let catalog = SearchOptionCatalog.shared
 
     init(environment: SharedAppEnvironment, launchRequest: Binding<SearchLaunchRequest?> = .constant(nil)) {
         self.environment = environment
@@ -17,7 +17,7 @@ struct SearchView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             content
             .navigationTitle("搜索")
             .searchable(
@@ -45,7 +45,14 @@ struct SearchView: View {
                 viewModel.loadHistoryIfNeeded()
                 consumeLaunchRequestIfNeeded()
             }
-            .onChange(of: launchRequest?.id) { _ in
+            .task {
+                await loadCatalogIfNeeded()
+                consumeLaunchRequestIfNeeded()
+            }
+            .onValueChange(of: launchRequest?.id) { _ in
+                consumeLaunchRequestIfNeeded()
+            }
+            .onValueChange(of: catalog.isLoaded) { _ in
                 consumeLaunchRequestIfNeeded()
             }
             .sheet(isPresented: $isShowingFilters) {
@@ -62,7 +69,6 @@ struct SearchView: View {
                 )
             }
         }
-        .navigationViewStyle(.stack)
     }
 
     @ViewBuilder
@@ -171,9 +177,21 @@ struct SearchView: View {
         guard let request = launchRequest else {
             return
         }
+        guard catalog.isLoaded else {
+            return
+        }
         keyword = ""
         viewModel.openHomeSection(request, catalog: catalog)
         launchRequest = nil
+    }
+
+    private func loadCatalogIfNeeded() async {
+        guard !catalog.isLoaded else {
+            return
+        }
+        catalog = await Task.detached(priority: .utility) {
+            SearchOptionCatalog()
+        }.value
     }
 
     private func resultList(snapshot: SearchScreenSnapshot) -> some View {
@@ -318,7 +336,7 @@ private struct SearchFilterSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             List {
                 singleChoiceSection(
                     title: "类型",
@@ -370,7 +388,6 @@ private struct SearchFilterSheet: View {
                 }
             }
         }
-        .navigationViewStyle(.stack)
     }
 
     private func singleChoiceSection(

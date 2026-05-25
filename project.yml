@@ -6,8 +6,10 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: "$(IOS_DEVELOPMENT_TEAM)"
     CODE_SIGNING_ALLOWED: "NO"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
 packages:
   Nuke:
     url: https://github.com/kean/Nuke.git
@@ -23,9 +25,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yenaly.han1meviewer.ios
         INFOPLIST_FILE: iosApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: iosApp/Han1meViewer.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_USER_SCRIPT_SANDBOXING: "NO"
-        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
         FRAMEWORK_SEARCH_PATHS:
           - $(inherited)
           - $(SRCROOT)/shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)

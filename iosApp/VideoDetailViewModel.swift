@@ -193,7 +193,8 @@ final class VideoDetailViewModel: ObservableObject {
     private func runAction(id: String, operation: @escaping () async throws -> Void) {
         guard !runningActionIDs.contains(id) else { return }
         runningActionIDs.insert(id)
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             defer {
                 runningActionIDs.remove(id)
             }

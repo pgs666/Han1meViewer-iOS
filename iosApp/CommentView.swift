@@ -290,7 +290,7 @@ private struct CommentRepliesSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             content
                 .navigationTitle("回复")
                 .navigationBarTitleDisplayMode(.inline)
@@ -414,7 +414,7 @@ private struct CommentTextSheet: View {
     let onSubmit: () -> Void
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             VStack {
                 TextEditor(text: $text)
                     .frame(minHeight: 180)

@@ -11,7 +11,7 @@ struct FollowingView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             content
                 .navigationTitle("关注")
                 .refreshable {
@@ -28,7 +28,6 @@ struct FollowingView: View {
                     }
                 }
         }
-        .navigationViewStyle(.stack)
         .onAppear {
             if case .idle = viewModel.state {
                 viewModel.load()

@@ -12,6 +12,12 @@ enum CacheStorage {
         ByteCountFormatter.string(fromByteCount: currentSize(), countStyle: .file)
     }
 
+    static func formattedSizeAsync() async -> String {
+        await Task.detached(priority: .utility) {
+            formattedSize()
+        }.value
+    }
+
     static func clear() {
         ImagePipeline.shared.cache.removeAll()
         URLCache.shared.removeAllCachedResponses()
@@ -29,6 +35,12 @@ enum CacheStorage {
                 try? FileManager.default.removeItem(at: itemURL)
             }
         }
+    }
+
+    static func clearAsync() async {
+        await Task.detached(priority: .utility) {
+            clear()
+        }.value
     }
 
     private static var cacheDirectoryURLs: [URL] {

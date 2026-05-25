@@ -14,7 +14,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatibleNavigationStack {
             content
                 .navigationTitle("首页")
                 .task {
@@ -24,7 +24,6 @@ struct HomeView: View {
                     viewModel.load()
                 }
         }
-        .navigationViewStyle(.stack)
     }
 
     @ViewBuilder

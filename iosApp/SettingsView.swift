@@ -6,7 +6,7 @@ struct SettingsView: View {
 
     @State private var activeConfirmation: SettingsConfirmation?
     @State private var resultMessage: String?
-    @State private var cacheSizeText = CacheStorage.formattedSize()
+    @State private var cacheSizeText = "计算中…"
 
     init(environment: SharedAppEnvironment) {
         self.environment = environment
@@ -34,7 +34,9 @@ struct SettingsView: View {
 
             Section {
                 Button(role: .destructive) {
-                    refreshCacheSize()
+                    Task {
+                        await refreshCacheSize()
+                    }
                     activeConfirmation = .clearCache
                 } label: {
                     SettingsNavigationRow(title: "清除缓存（\(cacheSizeText)）", systemImage: "trash")
@@ -67,8 +69,8 @@ struct SettingsView: View {
         } message: {
             Text(resultMessage ?? "")
         }
-        .onAppear {
-            refreshCacheSize()
+        .task {
+            await refreshCacheSize()
         }
     }
 
@@ -127,15 +129,17 @@ struct SettingsView: View {
             resultMessage = "本地观看历史已清除。"
         case .clearCache:
             let oldSize = cacheSizeText
-            CacheStorage.clear()
-            refreshCacheSize()
-            resultMessage = "已清除 \(oldSize) 缓存。"
+            Task {
+                await CacheStorage.clearAsync()
+                await refreshCacheSize()
+                resultMessage = "已清除 \(oldSize) 缓存。"
+            }
         }
         activeConfirmation = nil
     }
 
-    private func refreshCacheSize() {
-        cacheSizeText = CacheStorage.formattedSize()
+    private func refreshCacheSize() async {
+        cacheSizeText = await CacheStorage.formattedSizeAsync()
     }
 }
 

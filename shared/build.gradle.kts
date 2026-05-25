@@ -8,6 +8,7 @@ kotlin {
     jvm()
 
     iosArm64()
+    iosX64()
     iosSimulatorArm64()
 
     targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().configureEach {

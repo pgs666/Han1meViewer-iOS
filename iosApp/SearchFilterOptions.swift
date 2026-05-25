@@ -1,6 +1,6 @@
 import Foundation
 
-struct SearchOptionCatalog {
+struct SearchOptionCatalog: Sendable {
     let genres: [SearchFilterOption]
     let sortOptions: [SearchFilterOption]
     let durations: [SearchFilterOption]
@@ -9,6 +9,34 @@ struct SearchOptionCatalog {
     let tagSections: [SearchTagSection]
 
     static let shared = SearchOptionCatalog()
+    static let empty = SearchOptionCatalog(
+        genres: [],
+        sortOptions: [],
+        durations: [],
+        releaseDates: [],
+        brands: [],
+        tagSections: []
+    )
+
+    private init(
+        genres: [SearchFilterOption],
+        sortOptions: [SearchFilterOption],
+        durations: [SearchFilterOption],
+        releaseDates: [SearchFilterOption],
+        brands: [SearchFilterOption],
+        tagSections: [SearchTagSection]
+    ) {
+        self.genres = genres
+        self.sortOptions = sortOptions
+        self.durations = durations
+        self.releaseDates = releaseDates
+        self.brands = brands
+        self.tagSections = tagSections
+    }
+
+    var isLoaded: Bool {
+        !genres.isEmpty || !sortOptions.isEmpty || !durations.isEmpty || !releaseDates.isEmpty || !brands.isEmpty || !tagSections.isEmpty
+    }
 
     init(bundle: Bundle = .main) {
         genres = SearchOptionCatalog.loadArray("genre", bundle: bundle)
@@ -59,7 +87,7 @@ struct SearchOptionCatalog {
     ]
 }
 
-struct SearchTagSection: Identifiable {
+struct SearchTagSection: Identifiable, Sendable {
     let key: String
     let title: String
     let options: [SearchFilterOption]
@@ -67,7 +95,7 @@ struct SearchTagSection: Identifiable {
     var id: String { key }
 }
 
-struct SearchFilterOption: Decodable, Hashable, Identifiable {
+struct SearchFilterOption: Decodable, Hashable, Identifiable, Sendable {
     let lang: SearchOptionLanguage?
     let name: String?
     let searchKey: String?
@@ -97,7 +125,7 @@ struct SearchFilterOption: Decodable, Hashable, Identifiable {
     }
 }
 
-struct SearchOptionLanguage: Decodable, Hashable {
+struct SearchOptionLanguage: Decodable, Hashable, Sendable {
     let zhHans: String?
     let zhHant: String?
     let en: String?
