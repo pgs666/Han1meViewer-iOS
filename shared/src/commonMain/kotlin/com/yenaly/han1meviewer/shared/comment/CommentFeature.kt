@@ -3,6 +3,7 @@ package com.yenaly.han1meviewer.shared.comment
 import com.yenaly.han1meviewer.shared.model.CommentPlace
 import com.yenaly.han1meviewer.shared.model.CommentTargetType
 import com.yenaly.han1meviewer.shared.model.VideoComment
+import com.yenaly.han1meviewer.shared.model.VideoCommentPost
 import com.yenaly.han1meviewer.shared.repository.CommentRepository
 import kotlinx.serialization.Serializable
 
@@ -174,7 +175,7 @@ private fun CommentSnapshot.toModel(): VideoComment {
         hasMoreReplies = hasMoreReplies,
         replyCount = replyCount,
         id = id,
-        post = com.yenaly.han1meviewer.shared.model.VideoCommentPost(
+        post = VideoCommentPost(
             foreignId = foreignId,
             isPositive = isPositive,
             likeUserId = likeUserId,
