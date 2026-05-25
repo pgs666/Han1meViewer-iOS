@@ -2,10 +2,18 @@ import Foundation
 import Nuke
 
 enum CacheStorage {
+    private static let sizeCache = CacheSizeCache()
+
     static func currentSize() -> Int64 {
-        cacheDirectoryURLs.reduce(0) { total, url in
+        if let cachedSize = sizeCache.currentValue(maxAge: 30) {
+            return cachedSize
+        }
+
+        let size = cacheDirectoryURLs.reduce(0) { total, url in
             total + directorySize(url)
         }
+        sizeCache.update(size)
+        return size
     }
 
     static func formattedSize() -> String {
@@ -35,6 +43,8 @@ enum CacheStorage {
                 try? FileManager.default.removeItem(at: itemURL)
             }
         }
+
+        sizeCache.update(0)
     }
 
     static func clearAsync() async {
@@ -72,5 +82,31 @@ enum CacheStorage {
             total += Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
         }
         return total
+    }
+}
+
+private final class CacheSizeCache {
+    private let lock = NSLock()
+    private var value: Int64?
+    private var updatedAt: Date?
+
+    func currentValue(maxAge: TimeInterval) -> Int64? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let value, let updatedAt else {
+            return nil
+        }
+        guard Date().timeIntervalSince(updatedAt) <= maxAge else {
+            return nil
+        }
+        return value
+    }
+
+    func update(_ value: Int64) {
+        lock.lock()
+        self.value = value
+        self.updatedAt = Date()
+        lock.unlock()
     }
 }
