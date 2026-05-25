@@ -82,19 +82,20 @@ class KtorUserVideoListRepository(
             UserVideoListType.Favorites -> {
                 val video = getVideoForMutation(videoCode)
                 if (!video.isFav) return
+                val videoCsrfToken = mutationCsrfTokenOrFallback(video.csrfToken, token)
 
                 client.submitForm(
                     url = "$baseUrl/like",
                     formParameters = parameters {
                         append("like-foreign-id", videoCode)
                         append("like-status", "1")
-                        append("_token", video.csrfToken ?: token)
+                        append("_token", videoCsrfToken)
                         append("like-user-id", video.currentUserId ?: userId)
                         append("like-is-positive", "1")
                     },
                 ) {
                     header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-                    header("X-CSRF-TOKEN", video.csrfToken ?: token)
+                    header("X-CSRF-TOKEN", videoCsrfToken)
                     cookieHeader?.let { header(HttpHeaders.Cookie, it) }
                 }
             }

@@ -11,6 +11,10 @@ internal fun requireMutationCsrfToken(csrfToken: String?): String {
         ?: throw DomainException(DomainError.Auth("Login session expired. Please sign in again."))
 }
 
+internal fun mutationCsrfTokenOrFallback(csrfToken: String?, fallback: String): String {
+    return csrfToken?.takeIf { it.isNotBlank() } ?: fallback
+}
+
 internal fun requireMutationUserId(userId: String?): String {
     return userId?.takeIf { it.isNotBlank() }
         ?: throw DomainException(DomainError.Auth("Login is required for this action."))

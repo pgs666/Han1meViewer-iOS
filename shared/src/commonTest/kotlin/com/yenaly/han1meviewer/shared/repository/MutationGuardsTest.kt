@@ -18,6 +18,12 @@ class MutationGuardsTest {
     }
 
     @Test
+    fun mutationCsrfTokenOrFallbackIgnoresBlankPreferredToken() {
+        assertEquals("fallback", mutationCsrfTokenOrFallback(" ", "fallback"))
+        assertEquals("preferred", mutationCsrfTokenOrFallback("preferred", "fallback"))
+    }
+
+    @Test
     fun requireMutationUserIdRejectsMissingUserId() {
         val error = assertFailsWith<DomainException> {
             requireMutationUserId(null)
