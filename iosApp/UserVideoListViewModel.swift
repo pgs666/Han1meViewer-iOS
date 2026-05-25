@@ -93,18 +93,23 @@ final class UserVideoListViewModel: ObservableObject {
         state = .loaded(snapshot.removing(videoCodes: videoCodes))
         actionErrorMessage = nil
 
+        let removeVideo = removeVideo
         mutationTask?.cancel()
         mutationTask = Task { [weak self] in
             guard let self else { return }
-            for videoCode in videoCodes {
-                do {
-                    _ = try await removeVideo(videoCode)
-                } catch {
-                    CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-                    actionErrorMessage = ErrorMessage.userFriendly(error)
-                    load()
-                    return
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    for videoCode in videoCodes {
+                        group.addTask {
+                            _ = try await removeVideo(videoCode)
+                        }
+                    }
+                    try await group.waitForAll()
                 }
+            } catch {
+                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+                actionErrorMessage = ErrorMessage.userFriendly(error)
+                load()
             }
         }
     }

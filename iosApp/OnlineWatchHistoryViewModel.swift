@@ -98,18 +98,24 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         state = .loaded(snapshot.removing(videoCodes: videoCodes))
         actionErrorMessage = nil
 
+        let feature = feature
+        let csrfToken = snapshot.csrfToken
         mutationTask?.cancel()
         mutationTask = Task { [weak self] in
             guard let self else { return }
-            for videoCode in videoCodes {
-                do {
-                    _ = try await feature.remove(videoCode: videoCode, csrfToken: snapshot.csrfToken)
-                } catch {
-                    CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-                    actionErrorMessage = ErrorMessage.userFriendly(error)
-                    load()
-                    return
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    for videoCode in videoCodes {
+                        group.addTask {
+                            _ = try await feature.remove(videoCode: videoCode, csrfToken: csrfToken)
+                        }
+                    }
+                    try await group.waitForAll()
                 }
+            } catch {
+                CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+                actionErrorMessage = ErrorMessage.userFriendly(error)
+                load()
             }
         }
     }
