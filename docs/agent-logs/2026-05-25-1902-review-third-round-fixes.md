@@ -21,4 +21,4 @@ Re-read `/home/pgs/Project/review/REVIEW.md` and fix remaining bugs and code qua
 
 - `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64 ./gradlew :shared:jvmTest && git diff --check` passed locally.
 - `./gradlew --stop` was blocked by the wrapper lock file being read-only in this sandbox, but `ps -ef | grep -E 'GradleDaemon|KotlinCompileDaemon|gradle' | grep -v grep || true` returned no leftover Gradle/Kotlin daemon process.
-- Pending: push and watch iOS CI.
+- GitHub Actions `iOS App Build` run `26401298810` passed after push, including shared JVM tests, Xcode project generation, unsigned device build, IPA packaging, and artifact upload.
