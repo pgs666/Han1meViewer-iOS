@@ -642,7 +642,7 @@ private struct SearchResultRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CachedRemoteImage(urlString: video.coverUrl)
+            CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 96)
                 .frame(width: 96, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 

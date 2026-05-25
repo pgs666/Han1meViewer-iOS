@@ -119,7 +119,7 @@ private struct HomeBannerView: View {
 
     private var bannerFrame: some View {
         ZStack(alignment: .bottomLeading) {
-            CachedRemoteImage(urlString: banner.imageUrl)
+            CachedRemoteImage(urlString: banner.imageUrl, resizeWidth: 900)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
 
@@ -197,7 +197,7 @@ private struct HomeVideoCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
-                CachedRemoteImage(urlString: video.coverUrl)
+                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 184)
                     .frame(width: 184, height: 104)
                     .clipped()
 

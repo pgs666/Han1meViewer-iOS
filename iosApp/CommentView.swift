@@ -219,7 +219,7 @@ private struct CommentRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            CachedRemoteImage(urlString: comment.avatarUrl)
+            CachedRemoteImage(urlString: comment.avatarUrl, resizeWidth: comment.isChildComment ? 34 : 42)
                 .frame(width: comment.isChildComment ? 34 : 42, height: comment.isChildComment ? 34 : 42)
                 .clipShape(Circle())
 

@@ -166,7 +166,7 @@ private struct FollowingArtistCell: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            CachedRemoteImage(urlString: artist.avatarUrl)
+            CachedRemoteImage(urlString: artist.avatarUrl, resizeWidth: 58)
                 .frame(width: 58, height: 58)
                 .clipShape(Circle())
             Text(artist.name)
@@ -182,7 +182,7 @@ private struct FollowingVideoRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CachedRemoteImage(urlString: video.coverUrl)
+            CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 96)
                 .frame(width: 96, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 

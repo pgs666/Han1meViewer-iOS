@@ -257,7 +257,7 @@ private struct MineAccountRow: View {
     @ViewBuilder
     private var avatar: some View {
         if isLoggedIn, let avatarUrl = profile.avatarUrl, !avatarUrl.isEmpty {
-            CachedRemoteImage(urlString: avatarUrl)
+            CachedRemoteImage(urlString: avatarUrl, resizeWidth: 42)
         } else {
             ZStack {
                 Circle()

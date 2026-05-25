@@ -157,7 +157,7 @@ private struct UserPlaylistRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CachedRemoteImage(urlString: playlist.coverUrl)
+            CachedRemoteImage(urlString: playlist.coverUrl, resizeWidth: 96)
                 .frame(width: 96, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 

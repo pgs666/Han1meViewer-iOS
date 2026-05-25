@@ -90,7 +90,7 @@ private struct WatchHistoryRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CachedRemoteImage(urlString: item.coverUrl)
+            CachedRemoteImage(urlString: item.coverUrl, resizeWidth: 96)
                 .frame(width: 96, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 
