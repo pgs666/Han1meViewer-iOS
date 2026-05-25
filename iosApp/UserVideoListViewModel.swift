@@ -93,7 +93,6 @@ final class UserVideoListViewModel: ObservableObject {
         state = .loaded(snapshot.removing(videoCodes: videoCodes))
         actionErrorMessage = nil
 
-        let removeVideo = removeVideo
         mutationTask?.cancel()
         mutationTask = Task { [weak self] in
             guard let self else { return }
