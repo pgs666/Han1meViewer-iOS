@@ -8,9 +8,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   ios-app:
     name: Build SwiftUI app with KMP framework
@@ -65,7 +62,7 @@ jobs:
           /usr/bin/zip -qry Han1meViewer-unsigned.ipa Payload
 
       - name: Upload unsigned IPA
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Han1meViewer-unsigned-ipa
           path: build/ipa/Han1meViewer-unsigned.ipa
