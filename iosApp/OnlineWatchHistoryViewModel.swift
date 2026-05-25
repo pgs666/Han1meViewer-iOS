@@ -2,15 +2,7 @@ import Foundation
 import Han1meShared
 
 @MainActor
-final class OnlineWatchHistoryViewModel: ObservableObject {
-    enum State {
-        case idle
-        case loading
-        case loaded(OnlineWatchHistoryScreenSnapshot)
-        case loadingMore(OnlineWatchHistoryScreenSnapshot)
-        case failed(String)
-    }
-
+final class OnlineWatchHistoryViewModel: PaginatedViewModel<OnlineWatchHistoryScreenSnapshot> {
     enum SortMode: String, CaseIterable, Identifiable {
         case latest
         case oldest
@@ -27,78 +19,24 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         }
     }
 
-    @Published private(set) var state: State = .idle
     @Published var sortMode: SortMode = .latest
     @Published var actionErrorMessage: String?
 
     private let feature: OnlineWatchHistoryFeature
-    private var currentPage: Int32 = 0
-    private var hasNextPage = false
-    private var loadTask: Task<Void, Never>?
-    private var loadMoreTask: Task<Void, Never>?
     private var mutationTask: Task<Void, Never>?
-    private var requestGeneration = 0
 
     init(feature: OnlineWatchHistoryFeature) {
         self.feature = feature
     }
 
-    deinit {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        mutationTask?.cancel()
-    }
-
-    func load() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        requestGeneration += 1
-        let generation = requestGeneration
-        currentPage = 0
-        hasNextPage = false
-        state = .loading
-        loadTask = Task { [weak self] in
-            await self?.load(page: 1, appendingTo: nil, generation: generation)
-        }
-    }
-
-    func loadIfNeeded() {
-        if case .idle = state {
-            load()
-        }
-    }
-
     func changeSortMode(_ mode: SortMode) {
-        guard sortMode != mode else {
-            return
-        }
+        guard sortMode != mode else { return }
         sortMode = mode
         load()
     }
 
-    func loadMoreIfNeeded(currentVideoID: String?) {
-        guard hasNextPage, !isLoading else {
-            return
-        }
-        guard case .loaded(let snapshot) = state else {
-            return
-        }
-        guard snapshot.videos.last?.id == currentVideoID else {
-            return
-        }
-
-        let nextPage = currentPage + 1
-        let generation = requestGeneration
-        state = .loadingMore(snapshot)
-        loadMoreTask = Task { [weak self] in
-            await self?.load(page: nextPage, appendingTo: snapshot, generation: generation)
-        }
-    }
-
     func delete(at offsets: IndexSet) {
-        guard case .loaded(let snapshot) = state else {
-            return
-        }
+        guard case .loaded(let snapshot) = state else { return }
 
         let videoCodes = offsets.map { snapshot.videos[$0].videoCode }
         state = .loaded(snapshot.removing(videoCodes: videoCodes))
@@ -126,29 +64,7 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
         }
     }
 
-    func cancelLoading() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        switch state {
-        case .loading:
-            state = .idle
-        case .loadingMore(let snapshot):
-            state = .loaded(snapshot)
-        case .idle, .loaded, .failed:
-            break
-        }
-    }
-
-    private var isLoading: Bool {
-        switch state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
-    }
-
-    private func load(page: Int32, appendingTo existingSnapshot: OnlineWatchHistoryScreenSnapshot?, generation: Int) async {
+    override func executeLoad(page: Int32, appendingTo existingSnapshot: OnlineWatchHistoryScreenSnapshot?, generation: Int) async {
         do {
             let snapshot: OnlineWatchHistorySnapshot
             switch sortMode {
@@ -158,38 +74,31 @@ final class OnlineWatchHistoryViewModel: ObservableObject {
                 snapshot = try await feature.loadOldest(page: page)
             }
 
-            guard !Task.isCancelled, generation == requestGeneration else { return }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
             if snapshot.authRequired {
-                state = .failed(String(localized: "online_history.auth.required"))
-                currentPage = 0
-                hasNextPage = false
+                setFailed(String(localized: "online_history.auth.required"))
                 return
             }
 
             let screenSnapshot = OnlineWatchHistoryScreenSnapshot(snapshot, appendingTo: existingSnapshot)
-            currentPage = screenSnapshot.page
-            hasNextPage = screenSnapshot.hasNext
-            state = .loaded(screenSnapshot)
+            applyLoadResult(screenSnapshot)
         } catch is CancellationError {
             return
         } catch {
-            guard !Task.isCancelled, generation == requestGeneration else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-            if let existingSnapshot {
-                state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
-            } else {
-                state = .failed(ErrorMessage.userFriendly(error))
-            }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
+            applyLoadError(error, appendingTo: existingSnapshot)
         }
     }
 }
 
-struct OnlineWatchHistoryScreenSnapshot {
+struct OnlineWatchHistoryScreenSnapshot: PaginatedSnapshot {
     let page: Int32
     let hasNext: Bool
     let csrfToken: String?
     let videos: [OnlineWatchHistoryRow]
     let loadMoreError: String?
+
+    var lastItemID: String? { videos.last?.id }
 
     init(_ snapshot: OnlineWatchHistorySnapshot, appendingTo existingSnapshot: OnlineWatchHistoryScreenSnapshot? = nil) {
         page = snapshot.page
@@ -241,16 +150,14 @@ struct OnlineWatchHistoryScreenSnapshot {
     }
 
     func removing(videoCodes: [String]) -> OnlineWatchHistoryScreenSnapshot {
-        let removed = Set(videoCodes)
-        return OnlineWatchHistoryScreenSnapshot(
+        OnlineWatchHistoryScreenSnapshot(
             page: page,
             hasNext: hasNext,
             csrfToken: csrfToken,
-            videos: videos.filter { !removed.contains($0.videoCode) },
+            videos: videos.filter { !videoCodes.contains($0.videoCode) },
             loadMoreError: loadMoreError
         )
     }
-
 }
 
 struct OnlineWatchHistoryRow: Identifiable {

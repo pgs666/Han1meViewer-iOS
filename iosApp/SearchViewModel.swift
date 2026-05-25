@@ -2,42 +2,25 @@ import Foundation
 import Han1meShared
 
 @MainActor
-final class SearchViewModel: ObservableObject {
-    enum State {
-        case idle
-        case loading
-        case loaded(SearchScreenSnapshot)
-        case loadingMore(SearchScreenSnapshot)
-        case failed(String)
-    }
-
-    @Published private(set) var state: State = .idle
+final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
     @Published private(set) var history: [SearchHistoryRow] = []
     @Published var filters = SearchFilterState()
 
     private let searchFeature: SearchFeature
     private var currentKeyword = ""
     private var currentFilters = SearchFilterState()
-    private var currentPage: Int32 = 0
-    private var hasNextPage = false
     private var didLoadHistory = false
-    private var searchTask: Task<Void, Never>?
-    private var loadMoreTask: Task<Void, Never>?
-    private var requestGeneration = 0
 
     init(searchFeature: SearchFeature) {
         self.searchFeature = searchFeature
     }
 
-    deinit {
-        searchTask?.cancel()
-        loadMoreTask?.cancel()
+    override func load() {
+        search(keyword: currentKeyword, filters: currentFilters, recordHistory: false)
     }
 
     func loadHistoryIfNeeded() {
-        guard !didLoadHistory else {
-            return
-        }
+        guard !didLoadHistory else { return }
         loadHistory()
     }
 
@@ -65,35 +48,17 @@ final class SearchViewModel: ObservableObject {
     func showHistory() {
         loadHistory()
         currentKeyword = ""
-        currentPage = 0
-        hasNextPage = false
+        filters.reset()
         state = .idle
     }
 
     func search(keyword: String, filters: SearchFilterState? = nil, recordHistory: Bool = true) {
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         let nextFilters = filters ?? self.filters
-        searchTask?.cancel()
-        loadMoreTask?.cancel()
-        requestGeneration += 1
-        let generation = requestGeneration
-
         currentKeyword = trimmedKeyword
         currentFilters = nextFilters
         self.filters = nextFilters
-        currentPage = 0
-        hasNextPage = false
-        state = .loading
-        searchTask = Task { [weak self] in
-            await self?.loadSearch(
-                keyword: trimmedKeyword,
-                filters: nextFilters,
-                page: 1,
-                appendingTo: nil,
-                recordHistory: recordHistory,
-                generation: generation
-            )
-        }
+        super.load()
     }
 
     func openHomeSection(_ request: SearchLaunchRequest, catalog: SearchOptionCatalog) {
@@ -105,83 +70,32 @@ final class SearchViewModel: ObservableObject {
         filters.reset()
     }
 
-    func loadMoreIfNeeded(currentItemID: String?) {
-        guard hasNextPage, !isLoading else {
-            return
-        }
-        guard case .loaded(let snapshot) = state else {
-            return
-        }
-        guard snapshot.results.last?.id == currentItemID else {
-            return
-        }
-
-        let nextPage = currentPage + 1
-        let generation = requestGeneration
-        let keyword = currentKeyword
-        let filters = currentFilters
-        state = .loadingMore(snapshot)
-        loadMoreTask = Task { [weak self] in
-            await self?.loadSearch(
-                keyword: keyword,
-                filters: filters,
-                page: nextPage,
-                appendingTo: snapshot,
-                recordHistory: false,
-                generation: generation
-            )
-        }
-    }
-
-    private var isLoading: Bool {
-        switch state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
-    }
-
-    private func loadSearch(
-        keyword: String,
-        filters: SearchFilterState,
-        page: Int32,
-        appendingTo existingSnapshot: SearchScreenSnapshot?,
-        recordHistory: Bool,
-        generation: Int
-    ) async {
+    override func executeLoad(page: Int32, appendingTo existingSnapshot: SearchScreenSnapshot?, generation: Int) async {
         do {
             let snapshot = try await searchFeature.searchAdvanced(
-                keyword: keyword,
-                genre: filters.genre?.searchKey,
-                sort: filters.sort?.searchKey,
-                broad: filters.broad,
-                releaseDate: filters.releaseDate?.searchKey,
-                duration: filters.duration?.searchKey,
-                tags: filters.selectedTagKeys.joined(separator: "\n"),
-                brands: filters.selectedBrandKeys.joined(separator: "\n"),
-                filterSummary: filters.summaryItems.joined(separator: " · "),
+                keyword: currentKeyword,
+                genre: currentFilters.genre?.searchKey,
+                sort: currentFilters.sort?.searchKey,
+                broad: currentFilters.broad,
+                releaseDate: currentFilters.releaseDate?.searchKey,
+                duration: currentFilters.duration?.searchKey,
+                tags: currentFilters.selectedTagKeys.joined(separator: "\n"),
+                brands: currentFilters.selectedBrandKeys.joined(separator: "\n"),
+                filterSummary: currentFilters.summaryItems.joined(separator: " · "),
                 page: page,
-                recordHistory: recordHistory
+                recordHistory: page == 1
             )
-            guard !Task.isCancelled, generation == requestGeneration else { return }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
-            currentPage = screenSnapshot.page
-            hasNextPage = screenSnapshot.hasNext
-            if recordHistory && page == 1 {
+            if page == 1 {
                 loadHistory()
             }
-            state = .loaded(screenSnapshot)
+            applyLoadResult(screenSnapshot)
         } catch is CancellationError {
             return
         } catch {
-            guard !Task.isCancelled, generation == requestGeneration else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-            if let existingSnapshot {
-                state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
-            } else {
-                state = .failed(ErrorMessage.userFriendly(error))
-            }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
+            applyLoadError(error, appendingTo: existingSnapshot)
         }
     }
 }
@@ -207,11 +121,13 @@ struct SearchHistoryRow: Identifiable, Hashable {
     }
 }
 
-struct SearchScreenSnapshot {
+struct SearchScreenSnapshot: PaginatedSnapshot {
     let results: [SearchVideoRow]
     let page: Int32
     let hasNext: Bool
     let loadMoreError: String?
+
+    var lastItemID: String? { results.last?.id }
 
     init(_ snapshot: SearchSnapshot, appendingTo existingSnapshot: SearchScreenSnapshot? = nil) {
         let count = Int(snapshot.itemCount())
@@ -250,7 +166,6 @@ struct SearchScreenSnapshot {
             loadMoreError: message
         )
     }
-
 }
 
 struct SearchVideoRow: Identifiable {

@@ -2,126 +2,39 @@ import Foundation
 import Han1meShared
 
 @MainActor
-final class UserPlaylistViewModel: ObservableObject {
-    enum State {
-        case idle
-        case loading
-        case loaded(UserPlaylistScreenSnapshot)
-        case loadingMore(UserPlaylistScreenSnapshot)
-        case failed(String)
-    }
-
-    @Published private(set) var state: State = .idle
-
+final class UserPlaylistViewModel: PaginatedViewModel<UserPlaylistScreenSnapshot> {
     private let feature: UserPlaylistFeature
-    private var currentPage: Int32 = 0
-    private var hasNextPage = false
-    private var loadTask: Task<Void, Never>?
-    private var loadMoreTask: Task<Void, Never>?
-    private var requestGeneration = 0
 
     init(feature: UserPlaylistFeature) {
         self.feature = feature
     }
 
-    deinit {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-    }
-
-    func load() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        requestGeneration += 1
-        let generation = requestGeneration
-        currentPage = 0
-        hasNextPage = false
-        state = .loading
-        loadTask = Task { [weak self] in
-            await self?.load(page: 1, appendingTo: nil, generation: generation)
-        }
-    }
-
-    func loadIfNeeded() {
-        if case .idle = state {
-            load()
-        }
-    }
-
-    func loadMoreIfNeeded(currentPlaylistID: String?) {
-        guard hasNextPage, !isLoading else {
-            return
-        }
-        guard case .loaded(let snapshot) = state else {
-            return
-        }
-        guard snapshot.playlists.last?.id == currentPlaylistID else {
-            return
-        }
-
-        let nextPage = currentPage + 1
-        let generation = requestGeneration
-        state = .loadingMore(snapshot)
-        loadMoreTask = Task { [weak self] in
-            await self?.load(page: nextPage, appendingTo: snapshot, generation: generation)
-        }
-    }
-
-    func cancelLoading() {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        switch state {
-        case .loading:
-            state = .idle
-        case .loadingMore(let snapshot):
-            state = .loaded(snapshot)
-        case .idle, .loaded, .failed:
-            break
-        }
-    }
-
-    private var isLoading: Bool {
-        switch state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
-    }
-
-    private func load(page: Int32, appendingTo existingSnapshot: UserPlaylistScreenSnapshot?, generation: Int) async {
+    override func executeLoad(page: Int32, appendingTo existingSnapshot: UserPlaylistScreenSnapshot?, generation: Int) async {
         do {
             let snapshot = try await feature.load(page: page)
-            guard !Task.isCancelled, generation == requestGeneration else { return }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
             if snapshot.authRequired {
-                state = .failed(String(localized: "playlist.auth.required"))
-                currentPage = 0
-                hasNextPage = false
+                setFailed(String(localized: "playlist.auth.required"))
                 return
             }
             let screenSnapshot = UserPlaylistScreenSnapshot(snapshot, appendingTo: existingSnapshot)
-            currentPage = screenSnapshot.page
-            hasNextPage = screenSnapshot.hasNext
-            state = .loaded(screenSnapshot)
+            applyLoadResult(screenSnapshot)
         } catch is CancellationError {
             return
         } catch {
-            guard !Task.isCancelled, generation == requestGeneration else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-            if let existingSnapshot {
-                state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
-            } else {
-                state = .failed(ErrorMessage.userFriendly(error))
-            }
+            guard !Task.isCancelled, generation == currentGeneration else { return }
+            applyLoadError(error, appendingTo: existingSnapshot)
         }
     }
 }
 
-struct UserPlaylistScreenSnapshot {
+struct UserPlaylistScreenSnapshot: PaginatedSnapshot {
     let page: Int32
     let hasNext: Bool
     let playlists: [UserPlaylistRow]
     let loadMoreError: String?
+
+    var lastItemID: String? { playlists.last?.id }
 
     init(_ snapshot: UserPlaylistSnapshot, appendingTo existingSnapshot: UserPlaylistScreenSnapshot? = nil) {
         page = snapshot.page
@@ -164,7 +77,6 @@ struct UserPlaylistScreenSnapshot {
             loadMoreError: message
         )
     }
-
 }
 
 struct UserPlaylistRow: Identifiable {

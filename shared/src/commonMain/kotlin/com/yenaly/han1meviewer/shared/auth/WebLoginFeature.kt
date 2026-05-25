@@ -17,14 +17,20 @@ class WebLoginFeature(
     @Throws(Exception::class)
     suspend fun importCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
         val cookies = parseCookieHeader(cookieHeader, domain)
-
         sessionStore.saveCookies(cookies)
 
-        return AuthSnapshot(
-            isLoggedIn = false,
-            message = "Web cookies imported but login was not confirmed.",
-            username = null,
-        )
+        val snapshot = try {
+            verifyCurrentSession()
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            clearSession()
+            throw error
+        }
+        if (!snapshot.isLoggedIn) {
+            clearSession()
+            throw DomainException(DomainError.Auth("Imported cookies did not produce a valid session."))
+        }
+        return snapshot
     }
 
     @Throws(Exception::class)

@@ -96,7 +96,7 @@ struct FollowingView: View {
                                 FollowingVideoRowView(video: video)
                             }
                             .onAppear {
-                                viewModel.loadMoreIfNeeded(currentVideoID: video.id)
+                                viewModel.loadMoreIfNeeded(currentItemID: video.id)
                             }
                         }
                         followingFooter(snapshot: snapshot)
@@ -108,12 +108,7 @@ struct FollowingView: View {
     }
 
     private var isLoading: Bool {
-        switch viewModel.state {
-        case .loading, .loadingMore:
-            return true
-        case .idle, .loaded, .failed:
-            return false
-        }
+        viewModel.state.isLoading
     }
 
     @ViewBuilder
@@ -127,7 +122,7 @@ struct FollowingView: View {
             loadMoreError: snapshot.loadMoreError,
             isEmpty: snapshot.videos.isEmpty,
             onRetry: {
-                viewModel.loadMoreIfNeeded(currentVideoID: snapshot.videos.last?.id)
+                viewModel.loadMoreIfNeeded(currentItemID: snapshot.videos.last?.id)
             }
         )
     }
