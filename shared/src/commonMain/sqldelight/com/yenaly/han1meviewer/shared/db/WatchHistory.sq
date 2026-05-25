@@ -31,5 +31,14 @@ deleteByVideoCode:
 DELETE FROM watch_history
 WHERE video_code = ?;
 
+deleteOldestBeyondLimit:
+DELETE FROM watch_history
+WHERE video_code NOT IN (
+    SELECT video_code
+    FROM watch_history
+    ORDER BY watched_at_epoch_millis DESC
+    LIMIT ?
+);
+
 deleteAll:
 DELETE FROM watch_history;

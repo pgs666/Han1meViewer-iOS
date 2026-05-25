@@ -28,6 +28,7 @@ class WatchHistoryStore(
             watched_at_epoch_millis = watchedAtEpochMillis,
             playback_position_millis = playbackPositionMillis,
         )
+        database.watchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
     }
 
     fun delete(videoCode: String) {
@@ -56,5 +57,6 @@ class WatchHistoryStore(
 
     private companion object {
         const val DEFAULT_RECENT_LIMIT = 100L
+        const val MAX_RETAINED_ITEMS = 1_000L
     }
 }

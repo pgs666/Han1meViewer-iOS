@@ -15,5 +15,14 @@ insert:
 INSERT INTO search_history(keyword, filter_summary, searched_at_epoch_millis)
 VALUES (?, ?, ?);
 
+deleteOldestBeyondLimit:
+DELETE FROM search_history
+WHERE id NOT IN (
+    SELECT id
+    FROM search_history
+    ORDER BY searched_at_epoch_millis DESC
+    LIMIT ?
+);
+
 deleteAll:
 DELETE FROM search_history;

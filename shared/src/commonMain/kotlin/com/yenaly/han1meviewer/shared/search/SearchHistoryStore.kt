@@ -15,6 +15,7 @@ class SearchHistoryStore(
             filter_summary = filterSummary,
             searched_at_epoch_millis = searchedAtEpochMillis,
         )
+        database.searchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
     }
 
     fun clear() {
@@ -47,6 +48,7 @@ class SearchHistoryStore(
     private companion object {
         const val HISTORY_VALUE_PREFIX = "han1me-search-v2:"
         const val HISTORY_VALUE_SEPARATOR = "\u001F"
+        const val MAX_RETAINED_ITEMS = 100L
     }
 }
 
