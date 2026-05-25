@@ -126,13 +126,15 @@ final class CommentViewModel: ObservableObject {
     }
 
     func like(comment: CommentRow, isPositive: Bool) {
+        let generation = requestGeneration
         Task { [weak self] in
+            guard let self, generation == self.requestGeneration else { return }
             do {
-                _ = try await self?.likeAndReturn(comment: comment, isPositive: isPositive)
+                _ = try await self.likeAndReturn(comment: comment, isPositive: isPositive)
             } catch is CancellationError {
                 return
             } catch {
-                self?.actionMessage = ErrorMessage.userFriendly(error)
+                self.actionMessage = ErrorMessage.userFriendly(error)
             }
         }
     }
