@@ -47,11 +47,12 @@ class KtorOnlineWatchHistoryRepository(
     }
 
     override suspend fun removeHistoryItem(videoCode: String, csrfToken: String?) {
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.delete("$baseUrl/user/tab-item/$videoCode") {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
             header(HttpHeaders.Accept, "application/json, text/plain, */*")
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
             setBody(FormDataContent(parameters { append("tab", "histories") }))
         }
@@ -63,7 +64,9 @@ class KtorOnlineWatchHistoryRepository(
                 ?.jsonPrimitive
                 ?.booleanOrNull == true
         }.getOrDefault(false)
-        check(success) { "Failed to delete online watch history item." }
+        if (!success) {
+            throwMutationFailure("Failed to delete online watch history item.")
+        }
     }
 
     private companion object {

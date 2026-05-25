@@ -3,20 +3,23 @@ package com.yenaly.han1meviewer.shared.userlist
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
 import com.yenaly.han1meviewer.shared.repository.UserVideoListRepository
 import kotlinx.serialization.Serializable
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
+@OptIn(ExperimentalAtomicApi::class)
 class UserVideoListFeature(
     private val type: UserVideoListType,
     private val currentUserIdProvider: suspend () -> String?,
     private val listRepository: UserVideoListRepository,
 ) {
-    private var csrfToken: String? = null
+    private val csrfToken = AtomicReference<String?>(null)
 
     @Throws(Exception::class)
     suspend fun load(page: Int): UserVideoListSnapshot {
         val userId = resolveCurrentUserId()
             ?: return UserVideoListSnapshot.authRequired(page)
         val listPage = listRepository.getUserVideoList(userId, type, page)
-        csrfToken = listPage.csrfToken ?: csrfToken
+        listPage.csrfToken?.let { csrfToken.store(it) }
         return listPage.toSnapshot()
     }
 
@@ -28,7 +31,7 @@ class UserVideoListFeature(
             userId = userId,
             type = type,
             videoCode = videoCode,
-            csrfToken = csrfToken,
+            csrfToken = csrfToken.load(),
         )
         return UserVideoListMutationSnapshot(videoCode = videoCode)
     }

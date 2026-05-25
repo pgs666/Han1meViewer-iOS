@@ -38,19 +38,21 @@ class KtorVideoRepository(
         csrfToken: String?,
         isFavorite: Boolean,
     ) {
+        val token = requireMutationCsrfToken(csrfToken)
+        val currentUserId = requireMutationUserId(userId)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
             url = "$baseUrl/like",
             formParameters = parameters {
                 append("like-foreign-id", videoCode)
                 append("like-status", if (isFavorite) "" else "1")
-                append("_token", csrfToken.orEmpty())
-                append("like-user-id", userId.orEmpty())
+                append("_token", token)
+                append("like-user-id", currentUserId)
                 append("like-is-positive", "1")
             },
         ) {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
@@ -62,11 +64,12 @@ class KtorVideoRepository(
         csrfToken: String?,
         isSelected: Boolean,
     ) {
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
             url = "$baseUrl/save",
             formParameters = parameters {
-                append("_token", csrfToken.orEmpty())
+                append("_token", token)
                 append("input_id", listCode)
                 append("video_id", videoCode)
                 append("is_checked", isSelected.toString())
@@ -74,7 +77,7 @@ class KtorVideoRepository(
             },
         ) {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
@@ -86,18 +89,19 @@ class KtorVideoRepository(
         csrfToken: String?,
         isSubscribed: Boolean,
     ) {
+        val token = requireMutationCsrfToken(csrfToken)
         val cookieHeader = cookieBridge.storedCookieHeader()
         val response = client.submitForm(
             url = "$baseUrl/subscribe",
             formParameters = parameters {
-                append("_token", csrfToken.orEmpty())
+                append("_token", token)
                 append("subscribe-user-id", userId)
                 append("subscribe-artist-id", artistId)
                 append("subscribe-status", if (isSubscribed) "" else "1")
             },
         ) {
             header(HttpHeaders.UserAgent, DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", csrfToken.orEmpty())
+            header("X-CSRF-TOKEN", token)
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)

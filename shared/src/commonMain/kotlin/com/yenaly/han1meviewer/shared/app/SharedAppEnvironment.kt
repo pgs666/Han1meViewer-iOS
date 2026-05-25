@@ -30,7 +30,10 @@ import com.yenaly.han1meviewer.shared.userlist.UserVideoListFeature
 import com.yenaly.han1meviewer.shared.video.VideoFeature
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
+@OptIn(ExperimentalAtomicApi::class)
 class SharedAppEnvironment(
     driverFactory: DatabaseDriverFactory,
 ) {
@@ -47,7 +50,7 @@ class SharedAppEnvironment(
     private val userVideoListRepository = KtorUserVideoListRepository(sessionStore, client = httpClient)
     private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore, client = httpClient)
     private val onlineWatchHistoryRepository = KtorOnlineWatchHistoryRepository(sessionStore, client = httpClient)
-    private var cachedCurrentUserId: String? = null
+    private val cachedCurrentUserId = AtomicReference<String?>(null)
     private val currentUserIdLock = Mutex()
 
     fun webLoginFeature(): WebLoginFeature {
@@ -134,15 +137,15 @@ class SharedAppEnvironment(
     }
 
     fun clearCachedCurrentUserId() {
-        cachedCurrentUserId = null
+        cachedCurrentUserId.store(null)
     }
 
     private suspend fun resolveCurrentUserId(): String? {
-        cachedCurrentUserId?.let { return it }
+        cachedCurrentUserId.load()?.let { return it }
         return currentUserIdLock.withLock {
-            cachedCurrentUserId?.let { return@withLock it }
+            cachedCurrentUserId.load()?.let { return@withLock it }
             homeRepository.getHomePage().userId?.also { userId ->
-                cachedCurrentUserId = userId
+                cachedCurrentUserId.store(userId)
             }
         }
     }

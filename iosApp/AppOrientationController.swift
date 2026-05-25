@@ -84,14 +84,8 @@ final class AppOrientationController {
                 .first { $0.isKeyWindow }?
                 .rootViewController?
                 .setNeedsUpdateOfSupportedInterfaceOrientations()
-            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { _ in
-                UIDevice.current.setValue(interfaceOrientation.rawValue, forKey: "orientation")
-                UIViewController.attemptRotationToDeviceOrientation()
-            }
-            UIDevice.current.setValue(interfaceOrientation.rawValue, forKey: "orientation")
-            UIViewController.attemptRotationToDeviceOrientation()
+            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { _ in }
         } else {
-            UIDevice.current.setValue(interfaceOrientation.rawValue, forKey: "orientation")
             UIViewController.attemptRotationToDeviceOrientation()
         }
     }
