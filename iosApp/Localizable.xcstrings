@@ -130,8 +130,6 @@
     "相关影片" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Related Videos" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "相关影片" } } } },
     "系列影片" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Series Videos" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系列影片" } } } },
     "正在播放" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Playing" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在播放" } } } },
-    "评论功能待迁移" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Comments are not migrated yet" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "评论功能待迁移" } } } },
-    "安卓版这里是评论列表、回复、排序和举报入口。" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The Android version shows comments, replies, sorting, and report actions here." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安卓版这里是评论列表、回复、排序和举报入口。" } } } },
     "common.artist" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Artist" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "作者" } } } },
     "download" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Download" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载" } } } },
     "mine.login.checking" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Checking login status" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查登录状态" } } } },

@@ -5,13 +5,15 @@ import Han1meShared
 struct VideoDetailView: View {
     let videoCode: String
     private let videoFeature: VideoFeature
+    private let commentFeature: CommentFeature
     @StateObject private var viewModel: VideoDetailViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-    init(videoCode: String, videoFeature: VideoFeature) {
+    init(videoCode: String, videoFeature: VideoFeature, commentFeature: CommentFeature) {
         self.videoCode = videoCode
         self.videoFeature = videoFeature
+        self.commentFeature = commentFeature
         _viewModel = StateObject(wrappedValue: VideoDetailViewModel(videoFeature: videoFeature))
     }
 
@@ -65,11 +67,12 @@ struct VideoDetailView: View {
                             AndroidStyleIntroduction(
                                 snapshot: snapshot,
                                 videoFeature: videoFeature,
+                                commentFeature: commentFeature,
                                 viewModel: viewModel,
                                 showsRelated: true
                             )
                         case .comments:
-                            AndroidStyleCommentsPlaceholder()
+                            CommentView(videoCode: videoCode, commentFeature: commentFeature)
                         }
                     } header: {
                         Picker("Content", selection: $selectedTab) {
@@ -103,11 +106,12 @@ struct VideoDetailView: View {
                             AndroidStyleIntroduction(
                                 snapshot: snapshot,
                                 videoFeature: videoFeature,
+                                commentFeature: commentFeature,
                                 viewModel: viewModel,
                                 showsRelated: false
                             )
                         case .comments:
-                            AndroidStyleCommentsPlaceholder()
+                            CommentView(videoCode: videoCode, commentFeature: commentFeature)
                         }
                     } header: {
                         Picker("Content", selection: $selectedTab) {
@@ -129,7 +133,8 @@ struct VideoDetailView: View {
 
             TabletRelatedSidebar(
                 videos: snapshot.relatedVideos,
-                videoFeature: videoFeature
+                videoFeature: videoFeature,
+                commentFeature: commentFeature
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemBackground))
@@ -374,6 +379,7 @@ private final class FullscreenVideoMetrics: ObservableObject {
 private struct AndroidStyleIntroduction: View {
     let snapshot: VideoDetailScreenSnapshot
     let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
     @ObservedObject var viewModel: VideoDetailViewModel
     let showsRelated: Bool
 
@@ -408,6 +414,7 @@ private struct AndroidStyleIntroduction: View {
                     subtitle: snapshot.playlistName,
                     videos: snapshot.playlistVideos,
                     videoFeature: videoFeature,
+                    commentFeature: commentFeature,
                     showPlaying: true
                 )
             }
@@ -415,7 +422,8 @@ private struct AndroidStyleIntroduction: View {
             if showsRelated && !snapshot.relatedVideos.isEmpty {
                 RelatedVideoGrid(
                     videos: snapshot.relatedVideos,
-                    videoFeature: videoFeature
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
                 )
             }
         }
@@ -691,6 +699,7 @@ private struct HorizontalVideoSection: View {
     let subtitle: String?
     let videos: [VideoRelatedRow]
     let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
     let showPlaying: Bool
 
     var body: some View {
@@ -714,7 +723,7 @@ private struct HorizontalVideoSection: View {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(videos) { video in
                         NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature)
+                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                         } label: {
                             RelatedVideoCard(video: video, showPlaying: showPlaying)
                         }
@@ -729,6 +738,7 @@ private struct HorizontalVideoSection: View {
 private struct RelatedVideoGrid: View {
     let videos: [VideoRelatedRow]
     let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -738,7 +748,7 @@ private struct RelatedVideoGrid: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 12)], spacing: 12) {
                 ForEach(videos) { video in
                     NavigationLink {
-                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature)
+                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                     } label: {
                         RelatedVideoCard(video: video, showPlaying: false)
                     }
@@ -752,6 +762,7 @@ private struct RelatedVideoGrid: View {
 private struct TabletRelatedSidebar: View {
     let videos: [VideoRelatedRow]
     let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
 
     var body: some View {
         ScrollView {
@@ -763,7 +774,7 @@ private struct TabletRelatedSidebar: View {
 
                 ForEach(videos) { video in
                     NavigationLink {
-                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature)
+                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                     } label: {
                         TabletRelatedVideoRow(video: video)
                     }
@@ -865,24 +876,6 @@ private struct RelatedVideoCard: View {
             }
         }
         .frame(width: 172, alignment: .leading)
-    }
-}
-
-private struct AndroidStyleCommentsPlaceholder: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "text.bubble")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text("评论功能待迁移")
-                .font(.headline)
-            Text("安卓版这里是评论列表、回复、排序和举报入口。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 80)
     }
 }
 

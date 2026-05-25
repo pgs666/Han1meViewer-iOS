@@ -148,7 +148,8 @@ struct UserVideoListView: View {
             NavigationLink {
                 VideoDetailView(
                     videoCode: video.videoCode,
-                    videoFeature: environment.videoFeature()
+                    videoFeature: environment.videoFeature(),
+                    commentFeature: environment.commentFeature()
                 )
             } label: {
                 UserVideoListRowView(video: video)
@@ -164,7 +165,8 @@ struct UserVideoListView: View {
             NavigationLink {
                 VideoDetailView(
                     videoCode: video.videoCode,
-                    videoFeature: environment.videoFeature()
+                    videoFeature: environment.videoFeature(),
+                    commentFeature: environment.commentFeature()
                 )
             } label: {
                 UserVideoListRowView(video: video)

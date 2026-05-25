@@ -2,6 +2,7 @@ package com.yenaly.han1meviewer.shared.app
 
 import com.yenaly.han1meviewer.shared.auth.CloudflareFeature
 import com.yenaly.han1meviewer.shared.auth.WebLoginFeature
+import com.yenaly.han1meviewer.shared.comment.CommentFeature
 import com.yenaly.han1meviewer.shared.db.DatabaseDriverFactory
 import com.yenaly.han1meviewer.shared.db.createDatabase
 import com.yenaly.han1meviewer.shared.following.FollowingFeature
@@ -11,6 +12,7 @@ import com.yenaly.han1meviewer.shared.history.OnlineWatchHistoryFeature
 import com.yenaly.han1meviewer.shared.home.HomeFeature
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.repository.KtorFollowingRepository
+import com.yenaly.han1meviewer.shared.repository.KtorCommentRepository
 import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
 import com.yenaly.han1meviewer.shared.repository.KtorOnlineWatchHistoryRepository
 import com.yenaly.han1meviewer.shared.repository.KtorSearchRepository
@@ -39,6 +41,7 @@ class SharedAppEnvironment(
     private val followingRepository = KtorFollowingRepository(sessionStore, client = httpClient)
     private val searchRepository = KtorSearchRepository(sessionStore, client = httpClient)
     private val videoRepository = KtorVideoRepository(sessionStore, client = httpClient)
+    private val commentRepository = KtorCommentRepository(sessionStore, client = httpClient)
     private val userVideoListRepository = KtorUserVideoListRepository(sessionStore, client = httpClient)
     private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore, client = httpClient)
     private val onlineWatchHistoryRepository = KtorOnlineWatchHistoryRepository(sessionStore, client = httpClient)
@@ -72,6 +75,10 @@ class SharedAppEnvironment(
             repository = videoRepository,
             watchHistoryStore = watchHistoryStore,
         )
+    }
+
+    fun commentFeature(): CommentFeature {
+        return CommentFeature(commentRepository)
     }
 
     fun watchHistoryFeature(): WatchHistoryFeature {

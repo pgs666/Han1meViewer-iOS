@@ -10,6 +10,10 @@ import com.yenaly.han1meviewer.shared.model.SearchParams
 import com.yenaly.han1meviewer.shared.model.UserPlaylistPage
 import com.yenaly.han1meviewer.shared.model.UserVideoListPage
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
+import com.yenaly.han1meviewer.shared.model.CommentPlace
+import com.yenaly.han1meviewer.shared.model.CommentTargetType
+import com.yenaly.han1meviewer.shared.model.VideoComment
+import com.yenaly.han1meviewer.shared.model.VideoComments
 
 interface HomeRepository {
     suspend fun getHomePage(): HomePage
@@ -69,4 +73,40 @@ interface OnlineWatchHistoryRepository {
     suspend fun getHistories(userId: String, sort: OnlineWatchHistorySort, page: Int): UserVideoListPage
 
     suspend fun removeHistoryItem(videoCode: String, csrfToken: String?)
+}
+
+interface CommentRepository {
+    suspend fun getComments(type: CommentTargetType, code: String): VideoComments
+
+    suspend fun getCommentReplies(commentId: String): VideoComments
+
+    suspend fun postComment(
+        csrfToken: String?,
+        currentUserId: String,
+        targetId: String,
+        type: CommentTargetType,
+        text: String,
+    )
+
+    suspend fun postReply(
+        csrfToken: String?,
+        replyCommentId: String,
+        text: String,
+    )
+
+    suspend fun likeComment(
+        csrfToken: String?,
+        place: CommentPlace,
+        isPositive: Boolean,
+        comment: VideoComment,
+    )
+
+    suspend fun reportComment(
+        userId: String?,
+        csrfToken: String?,
+        redirectUrl: String,
+        reportableId: String?,
+        reportableType: String?,
+        reason: String,
+    )
 }

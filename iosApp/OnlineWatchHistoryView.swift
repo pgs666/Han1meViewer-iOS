@@ -86,7 +86,8 @@ struct OnlineWatchHistoryView: View {
                             NavigationLink {
                                 VideoDetailView(
                                     videoCode: video.videoCode,
-                                    videoFeature: environment.videoFeature()
+                                    videoFeature: environment.videoFeature(),
+                                    commentFeature: environment.commentFeature()
                                 )
                             } label: {
                                 OnlineWatchHistoryRowView(video: video)

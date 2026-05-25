@@ -61,6 +61,7 @@ struct HomeView: View {
                         HomeBannerView(
                             banner: banner,
                             videoFeature: environment.videoFeature(),
+                            commentFeature: environment.commentFeature(),
                             usesCompactBanner: horizontalSizeClass == .regular
                         )
                         .padding(.horizontal, 16)
@@ -71,6 +72,7 @@ struct HomeView: View {
                         HomeCategorySection(
                             section: section,
                             videoFeature: environment.videoFeature(),
+                            commentFeature: environment.commentFeature(),
                             onMore: onOpenSearch
                         )
                     }
@@ -85,13 +87,14 @@ struct HomeView: View {
 private struct HomeBannerView: View {
     let banner: HomeBannerRow
     let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
     let usesCompactBanner: Bool
 
     var body: some View {
         Group {
             if let videoCode = banner.videoCode, !videoCode.isEmpty {
                 NavigationLink {
-                    VideoDetailView(videoCode: videoCode, videoFeature: videoFeature)
+                    VideoDetailView(videoCode: videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                 } label: {
                     bannerContent
                 }
@@ -146,6 +149,7 @@ private struct HomeBannerView: View {
 private struct HomeCategorySection: View {
     let section: HomeSectionRow
     let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
     let onMore: (HomeSectionRow) -> Void
 
     var body: some View {
@@ -169,7 +173,7 @@ private struct HomeCategorySection: View {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(section.videos) { video in
                         NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature)
+                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                         } label: {
                             HomeVideoCard(video: video)
                         }

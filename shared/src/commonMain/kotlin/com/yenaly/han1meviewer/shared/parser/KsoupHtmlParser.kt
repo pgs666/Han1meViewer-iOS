@@ -22,7 +22,13 @@ import com.yenaly.han1meviewer.shared.model.UserVideoListPage
 import com.yenaly.han1meviewer.shared.model.VideoMyList
 import com.yenaly.han1meviewer.shared.model.VideoMyListItem
 import com.yenaly.han1meviewer.shared.model.VideoPlaylist
+import com.yenaly.han1meviewer.shared.model.VideoComment
+import com.yenaly.han1meviewer.shared.model.VideoCommentPost
+import com.yenaly.han1meviewer.shared.model.VideoComments
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class KsoupHtmlParser : HtmlParser {
     override fun parseHome(html: String): HomePage {
@@ -340,6 +346,51 @@ class KsoupHtmlParser : HtmlParser {
         )
     }
 
+    override fun parseComments(json: String): VideoComments {
+        val html = Json.parseToJsonElement(json)
+            .jsonObject["comments"]
+            ?.jsonPrimitive
+            ?.content
+            .orEmpty()
+        val body = Ksoup.parse(html).body()
+        val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
+        val currentUserId = body.selectFirst("input[name=comment-user-id]")?.attr("value")
+        val commentsRoot = body.getElementById("comment-start")
+        val comments = commentsRoot
+            ?.children()
+            ?.chunked(4)
+            ?.mapNotNull { elements ->
+                elements.toCommentWrapper()?.toVideoComment(isChildComment = false)
+            }
+            .orEmpty()
+
+        return VideoComments(
+            comments = comments,
+            currentUserId = currentUserId,
+            csrfToken = csrfToken,
+        )
+    }
+
+    override fun parseCommentReplies(json: String): VideoComments {
+        val html = Json.parseToJsonElement(json)
+            .jsonObject["replies"]
+            ?.jsonPrimitive
+            ?.content
+            .orEmpty()
+        val replyStart = Ksoup.parse(html).body().selectFirst("div[id^=reply-start]")
+            ?: return VideoComments(comments = emptyList())
+
+        val comments = replyStart.children()
+            .chunked(2)
+            .mapNotNull { elements ->
+                val basic = elements.getOrNull(0) ?: return@mapNotNull null
+                val post = elements.getOrNull(1)
+                basic.toVideoComment(isChildComment = true, postElement = post)
+            }
+
+        return VideoComments(comments = comments)
+    }
+
     private fun Element?.toHanimeInfoList(
         selector: String = "div[class^=horizontal-card]",
     ): List<HanimeInfo> = this?.select(selector)?.mapNotNull { it.toNormalHanimeInfo() }.orEmpty()
@@ -422,6 +473,64 @@ class KsoupHtmlParser : HtmlParser {
         )
     }
 
+    private fun List<Element>.toCommentWrapper(): Element? {
+        val html = joinToString(separator = "") { it.outerHtml() }
+        return Ksoup.parse("<div>$html</div>").body().selectFirst("div")
+    }
+
+    private fun Element.toVideoComment(
+        isChildComment: Boolean,
+        postElement: Element? = this,
+    ): VideoComment? {
+        val avatarUrl = selectFirst("img")?.absUrl("src")
+            ?.ifBlank { selectFirst("img")?.attr("src") }
+            ?: return null
+        val textClass = getElementsByClass("comment-index-text")
+        val nameAndDateClass = textClass.firstOrNull()
+        val username = nameAndDateClass?.selectFirst("a")?.ownText()?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val date = nameAndDateClass.selectFirst("span")?.ownText()?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val content = textClass.getOrNull(1)?.text()?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val thumbUp = postElement
+            ?.select("span[style]")
+            ?.getOrNull(1)
+            ?.text()
+            ?.toIntOrNull()
+        val id = selectFirst("div[id^=reply-section-wrapper]")
+            ?.id()
+            ?.substringAfterLast("-")
+            ?.takeIf { it.isNotBlank() }
+        val replyCount = COMMENT_COUNT_REGEX.find(select("div.load-replies-btn").text())
+            ?.value
+            ?.toIntOrNull()
+
+        return VideoComment(
+            avatarUrl = avatarUrl,
+            username = username,
+            date = date,
+            content = content,
+            thumbUp = thumbUp,
+            isChildComment = isChildComment,
+            hasMoreReplies = !isChildComment && selectFirst("div[class^=load-replies-btn]") != null,
+            replyCount = replyCount,
+            id = id,
+            post = VideoCommentPost(
+                foreignId = postElement?.getElementById("foreign_id")?.attr("value")?.takeIf { it.isNotBlank() },
+                isPositive = postElement?.getElementById("is_positive")?.attr("value") == "1",
+                likeUserId = postElement?.selectFirst("input[name=comment-like-user-id]")?.attr("value")?.takeIf { it.isNotBlank() },
+                commentLikesCount = postElement?.selectFirst("input[name=comment-likes-count]")?.attr("value")?.toIntOrNull(),
+                commentLikesSum = postElement?.selectFirst("input[name=comment-likes-sum]")?.attr("value")?.toIntOrNull(),
+                likeCommentStatus = postElement?.selectFirst("input[name=like-comment-status]")?.attr("value") == "1",
+                unlikeCommentStatus = postElement?.selectFirst("input[name=unlike-comment-status]")?.attr("value") == "1",
+            ),
+            redirectUrl = "",
+            reportableId = selectFirst("span.report-btn")?.attr("data-reportable-id")?.takeIf { it.isNotBlank() },
+            reportableType = selectFirst("span.report-btn")?.attr("data-reportable-type")?.takeIf { it.isNotBlank() },
+        )
+    }
+
     private fun String.toVideoCode(): String? = VIDEO_CODE_REGEX.find(this)?.groupValues?.getOrNull(1)
 
     private fun List<Element>.toSubtitleMetadataParts(): List<String> {
@@ -455,6 +564,7 @@ class KsoupHtmlParser : HtmlParser {
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
         val VIDEO_SOURCE_REGEX = Regex("""const source = '(.+)'""")
         val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""(.+?)\s*(\d{4}-\d{2}-\d{2})""")
+        val COMMENT_COUNT_REGEX = Regex("""\d+""")
         val DEFAULT_HOME_SECTION_KEYS = listOf(
             "latestRelease",
             "latestHanime",

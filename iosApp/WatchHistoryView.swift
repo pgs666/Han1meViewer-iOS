@@ -61,7 +61,8 @@ struct WatchHistoryView: View {
                         NavigationLink {
                             VideoDetailView(
                                 videoCode: item.videoCode,
-                                videoFeature: environment.videoFeature()
+                                videoFeature: environment.videoFeature(),
+                                commentFeature: environment.commentFeature()
                             )
                         } label: {
                             WatchHistoryRowView(item: item)

@@ -2,6 +2,8 @@ package com.yenaly.han1meviewer.shared.parser
 
 import com.yenaly.han1meviewer.shared.model.HanimeItemType
 import com.yenaly.han1meviewer.shared.model.SearchParams
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -104,5 +106,86 @@ class KsoupHtmlParserTest {
         assertEquals("https://video.example/720.mp4", video.sources.single().url)
         assertEquals(listOf("Tag B"), video.tags)
         assertNotNull(video.uploadTime)
+    }
+
+    @Test
+    fun parsesCommentsJsonPayload() {
+        val html = """
+            <div>
+              <input name="_token" value="csrf-comment">
+              <input name="comment-user-id" value="42">
+              <div id="comment-start">
+                <div>
+                  <img src="https://img.example/avatar.jpg">
+                  <div class="comment-index-text">
+                    <a>Alice</a>
+                    <span>5分鐘前</span>
+                  </div>
+                  <div class="comment-index-text">Nice video</div>
+                  <span class="report-btn" data-reportable-id="99" data-reportable-type="comment"></span>
+                </div>
+                <div id="comment-like-form-wrapper">
+                  <input id="foreign_id" value="99">
+                  <input id="is_positive" value="0">
+                  <input name="comment-like-user-id" value="42">
+                  <input name="comment-likes-count" value="3">
+                  <input name="comment-likes-sum" value="3">
+                  <input name="like-comment-status" value="0">
+                  <input name="unlike-comment-status" value="0">
+                  <span style="display:none">icon</span>
+                  <span style="display:none">3</span>
+                </div>
+                <div id="reply-section-wrapper-99"></div>
+                <div class="load-replies-btn">查看 2 則回覆</div>
+              </div>
+            </div>
+        """.trimIndent()
+        val json = JsonObject(mapOf("comments" to JsonPrimitive(html))).toString()
+
+        val comments = parser.parseComments(json)
+
+        assertEquals("csrf-comment", comments.csrfToken)
+        assertEquals("42", comments.currentUserId)
+        assertEquals(1, comments.comments.size)
+        assertEquals("Alice", comments.comments.single().username)
+        assertEquals("99", comments.comments.single().replyTargetIdOrNull)
+        assertEquals(2, comments.comments.single().replyCount)
+        assertTrue(comments.comments.single().hasMoreReplies)
+    }
+
+    @Test
+    fun parsesCommentRepliesJsonPayload() {
+        val html = """
+            <div id="reply-start-99">
+              <div>
+                <img src="https://img.example/reply-avatar.jpg">
+                <div class="comment-index-text">
+                  <a>Bob</a>
+                  <span>1分鐘前</span>
+                </div>
+                <div class="comment-index-text">@Alice reply</div>
+                <span class="report-btn" data-reportable-id="100" data-reportable-type="reply"></span>
+              </div>
+              <div>
+                <input id="foreign_id" value="100">
+                <input id="is_positive" value="1">
+                <input name="comment-like-user-id" value="42">
+                <input name="comment-likes-count" value="1">
+                <input name="comment-likes-sum" value="1">
+                <input name="like-comment-status" value="1">
+                <input name="unlike-comment-status" value="0">
+                <span style="display:none">icon</span>
+                <span style="display:none">1</span>
+              </div>
+            </div>
+        """.trimIndent()
+        val json = JsonObject(mapOf("replies" to JsonPrimitive(html))).toString()
+
+        val replies = parser.parseCommentReplies(json)
+
+        assertEquals(1, replies.comments.size)
+        assertEquals("Bob", replies.comments.single().username)
+        assertTrue(replies.comments.single().isChildComment)
+        assertTrue(replies.comments.single().post.likeCommentStatus)
     }
 }
