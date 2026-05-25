@@ -34,6 +34,7 @@ object SetCookieParser {
             path = attributes["path"] ?: "/",
             expiresAtEpochMillis = expirationMillis(attributes),
             secure = attributes.containsKey("secure"),
+            httpOnly = attributes.containsKey("httponly"),
         )
     }
 

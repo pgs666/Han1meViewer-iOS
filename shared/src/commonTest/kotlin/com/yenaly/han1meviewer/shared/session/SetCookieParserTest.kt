@@ -18,6 +18,7 @@ class SetCookieParserTest {
         assertEquals("abc", cookie.value)
         assertEquals(".hanime1.me", cookie.domain)
         assertEquals("/", cookie.path)
+        assertTrue(cookie.httpOnly)
     }
 
     @Test

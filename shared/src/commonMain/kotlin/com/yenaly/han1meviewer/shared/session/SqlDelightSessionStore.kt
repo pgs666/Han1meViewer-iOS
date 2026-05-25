@@ -22,6 +22,7 @@ class SqlDelightSessionStore(
                     path = cookie.path,
                     expires_at_epoch_millis = cookie.expiresAtEpochMillis,
                     secure = if (cookie.secure) 1L else 0L,
+                    http_only = if (cookie.httpOnly) 1L else 0L,
                 )
             }
         }
@@ -38,6 +39,7 @@ class SqlDelightSessionStore(
         path: String,
         expiresAtEpochMillis: Long?,
         secure: Long,
+        httpOnly: Long,
     ): SessionCookie {
         return SessionCookie(
             name = name,
@@ -46,6 +48,7 @@ class SqlDelightSessionStore(
             path = path,
             expiresAtEpochMillis = expiresAtEpochMillis,
             secure = secure != 0L,
+            httpOnly = httpOnly != 0L,
         )
     }
 
