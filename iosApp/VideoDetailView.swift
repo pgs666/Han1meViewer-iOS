@@ -399,7 +399,7 @@ private struct AndroidStyleIntroduction: View {
     let onToggleArtistSubscription: () -> Void
     let onToggleFavorite: () -> Void
     let onToggleWatchLater: () -> Void
-    let onSetMyListItem: (VideoMyListItemSnapshot, Bool) -> Void
+    let onSetMyListItem: (VideoMyListRow, Bool) -> Void
     let onShowMessage: (String) -> Void
     let showsRelated: Bool
 
@@ -582,7 +582,7 @@ private struct ActionButtonRow: View {
     let snapshot: VideoDetailScreenSnapshot
     let onToggleFavorite: () -> Void
     let onToggleWatchLater: () -> Void
-    let onSetMyListItem: (VideoMyListItemSnapshot, Bool) -> Void
+    let onSetMyListItem: (VideoMyListRow, Bool) -> Void
     let onShowMessage: (String) -> Void
     @Environment(\.openURL) private var openURL
     @State private var isShowingMyList = false
