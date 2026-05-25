@@ -2,6 +2,7 @@ package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
+import io.ktor.http.HttpStatusCode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -32,5 +33,19 @@ class MutationGuardsTest {
         }
 
         assertEquals(DomainError.Unknown("failed"), error.error)
+    }
+
+    @Test
+    fun requireSuccessfulMutationStatusRejectsNonSuccessStatus() {
+        val error = assertFailsWith<DomainException> {
+            requireSuccessfulMutationStatus(HttpStatusCode.Forbidden, "mutation failed.")
+        }
+
+        assertEquals(DomainError.Unknown("mutation failed. HTTP 403."), error.error)
+    }
+
+    @Test
+    fun requireSuccessfulMutationStatusAcceptsSuccessStatus() {
+        requireSuccessfulMutationStatus(HttpStatusCode.NoContent, "mutation failed.")
     }
 }

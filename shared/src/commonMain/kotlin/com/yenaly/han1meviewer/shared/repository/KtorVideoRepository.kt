@@ -28,6 +28,7 @@ class KtorVideoRepository(
             cookieBridge.applyStoredCookies(this)
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to update favorite state.")
 
         return parser.parseVideo(response.bodyAsText(), videoCode)
     }
@@ -56,6 +57,7 @@ class KtorVideoRepository(
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to update list state.")
     }
 
     override suspend fun setMyListItem(
@@ -105,5 +107,6 @@ class KtorVideoRepository(
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to update artist subscription.")
     }
 }

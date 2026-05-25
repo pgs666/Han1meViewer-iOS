@@ -37,6 +37,7 @@ class KtorCommentRepository(
             cookieBridge.applyStoredCookies(this)
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to post comment.")
         return parser.parseComments(response.bodyAsText())
     }
 
@@ -49,6 +50,7 @@ class KtorCommentRepository(
             cookieBridge.applyStoredCookies(this)
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to post reply.")
         return parser.parseCommentReplies(response.bodyAsText())
     }
 
@@ -78,6 +80,7 @@ class KtorCommentRepository(
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to update comment reaction.")
     }
 
     override suspend fun postReply(
@@ -158,5 +161,6 @@ class KtorCommentRepository(
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to report comment.")
     }
 }

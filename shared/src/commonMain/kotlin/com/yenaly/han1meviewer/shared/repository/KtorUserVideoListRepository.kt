@@ -100,6 +100,7 @@ class KtorUserVideoListRepository(
             }
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to remove user list item.")
     }
 
     private suspend fun getVideoForMutation(videoCode: String): HanimeVideo {

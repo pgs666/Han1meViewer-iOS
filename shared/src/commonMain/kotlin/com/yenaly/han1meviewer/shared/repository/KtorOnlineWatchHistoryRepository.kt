@@ -57,6 +57,7 @@ class KtorOnlineWatchHistoryRepository(
             setBody(FormDataContent(parameters { append("tab", "histories") }))
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to delete online watch history item.")
 
         val success = runCatching {
             Json.parseToJsonElement(response.bodyAsText())
