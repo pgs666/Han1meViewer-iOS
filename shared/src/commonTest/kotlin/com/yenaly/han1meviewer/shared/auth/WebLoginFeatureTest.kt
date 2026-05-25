@@ -12,7 +12,7 @@ class WebLoginFeatureTest {
     @Test
     fun importsCookieHeaderIntoSessionStore() = runTest {
         val store = MemorySessionStore()
-        val feature = WebLoginFeature(store, FakeHomeRepository.loggedOut())
+        val feature = WebLoginFeature(store, FakeHomeRepository.loggedIn())
 
         val snapshot = feature.importCookieHeader(
             cookieHeader = "XSRF-TOKEN=token; hanime1_session=session-value; cf_clearance=clearance",
@@ -20,7 +20,7 @@ class WebLoginFeatureTest {
         )
 
         val cookies = store.loadCookies()
-        assertEquals(false, snapshot.isLoggedIn)
+        assertEquals(true, snapshot.isLoggedIn)
         assertEquals(3, cookies.size)
         assertTrue(cookies.any { it.name == "hanime1_session" && it.value == "session-value" })
     }
@@ -58,16 +58,21 @@ class WebLoginFeatureTest {
     }
 
     @Test
-    fun plainSessionCookieDoesNotReportLoggedIn() = runTest {
+    fun importCookieHeaderRejectsInvalidSession() = runTest {
         val store = MemorySessionStore()
         val feature = WebLoginFeature(store, FakeHomeRepository.loggedOut())
 
-        feature.importCookieHeader(
-            cookieHeader = "hanime1_session=anonymous-session",
-            domain = "hanime1.me",
-        )
-
-        assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
+        var threw = false
+        try {
+            feature.importCookieHeader(
+                cookieHeader = "hanime1_session=anonymous-session",
+                domain = "hanime1.me",
+            )
+        } catch (_: Exception) {
+            threw = true
+        }
+        assertTrue(threw)
+        assertTrue(store.loadCookies().isEmpty())
     }
 
     @Test
