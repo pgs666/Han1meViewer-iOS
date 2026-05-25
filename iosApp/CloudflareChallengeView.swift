@@ -12,8 +12,8 @@ struct CloudflareChallengePresenter: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: CloudflareChallengeCenter.requestNotification)) { notification in
                 if let url = notification.userInfo?[CloudflareChallengeCenter.urlKey] as? URL {
                     challengeRequest = CloudflareChallengeRequest(url: url)
-                } else {
-                    challengeRequest = CloudflareChallengeRequest(url: URL(string: "https://hanime1.me")!)
+                } else if let fallbackURL = URL(string: "https://hanime1.me") {
+                    challengeRequest = CloudflareChallengeRequest(url: fallbackURL)
                 }
             }
             .sheet(item: $challengeRequest) { request in

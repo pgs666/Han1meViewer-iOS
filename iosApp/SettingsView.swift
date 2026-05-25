@@ -17,11 +17,15 @@ struct SettingsView: View {
         List {
             Section("应用") {
                 SettingsInfoRow(title: "版本", value: appVersion)
-                Link(destination: URL(string: "https://github.com/pgs666/Han1meViewer-iOS")!) {
-                    SettingsNavigationRow(title: "项目仓库", systemImage: "chevron.left.forwardslash.chevron.right")
+                if let repositoryURL = URL(string: "https://github.com/pgs666/Han1meViewer-iOS") {
+                    Link(destination: repositoryURL) {
+                        SettingsNavigationRow(title: "项目仓库", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
                 }
-                Link(destination: URL(string: "https://hanime1.me")!) {
-                    SettingsNavigationRow(title: "打开网站", systemImage: "safari")
+                if let siteURL = URL(string: "https://hanime1.me") {
+                    Link(destination: siteURL) {
+                        SettingsNavigationRow(title: "打开网站", systemImage: "safari")
+                    }
                 }
             }
 
