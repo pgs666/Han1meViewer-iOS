@@ -33,8 +33,10 @@ struct LoginView: View {
                     reloadToken = UUID()
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .foregroundStyle(.primary)
+                        .renderingMode(.template)
+                        .foregroundColor(.primary)
                 }
+                .buttonStyle(.plain)
                 .tint(.primary)
                 .accessibilityLabel("刷新登录页")
             }
