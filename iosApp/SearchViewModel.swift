@@ -34,7 +34,8 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
             }
             return SearchHistoryRow(
                 keyword: item.keyword,
-                filterSummary: item.filterSummary
+                filterSummary: item.filterSummary,
+                filterData: item.filterData
             )
         }
         didLoadHistory = true
@@ -53,6 +54,16 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
         currentRecordHistory = false
         filters.reset()
         resetPaginationToIdle()
+    }
+
+    func restoreFromHistory(_ item: SearchHistoryRow) {
+        // Restore filters from stored JSON
+        if !item.filterData.isEmpty,
+           let data = item.filterData.data(using: .utf8),
+           let restored = try? JSONDecoder().decode(SearchFilterCodable.self, from: data) {
+            filters = restored.toFilterState()
+        }
+        search(keyword: item.keyword, filters: filters)
     }
 
     func search(keyword: String, filters: SearchFilterState? = nil, recordHistory: Bool = true) {
@@ -76,6 +87,7 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
 
     override func executeLoad(page: Int32, appendingTo existingSnapshot: SearchScreenSnapshot?, generation: Int) async {
         do {
+            let filterDataJSON = Self.encodeFilterData(currentFilters)
             let snapshot = try await searchFeature.searchAdvanced(
                 keyword: currentKeyword,
                 genre: currentFilters.genre?.searchKey,
@@ -86,6 +98,7 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
                 tags: currentFilters.selectedTagKeys.joined(separator: "\n"),
                 brands: currentFilters.selectedBrandKeys.joined(separator: "\n"),
                 filterSummary: currentFilters.summaryItems.joined(separator: " · "),
+                filterData: filterDataJSON,
                 page: page,
                 recordHistory: currentRecordHistory && page == 1
             )
@@ -102,11 +115,20 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
             applyLoadError(error, appendingTo: existingSnapshot)
         }
     }
+    private static func encodeFilterData(_ filters: SearchFilterState) -> String {
+        let codable = SearchFilterCodable.from(filters)
+        guard let data = try? JSONEncoder().encode(codable),
+              let json = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return json
+    }
 }
 
 struct SearchHistoryRow: Identifiable, Hashable {
     let keyword: String
     let filterSummary: String
+    let filterData: String
 
     var id: String {
         "\(keyword)\n\(filterSummary)"
@@ -122,6 +144,41 @@ struct SearchHistoryRow: Identifiable, Hashable {
 
     var title: String {
         hasKeyword ? keyword : (hasFilterSummary ? filterSummary : "空关键词")
+    }
+}
+
+struct SearchFilterCodable: Codable {
+    let genre: String?
+    let sort: String?
+    let duration: String?
+    let releaseDate: String?
+    let broad: Bool
+    let tags: [String]
+    let brands: [String]
+
+    static func from(_ state: SearchFilterState) -> SearchFilterCodable {
+        SearchFilterCodable(
+            genre: state.genre?.searchKey,
+            sort: state.sort?.searchKey,
+            duration: state.duration?.searchKey,
+            releaseDate: state.releaseDate?.searchKey,
+            broad: state.broad,
+            tags: state.selectedTagKeys,
+            brands: state.selectedBrandKeys
+        )
+    }
+
+    func toFilterState() -> SearchFilterState {
+        var state = SearchFilterState()
+        // We can only restore the searchKeys; displayName will be resolved from catalog
+        if let genre = genre { state.genre = SearchFilterOption(lang: nil, name: genre, searchKey: genre) }
+        if let sort = sort { state.sort = SearchFilterOption(lang: nil, name: sort, searchKey: sort) }
+        if let duration = duration { state.duration = SearchFilterOption(lang: nil, name: duration, searchKey: duration) }
+        if let releaseDate = releaseDate { state.releaseDate = SearchFilterOption(lang: nil, name: releaseDate, searchKey: releaseDate) }
+        state.broad = broad
+        state.tags = Set(tags.map { SearchFilterOption(lang: nil, name: $0, searchKey: $0) })
+        state.brands = Set(brands.map { SearchFilterOption(lang: nil, name: $0, searchKey: $0) })
+        return state
     }
 }
 

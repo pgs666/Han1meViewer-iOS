@@ -26,6 +26,7 @@ class SearchFeature(
         tags: String,
         brands: String,
         filterSummary: String,
+        filterData: String = "",
         page: Int,
         recordHistory: Boolean,
     ): SearchSnapshot {
@@ -42,6 +43,7 @@ class SearchFeature(
             ),
             page = page,
             filterSummary = filterSummary.trim(),
+            filterData = filterData,
             recordHistory = recordHistory,
         )
     }
@@ -50,6 +52,7 @@ class SearchFeature(
         params: SearchParams,
         page: Int,
         filterSummary: String,
+        filterData: String = "",
         recordHistory: Boolean = true,
     ): SearchSnapshot {
         val result = repository.search(params, page)
@@ -58,6 +61,7 @@ class SearchFeature(
             historyStore?.record(
                 keyword = trimmedKeyword,
                 filterSummary = filterSummary,
+                filterData = filterData,
                 searchedAtEpochMillis = currentEpochMillis(),
             )
         }
@@ -96,6 +100,7 @@ class SearchFeature(
                 SearchHistoryEntrySnapshot(
                     keyword = item.keyword.trim(),
                     filterSummary = item.filterSummary.trim(),
+                    filterData = item.filterData,
                 )
             }
             .filter { item -> item.keyword.isNotBlank() || item.filterSummary.isNotBlank() }
@@ -155,4 +160,5 @@ data class SearchHistorySnapshot(
 data class SearchHistoryEntrySnapshot(
     val keyword: String,
     val filterSummary: String,
+    val filterData: String = "",
 )
