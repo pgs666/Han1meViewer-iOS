@@ -27,6 +27,21 @@ INSERT OR REPLACE INTO watch_history(
 )
 VALUES (?, ?, ?, ?, ?);
 
+insertIfNotExists:
+INSERT OR IGNORE INTO watch_history(
+    video_code,
+    title,
+    cover_url,
+    watched_at_epoch_millis,
+    playback_position_millis
+)
+VALUES (?, ?, ?, ?, ?);
+
+updateTitleAndCover:
+UPDATE watch_history
+SET title = ?, cover_url = ?
+WHERE video_code = ?;
+
 deleteByVideoCode:
 DELETE FROM watch_history
 WHERE video_code = ?;
