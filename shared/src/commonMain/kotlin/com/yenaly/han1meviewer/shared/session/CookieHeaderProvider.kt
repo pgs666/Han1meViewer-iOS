@@ -16,6 +16,7 @@ class CookieHeaderProvider(
         if (cookies.isEmpty()) return null
         return cookies
             .sortedWith(compareByDescending<SessionCookie> { cookie -> cookie.path.length }
+                .thenByDescending { cookie -> cookie.name }
                 .thenByDescending { cookie -> cookie.domain.removePrefix(".") == domain.removePrefix(".") }
                 .thenBy { cookie -> cookie.domain.startsWith(".") })
             .distinctBy { cookie -> cookie.name }
