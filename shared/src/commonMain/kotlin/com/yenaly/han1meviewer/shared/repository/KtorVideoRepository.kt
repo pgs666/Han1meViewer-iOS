@@ -14,12 +14,13 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.parameters
 
 class KtorVideoRepository(
-    sessionStore: SessionStore,
+    private val sessionStore: SessionStore,
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
-    private val client: HttpClient = createHan1meHttpClient(),
+    client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : VideoRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
 
     override suspend fun getVideo(videoCode: String): HanimeVideo {
         val response = client.get("$baseUrl/watch?v=$videoCode") {

@@ -128,6 +128,7 @@ private struct WebLoginView: UIViewRepresentable {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.customUserAgent = HanimeNetworkDefaults.DEFAULT_USER_AGENT
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.webView = webView

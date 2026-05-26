@@ -11,6 +11,8 @@ import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
 import com.yenaly.han1meviewer.shared.history.OnlineWatchHistoryFeature
 import com.yenaly.han1meviewer.shared.home.HomeFeature
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
+import com.yenaly.han1meviewer.shared.repository.HanimeNetworkDefaults
+import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
 import com.yenaly.han1meviewer.shared.repository.KtorFollowingRepository
 import com.yenaly.han1meviewer.shared.repository.KtorCommentRepository
 import com.yenaly.han1meviewer.shared.repository.KtorHomeRepository
@@ -41,7 +43,8 @@ class SharedAppEnvironment(
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
     private val watchHistoryStore = WatchHistoryStore(database)
     private val searchHistoryStore = SearchHistoryStore(database)
-    private val httpClient = createHan1meHttpClient()
+    private val sharedCookieBridge = KtorCookieBridge(sessionStore, HanimeNetworkDefaults.DEFAULT_BASE_URL)
+    private val httpClient = createHan1meHttpClient(sharedCookieBridge::saveResponseCookies)
     private val homeRepository = KtorHomeRepository(sessionStore, client = httpClient)
     private val followingRepository = KtorFollowingRepository(sessionStore, client = httpClient)
     private val searchRepository = KtorSearchRepository(sessionStore, client = httpClient)

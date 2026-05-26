@@ -13,12 +13,13 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 
 class KtorFollowingRepository(
-    sessionStore: SessionStore,
+    private val sessionStore: SessionStore,
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
-    private val client: HttpClient = createHan1meHttpClient(),
+    client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : FollowingRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
 
     override suspend fun getSubscriptions(page: Int): MySubscriptions {
         val response = client.get("$baseUrl/subscriptions") {

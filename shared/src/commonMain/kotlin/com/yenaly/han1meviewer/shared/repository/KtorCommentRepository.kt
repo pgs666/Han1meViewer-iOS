@@ -20,12 +20,13 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.parameters
 
 class KtorCommentRepository(
-    sessionStore: SessionStore,
+    private val sessionStore: SessionStore,
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
-    private val client: HttpClient = createHan1meHttpClient(),
+    client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : CommentRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
 
     override suspend fun getComments(type: CommentTargetType, code: String): VideoComments {
         val response = client.get("$baseUrl/loadComment") {

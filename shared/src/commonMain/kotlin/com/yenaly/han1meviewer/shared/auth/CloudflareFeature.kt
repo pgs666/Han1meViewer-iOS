@@ -3,6 +3,7 @@ package com.yenaly.han1meviewer.shared.auth
 import com.yenaly.han1meviewer.shared.model.SessionCookie
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 class CloudflareFeature(
     private val sessionStore: SessionStore,
@@ -10,6 +11,18 @@ class CloudflareFeature(
     @Throws(Exception::class)
     suspend fun importChallengeCookieHeader(cookieHeader: String, domain: String): CloudflareChallengeSnapshot {
         val cookies = parseCookieHeader(cookieHeader, domain)
+        sessionStore.saveCookies(cookies)
+
+        return CloudflareChallengeSnapshot(
+            hasClearance = cookies.any { cookie -> cookie.name == CLOUDFLARE_CLEARANCE_COOKIE },
+            importedCookieCount = cookies.size,
+        )
+    }
+
+    @Throws(Exception::class)
+    suspend fun importChallengeCookiesJson(cookieJson: String, fallbackDomain: String): CloudflareChallengeSnapshot {
+        val cookies = Json.decodeFromString<List<WebCookiePayload>>(cookieJson)
+            .mapNotNull { it.toSessionCookie(fallbackDomain) }
         sessionStore.saveCookies(cookies)
 
         return CloudflareChallengeSnapshot(

@@ -128,6 +128,7 @@ private struct CloudflareWebView: UIViewRepresentable {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.customUserAgent = HanimeNetworkDefaults.DEFAULT_USER_AGENT
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         configuration.websiteDataStore.httpCookieStore.add(context.coordinator)
@@ -216,11 +217,9 @@ private struct CloudflareWebView: UIViewRepresentable {
                     return
                 }
 
-                let cookieHeader = hanimeCookies
-                    .map { "\($0.name)=\($0.value)" }
-                    .joined(separator: "; ")
+                let cookieJson = Self.encodeCookiesForImport(hanimeCookies)
 
-                guard !cookieHeader.isEmpty else {
+                guard let cookieJson, !cookieJson.isEmpty else {
                     self.finishImport()
                     return
                 }
@@ -228,9 +227,9 @@ private struct CloudflareWebView: UIViewRepresentable {
                 Task { @MainActor in
                     self.status = .importing
                     do {
-                        let snapshot = try await self.cloudflareFeature.importChallengeCookieHeader(
-                            cookieHeader: cookieHeader,
-                            domain: "hanime1.me"
+                        let snapshot = try await self.cloudflareFeature.importChallengeCookiesJson(
+                            cookieJson: cookieJson,
+                            fallbackDomain: "hanime1.me"
                         )
                         self.finishImport()
                         if snapshot.hasClearance {
@@ -246,6 +245,35 @@ private struct CloudflareWebView: UIViewRepresentable {
                     }
                 }
             }
+        }
+
+        fileprivate static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
+            let payload: [[String: Any]] = cookies.compactMap { cookie in
+                guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
+                    return nil
+                }
+                var entry: [String: Any] = [
+                    "name": cookie.name,
+                    "value": cookie.value,
+                ]
+                if !cookie.domain.isEmpty {
+                    entry["domain"] = cookie.domain
+                }
+                if !cookie.path.isEmpty {
+                    entry["path"] = cookie.path
+                }
+                if let expiresDate = cookie.expiresDate {
+                    entry["expiresAtEpochMillis"] = Int64(expiresDate.timeIntervalSince1970 * 1000)
+                }
+                entry["secure"] = cookie.isSecure
+                entry["httpOnly"] = cookie.isHTTPOnly
+                return entry
+            }
+
+            guard !payload.isEmpty, let data = try? JSONSerialization.data(withJSONObject: payload) else {
+                return nil
+            }
+            return String(data: data, encoding: .utf8)
         }
 
         private var isResolved: Bool {

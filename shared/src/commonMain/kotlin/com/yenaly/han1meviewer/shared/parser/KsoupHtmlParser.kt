@@ -6,6 +6,8 @@ import com.yenaly.han1meviewer.shared.model.HanimeInfo
 import com.yenaly.han1meviewer.shared.model.HanimeItemType
 import com.yenaly.han1meviewer.shared.model.HanimeVideo
 import com.yenaly.han1meviewer.shared.model.HomeBanner
+import com.yenaly.han1meviewer.shared.model.DomainError
+import com.yenaly.han1meviewer.shared.model.DomainException
 import com.yenaly.han1meviewer.shared.model.HomePage
 import com.yenaly.han1meviewer.shared.model.HomeSection
 import com.yenaly.han1meviewer.shared.model.Artist
@@ -32,7 +34,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class KsoupHtmlParser : HtmlParser {
-    override fun parseHome(html: String): HomePage {
+    override fun parseHome(html: String, isAlreadyLogin: Boolean): HomePage {
         val body = parseHtml(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
         val userInfo = body.selectFirst("div#user-modal-dp-wrapper")
@@ -40,6 +42,10 @@ class KsoupHtmlParser : HtmlParser {
         val username = userInfo?.selectFirst("#user-modal-name")?.text()
         val userHref = body.selectFirst("#user-modal-trigger")?.attr("href")
         val userId = USER_ID_REGEX.find(userHref.orEmpty())?.groupValues?.getOrNull(1)
+
+        if (isAlreadyLogin && isLoginStateExpired(userHref, username)) {
+            throw DomainException(DomainError.Auth("Login state expired. Please sign in again."))
+        }
 
         val bannerWrapper = body.selectFirst("div#home-banner-wrapper")
         val bannerImage = bannerWrapper?.previousElementSibling()
@@ -573,6 +579,10 @@ class KsoupHtmlParser : HtmlParser {
                 PAGE_REGEX.find(link.attr("href"))?.groupValues?.getOrNull(1)?.toIntOrNull()
             }
             ?.maxOrNull()
+    }
+
+    private fun isLoginStateExpired(userHref: String?, username: String?): Boolean {
+        return userHref.isNullOrBlank() || userHref.contains("/login") || username.isNullOrBlank()
     }
 
     private companion object {

@@ -11,13 +11,16 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.plugins.observer.ResponseObserver
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
-internal fun createHan1meHttpClient(): HttpClient = HttpClient {
+internal fun createHan1meHttpClient(
+    saveCookies: (suspend (io.ktor.client.statement.HttpResponse) -> Unit)? = null,
+): HttpClient = HttpClient {
     install(ContentNegotiation) {
         json(
             Json {
@@ -25,6 +28,11 @@ internal fun createHan1meHttpClient(): HttpClient = HttpClient {
                 explicitNulls = false
             }
         )
+    }
+    if (saveCookies != null) {
+        install(ResponseObserver) {
+            onResponse { response -> saveCookies(response) }
+        }
     }
     install(HttpTimeout) {
         requestTimeoutMillis = 30_000

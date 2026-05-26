@@ -22,12 +22,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class KtorOnlineWatchHistoryRepository(
-    sessionStore: SessionStore,
+    private val sessionStore: SessionStore,
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
-    private val client: HttpClient = createHan1meHttpClient(),
+    client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : OnlineWatchHistoryRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
 
     override suspend fun getHistories(
         userId: String,
