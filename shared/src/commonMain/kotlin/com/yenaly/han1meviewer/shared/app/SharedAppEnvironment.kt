@@ -51,7 +51,7 @@ class SharedAppEnvironment(
     private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore, client = httpClient)
     private val onlineWatchHistoryRepository = KtorOnlineWatchHistoryRepository(sessionStore, client = httpClient)
     private val cachedCurrentUserId = AtomicReference<CachedCurrentUserId?>(null)
-    private val currentUserIdCacheGeneration = AtomicReference(0)
+    private val currentUserIdCacheToken = AtomicReference(Any())
     private val currentUserIdLock = Mutex()
 
     fun webLoginFeature(): WebLoginFeature {
@@ -138,31 +138,31 @@ class SharedAppEnvironment(
     }
 
     fun clearCachedCurrentUserId() {
-        currentUserIdCacheGeneration.store(currentUserIdCacheGeneration.load() + 1)
+        currentUserIdCacheToken.store(Any())
         cachedCurrentUserId.store(null)
     }
 
     private suspend fun resolveCurrentUserId(): String? {
         cachedCurrentUserId.load()?.let { cache ->
-            if (cache.generation == currentUserIdCacheGeneration.load()) {
+            if (cache.token === currentUserIdCacheToken.load()) {
                 return cache.userId
             }
         }
-        val generation = currentUserIdCacheGeneration.load()
+        val token = currentUserIdCacheToken.load()
         return currentUserIdLock.withLock {
             cachedCurrentUserId.load()?.let { cache ->
-                if (cache.generation == currentUserIdCacheGeneration.load()) {
+                if (cache.token === currentUserIdCacheToken.load()) {
                     return@withLock cache.userId
                 }
             }
-            homeRepository.getHomePage().userId?.takeIf { generation == currentUserIdCacheGeneration.load() }?.also { userId ->
-                cachedCurrentUserId.store(CachedCurrentUserId(userId, generation))
+            homeRepository.getHomePage().userId?.takeIf { token === currentUserIdCacheToken.load() }?.also { userId ->
+                cachedCurrentUserId.store(CachedCurrentUserId(userId, token))
             }
         }
     }
 
     private data class CachedCurrentUserId(
         val userId: String,
-        val generation: Int,
+        val token: Any,
     )
 }
