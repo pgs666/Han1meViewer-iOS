@@ -2,6 +2,7 @@ package com.yenaly.han1meviewer.shared.model
 
 import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.datetime.LocalDate
 
 @Serializable
@@ -136,14 +137,22 @@ data class HanimeVideo(
     val views: String?,
     val tags: List<String>,
     val sources: List<PlaybackSource>,
+    @Transient
     val myList: VideoMyList? = null,
+    @Transient
     val playlist: VideoPlaylist? = null,
+    @Transient
     val relatedHanimes: List<HanimeInfo> = emptyList(),
     val artist: Artist? = null,
+    @Transient
     val favTimes: Int? = null,
+    @Transient
     val isFav: Boolean = false,
+    @Transient
     val csrfToken: String? = null,
+    @Transient
     val currentUserId: String? = null,
+    @Transient
     val originalComic: String? = null,
 )
 
@@ -204,7 +213,9 @@ enum class CommentPlace(val value: String) {
 @Serializable
 data class VideoComments(
     val comments: List<VideoComment>,
+    @Transient
     val currentUserId: String? = null,
+    @Transient
     val csrfToken: String? = null,
 )
 
