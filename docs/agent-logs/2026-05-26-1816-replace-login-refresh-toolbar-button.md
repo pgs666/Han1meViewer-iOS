@@ -19,7 +19,8 @@ There is no change.
 - A custom non-Button toolbar view avoids the default toolbar button tint pipeline while keeping the same tap behavior.
 
 ## Verification
-- Pending CI after push.
+- GitHub Actions `iOS App Build` passed for run `26446342737`.
+- CI steps included shared JVM tests, Xcode project generation, unsigned device app build, IPA packaging, and artifact upload.
 - No local Swift build is available in this Linux environment.
 
 ## Mistakes
