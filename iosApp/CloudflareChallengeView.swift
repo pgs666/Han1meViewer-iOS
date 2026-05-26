@@ -53,7 +53,7 @@ private struct CloudflareChallengeView: View {
                     status: $status,
                     onResolved: {
                         // Signal the shared layer that the challenge is resolved
-                        CloudflareChallengeCenter.signalChallengeResolved()
+                        CloudflareRetryCenter.signalResolved()
                         onResolved()
                         dismiss()
                     }

@@ -52,11 +52,7 @@ final class HomeViewModel: ObservableObject {
 
     private func loadHome(generation: Int) async {
         do {
-            let snapshot = try await CloudflareRetryHandler().retryAfterCloudflareResolution(
-                onChallengeDetected: {
-                    CloudflareChallengeCenter.requestChallenge()
-                }
-            ) {
+            let snapshot = try await CloudflareRetryCenter.retryOnCloudflare {
                 try await self.homeFeature.loadHome()
             }
             guard !Task.isCancelled, generation == loadGeneration else { return }
