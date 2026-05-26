@@ -229,7 +229,7 @@ private struct WebLoginView: UIViewRepresentable {
               const hasLogoutAction = hrefs.some((href) => href.includes('logout') || href.includes('signout'));
               const hasLogoutText = text.includes('登出') || text.includes('注销') || text.includes('logout') || text.includes('sign out');
               const userTrigger = document.querySelector('#user-modal-trigger');
-              const hasUserMenu = userTrigger && /\/user\/\d+/.test(userTrigger.getAttribute('href') || '');
+              const hasUserMenu = userTrigger && /\\/user\\/\\d+/.test(userTrigger.getAttribute('href') || '');
               return hasLogoutAction || hasLogoutText || hasUserMenu;
             })();
             """
