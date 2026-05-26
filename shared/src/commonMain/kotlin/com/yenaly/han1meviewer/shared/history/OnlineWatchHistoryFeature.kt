@@ -19,6 +19,11 @@ class OnlineWatchHistoryFeature(
     }
 
     @Throws(Exception::class)
+    suspend fun loadPopular(page: Int): OnlineWatchHistorySnapshot {
+        return load(OnlineWatchHistorySort.Popular, page)
+    }
+
+    @Throws(Exception::class)
     suspend fun load(sort: OnlineWatchHistorySort, page: Int): OnlineWatchHistorySnapshot {
         val userId = currentUserIdProvider()
             ?: return OnlineWatchHistorySnapshot.authRequired(page)
