@@ -262,7 +262,6 @@ final class CommentViewModel: ObservableObject {
             sortedComments = []
         }
     }
-    }
 
     private func runAction(id: String, action: @escaping () async throws -> Void) {
         guard !runningActionIDs.contains(id) else {
