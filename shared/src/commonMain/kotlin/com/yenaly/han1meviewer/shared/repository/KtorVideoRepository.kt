@@ -28,7 +28,7 @@ class KtorVideoRepository(
             cookieBridge.applyStoredCookies(this)
         }
         cookieBridge.saveResponseCookies(response)
-        requireSuccessfulMutation(response, "Failed to update favorite state.")
+        requireSuccessfulMutation(response, "Failed to load video.")
 
         return parser.parseVideo(response.bodyAsText(), videoCode)
     }
