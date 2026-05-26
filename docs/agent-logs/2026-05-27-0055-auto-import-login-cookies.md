@@ -22,7 +22,8 @@ After WebView login succeeds, it does not automatically close and import cookies
 - Android logs in by reading WebView CookieManager cookies on redirect; this patch mirrors that more closely by reacting to navigation/cookie changes and then verifying through shared code.
 
 ## Verification
-- CI pending
+- GitHub Actions `iOS App Build` passed for run `26444189010`.
+- CI steps included shared JVM tests, Xcode project generation, unsigned device app build, IPA packaging, and artifact upload.
 
 ## Mistakes
 - None in this fix
