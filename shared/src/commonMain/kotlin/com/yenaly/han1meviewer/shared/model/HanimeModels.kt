@@ -60,7 +60,8 @@ data class HomeSection(
 data class MySubscriptions(
     val subscriptions: List<SubscriptionItem>,
     val subscriptionVideos: List<SubscriptionVideoItem>,
-    val maxPage: Int,
+    val page: Int = 1,
+    val hasNext: Boolean = false,
     val authRequired: Boolean = false,
 )
 

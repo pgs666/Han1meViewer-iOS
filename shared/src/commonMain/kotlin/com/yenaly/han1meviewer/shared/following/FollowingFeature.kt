@@ -11,7 +11,7 @@ class FollowingFeature(
         val subscriptions = repository.getSubscriptions(page)
         return FollowingSnapshot(
             page = page,
-            hasNext = page < subscriptions.maxPage,
+            hasNext = subscriptions.hasNext,
             authRequired = subscriptions.authRequired,
             artists = subscriptions.subscriptions.map { artist ->
                 FollowingArtistSnapshot(

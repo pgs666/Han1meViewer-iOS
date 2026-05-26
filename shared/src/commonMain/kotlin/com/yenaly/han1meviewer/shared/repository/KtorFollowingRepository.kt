@@ -32,6 +32,6 @@ class KtorFollowingRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseSubscriptions(response.bodyAsText())
+        return parser.parseSubscriptions(response.bodyAsText(), page)
     }
 }

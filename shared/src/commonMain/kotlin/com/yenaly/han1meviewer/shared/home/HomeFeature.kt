@@ -55,6 +55,7 @@ class HomeFeature(
             bannerVideoCode = homePage.banner?.videoCode,
             sectionCount = sections.size,
             itemCount = sections.sumOf { section -> section.videoCount() },
+            capturedAtEpochMillis = homePage.capturedAtEpochMillis,
             sections = sections,
         )
     }
@@ -74,6 +75,7 @@ data class HomeFeedSnapshot(
     val bannerVideoCode: String?,
     val sectionCount: Int,
     val itemCount: Int,
+    val capturedAtEpochMillis: Long = 0L,
     private val sections: List<HomeSectionSnapshot>,
 ) {
     fun homeSectionCount(): Int = sections.size
