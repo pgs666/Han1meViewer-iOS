@@ -14,7 +14,12 @@ class CookieHeaderProvider(
             .filter { cookie -> !cookie.secure || isSecureTransport }
 
         if (cookies.isEmpty()) return null
-        return cookies.joinToString(separator = "; ") { cookie -> "${cookie.name}=${cookie.value}" }
+        return cookies
+            .sortedWith(compareByDescending<SessionCookie> { cookie -> cookie.path.length }
+                .thenByDescending { cookie -> cookie.domain.removePrefix(".") == domain.removePrefix(".") }
+                .thenBy { cookie -> cookie.domain.startsWith(".") })
+            .distinctBy { cookie -> cookie.name }
+            .joinToString(separator = "; ") { cookie -> "${cookie.name}=${cookie.value}" }
     }
 
     suspend fun saveResponseCookies(cookies: List<SessionCookie>) {

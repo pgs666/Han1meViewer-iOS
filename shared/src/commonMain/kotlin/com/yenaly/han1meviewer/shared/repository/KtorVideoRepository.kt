@@ -57,7 +57,7 @@ class KtorVideoRepository(
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
-        requireSuccessfulMutation(response, "Failed to update list state.")
+        requireSuccessfulMutation(response, "Failed to update favorite state.")
     }
 
     override suspend fun setMyListItem(
