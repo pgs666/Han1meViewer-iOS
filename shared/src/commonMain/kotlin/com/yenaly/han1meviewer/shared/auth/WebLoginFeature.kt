@@ -8,6 +8,7 @@ import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 class WebLoginFeature(
     private val sessionStore: SessionStore,
@@ -34,7 +35,18 @@ class WebLoginFeature(
 
     @Throws(Exception::class)
     suspend fun importConfirmedLoginCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
-        sessionStore.saveCookies(parseCookieHeader(cookieHeader, domain))
+        return importConfirmedLoginCookies(parseCookieHeader(cookieHeader, domain))
+    }
+
+    @Throws(Exception::class)
+    suspend fun importConfirmedLoginCookiesJson(cookieJson: String, fallbackDomain: String): AuthSnapshot {
+        val cookies = Json.decodeFromString<List<WebCookiePayload>>(cookieJson)
+            .mapNotNull { it.toSessionCookie(fallbackDomain) }
+        return importConfirmedLoginCookies(cookies)
+    }
+
+    private suspend fun importConfirmedLoginCookies(cookies: List<SessionCookie>): AuthSnapshot {
+        sessionStore.saveCookies(cookies)
         val snapshot = try {
             verifyCurrentSession()
         } catch (error: Exception) {
@@ -150,6 +162,34 @@ class WebLoginFeature(
             }
     }
 
+}
+
+@Serializable
+private data class WebCookiePayload(
+    val name: String,
+    val value: String,
+    val domain: String? = null,
+    val path: String? = null,
+    val expiresAtEpochMillis: Long? = null,
+    val secure: Boolean = false,
+    val httpOnly: Boolean = false,
+) {
+    fun toSessionCookie(fallbackDomain: String): SessionCookie? {
+        val trimmedName = name.trim()
+        val trimmedValue = value.trim()
+        if (trimmedName.isBlank() || trimmedValue.isBlank()) {
+            return null
+        }
+        return SessionCookie(
+            name = trimmedName,
+            value = trimmedValue,
+            domain = domain?.takeIf { it.isNotBlank() } ?: fallbackDomain,
+            path = path?.takeIf { it.isNotBlank() } ?: "/",
+            expiresAtEpochMillis = expiresAtEpochMillis,
+            secure = secure,
+            httpOnly = httpOnly,
+        )
+    }
 }
 
 @Serializable
