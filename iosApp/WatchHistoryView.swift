@@ -16,7 +16,7 @@ struct WatchHistoryView: View {
         content
             .navigationTitle("观看历史")
             .refreshable {
-                viewModel.load()
+                await viewModel.refresh()
             }
             .onAppear {
                 viewModel.loadIfNeeded()
@@ -27,6 +27,8 @@ struct WatchHistoryView: View {
     private var content: some View {
         switch viewModel.state {
         case .idle:
+            ProgressView()
+        case .loading:
             ProgressView()
         case .failed(let message):
             VStack(spacing: 12) {
