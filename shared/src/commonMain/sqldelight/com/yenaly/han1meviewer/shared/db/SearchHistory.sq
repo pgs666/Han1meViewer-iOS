@@ -24,5 +24,9 @@ WHERE id NOT IN (
     LIMIT ?
 );
 
+deleteByKeyword:
+DELETE FROM search_history
+WHERE keyword = ?;
+
 deleteAll:
 DELETE FROM search_history;

@@ -90,8 +90,9 @@ class WebLoginFeature(
             snapshot
         } catch (error: Exception) {
             if (error is CancellationException) throw error
-            // Do not clear session on transient parse failures.
-            // Only clear when explicitly confirmed on the login page.
+            if (error.shouldClearSession()) {
+                clearSession()
+            }
             AuthSnapshot(
                 isLoggedIn = false,
                 message = error.message ?: "Login session could not be verified",

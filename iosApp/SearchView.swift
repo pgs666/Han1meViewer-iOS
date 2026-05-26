@@ -28,6 +28,8 @@ struct SearchView: View {
                 prompt: "搜索影片、标签或作者"
             )
             .onSubmit(of: .search) {
+                let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty || viewModel.filters.activeCount > 0 else { return }
                 viewModel.search(keyword: keyword)
             }
             .background(SearchTextFieldReturnKeyEnabler())
@@ -66,7 +68,6 @@ struct SearchView: View {
                     },
                     onReset: {
                         viewModel.resetFilters()
-                        viewModel.search(keyword: keyword, filters: SearchFilterState())
                     }
                 )
             }
@@ -240,6 +241,9 @@ struct SearchView: View {
                     .foregroundStyle(.secondary)
                 }
             }
+        }
+        .refreshable {
+            viewModel.search(keyword: keyword)
         }
         .listStyle(.insetGrouped)
     }
