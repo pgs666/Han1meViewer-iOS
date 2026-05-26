@@ -5,6 +5,7 @@ import Han1meShared
 final class WatchHistoryViewModel: ObservableObject {
     enum State {
         case idle
+        case loading
         case loaded(WatchHistoryScreenSnapshot)
         case failed(String)
     }
@@ -34,6 +35,7 @@ final class WatchHistoryViewModel: ObservableObject {
         loadTask?.cancel()
         requestGeneration += 1
         let generation = requestGeneration
+        state = .loading
         let feature = watchHistoryFeature
         loadTask = Task { [weak self] in
             guard let self else { return }
@@ -43,6 +45,18 @@ final class WatchHistoryViewModel: ObservableObject {
             guard !Task.isCancelled, generation == requestGeneration else { return }
             state = .loaded(WatchHistoryScreenSnapshot(snapshot))
         }
+    }
+
+    func refresh() async {
+        loadTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        let feature = watchHistoryFeature
+        let snapshot = await Task.detached {
+            feature.loadRecent()
+        }.value
+        guard !Task.isCancelled, generation == requestGeneration else { return }
+        state = .loaded(WatchHistoryScreenSnapshot(snapshot))
     }
 
     func delete(videoCode: String) {
