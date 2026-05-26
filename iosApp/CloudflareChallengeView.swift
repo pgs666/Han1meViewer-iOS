@@ -52,6 +52,8 @@ private struct CloudflareChallengeView: View {
                     cloudflareFeature: cloudflareFeature,
                     status: $status,
                     onResolved: {
+                        // Signal the shared layer that the challenge is resolved
+                        CloudflareChallengeCenter.signalChallengeResolved()
                         onResolved()
                         dismiss()
                     }
@@ -148,50 +150,54 @@ private struct CloudflareWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         private let cloudflareFeature: CloudflareFeature
+        private let status: Binding<ChallengeStatus>
         private let onResolved: () -> Void
         private weak var webView: WKWebView?
-        private let importStateQueue = DispatchQueue(label: "app.han1me.cloudflare.cookie-import")
-        private var didResolve = false
+
         private var isImporting = false
+        private var didResolve = false
+        private let importStateQueue = DispatchQueue(label: "com.han1me.cf-import-state")
+        private var pendingCookiesChangedWorkItem: DispatchWorkItem?
 
-        @Binding private var status: ChallengeStatus
-
-        init(
-            cloudflareFeature: CloudflareFeature,
-            status: Binding<ChallengeStatus>,
-            onResolved: @escaping () -> Void
-        ) {
+        init(cloudflareFeature: CloudflareFeature, status: Binding<ChallengeStatus>, onResolved: @escaping () -> Void) {
             self.cloudflareFeature = cloudflareFeature
+            self.status = status
             self.onResolved = onResolved
-            _status = status
         }
 
         func load(url: URL, in webView: WKWebView) {
             self.webView = webView
-            status = .loading
+            status.wrappedValue = .loading
             webView.load(URLRequest(url: url))
         }
 
         func detachWebView() {
+            pendingCookiesChangedWorkItem?.cancel()
+            pendingCookiesChangedWorkItem = nil
             webView = nil
         }
 
+        // MARK: - WKHTTPCookieStoreObserver
+
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
-            guard let webView else {
-                return
-            }
-            // Delay import to allow challenge to fully complete (match Android's 1s delay)
-            Task { @MainActor [weak self, weak webView] in
-                guard let self, let webView else { return }
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !self.isResolved else { return }
+            guard !isResolved else { return }
+
+            pendingCookiesChangedWorkItem?.cancel()
+
+            let workItem = DispatchWorkItem { [weak self, weak webView] in
+                guard let self, let webView, !self.isResolved else { return }
                 self.importClearanceCookies(from: webView)
             }
+            pendingCookiesChangedWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
         }
 
+        // MARK: - WKNavigationDelegate
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            if !isResolved {
-                status = .waiting
+            guard !isResolved else { return }
+            if status.wrappedValue == .loading {
+                status.wrappedValue = .waiting
                 // Check if challenge elements are gone before importing
                 let checkScript = """
                 (() => {
@@ -212,11 +218,11 @@ private struct CloudflareWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            status = .failed(ErrorMessage.userFriendly(error))
+            status.wrappedValue = .failed(ErrorMessage.userFriendly(error))
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-            status = .failed(ErrorMessage.userFriendly(error))
+            status.wrappedValue = .failed(ErrorMessage.userFriendly(error))
         }
 
         func importClearanceCookies(from webView: WKWebView) {
@@ -246,7 +252,7 @@ private struct CloudflareWebView: UIViewRepresentable {
                 }
 
                 Task { @MainActor in
-                    self.status = .importing
+                    self.status.wrappedValue = .importing
                     do {
                         let snapshot = try await self.cloudflareFeature.importChallengeCookiesJson(
                             cookieJson: cookieJson,
@@ -255,14 +261,14 @@ private struct CloudflareWebView: UIViewRepresentable {
                         self.finishImport()
                         if snapshot.hasClearance {
                             self.markResolved()
-                            self.status = .resolved
+                            self.status.wrappedValue = .resolved
                             self.onResolved()
                         } else {
-                            self.status = .waiting
+                            self.status.wrappedValue = .waiting
                         }
                     } catch {
                         self.finishImport()
-                        self.status = .failed(ErrorMessage.userFriendly(error))
+                        self.status.wrappedValue = .failed(ErrorMessage.userFriendly(error))
                     }
                 }
             }

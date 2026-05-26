@@ -52,14 +52,19 @@ final class HomeViewModel: ObservableObject {
 
     private func loadHome(generation: Int) async {
         do {
-            let snapshot = try await homeFeature.loadHome()
+            let snapshot = try await CloudflareRetryHandler().retryAfterCloudflareResolution(
+                onChallengeDetected: {
+                    CloudflareChallengeCenter.requestChallenge()
+                }
+            ) {
+                try await self.homeFeature.loadHome()
+            }
             guard !Task.isCancelled, generation == loadGeneration else { return }
             state = .loaded(HomeScreenSnapshot(snapshot))
         } catch is CancellationError {
             return
         } catch {
             guard !Task.isCancelled, generation == loadGeneration else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }
