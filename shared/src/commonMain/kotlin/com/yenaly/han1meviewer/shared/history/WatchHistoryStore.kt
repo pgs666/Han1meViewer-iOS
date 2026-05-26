@@ -30,19 +30,25 @@ class WatchHistoryStore(
         watchedAtEpochMillis: Long,
         playbackPositionMillis: Long = 0,
     ) {
-        val effectiveProgress = if (playbackPositionMillis > 0) {
-            playbackPositionMillis
+        val existing = find(videoCode)
+        if (existing != null) {
+            // Already exists: update title/cover but preserve watched_at
+            database.watchHistoryQueries.updateTitleAndCover(
+                title = title,
+                cover_url = coverUrl,
+                video_code = videoCode,
+            )
         } else {
-            find(videoCode)?.playbackPositionMillis ?: 0L
+            // New entry: insert with current timestamp
+            database.watchHistoryQueries.insertIfNotExists(
+                video_code = videoCode,
+                title = title,
+                cover_url = coverUrl,
+                watched_at_epoch_millis = watchedAtEpochMillis,
+                playback_position_millis = playbackPositionMillis.coerceAtLeast(0L),
+            )
+            database.watchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
         }
-        database.watchHistoryQueries.upsert(
-            video_code = videoCode,
-            title = title,
-            cover_url = coverUrl,
-            watched_at_epoch_millis = watchedAtEpochMillis,
-            playback_position_millis = effectiveProgress,
-        )
-        database.watchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
     }
 
 
