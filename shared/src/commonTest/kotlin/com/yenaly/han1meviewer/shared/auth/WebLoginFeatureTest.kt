@@ -1,6 +1,7 @@
 package com.yenaly.han1meviewer.shared.auth
 
 import com.yenaly.han1meviewer.shared.model.HomePage
+import com.yenaly.han1meviewer.shared.model.SessionCookie
 import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.session.MemorySessionStore
 import kotlinx.coroutines.test.runTest
@@ -120,6 +121,30 @@ class WebLoginFeatureTest {
 
         assertEquals(false, feature.currentSessionSnapshot().isLoggedIn)
         assertTrue(store.loadCookies().isNotEmpty())
+    }
+
+
+    @Test
+    fun confirmedImportReplacesOldLoginCookiesAndPreservesCloudflareCookie() = runTest {
+        val store = MemorySessionStore(
+            listOf(
+                SessionCookie(name = "hanime1_session", value = "old", domain = "hanime1.me"),
+                SessionCookie(name = "XSRF-TOKEN", value = "old-token", domain = "hanime1.me"),
+                SessionCookie(name = "cf_clearance", value = "cf", domain = "hanime1.me"),
+            )
+        )
+        val feature = WebLoginFeature(store, FakeHomeRepository.loggedIn())
+
+        feature.importConfirmedLoginCookieHeader(
+            cookieHeader = "hanime1_session=new-session; XSRF-TOKEN=new-token",
+            domain = "hanime1.me",
+        )
+
+        val cookies = store.loadCookies()
+        assertTrue(cookies.any { it.name == "cf_clearance" && it.value == "cf" })
+        assertTrue(cookies.any { it.name == "hanime1_session" && it.value == "new-session" })
+        assertTrue(cookies.any { it.name == "XSRF-TOKEN" && it.value == "new-token" })
+        assertTrue(cookies.none { it.value == "old" || it.value == "old-token" })
     }
 
     private class FakeHomeRepository(
