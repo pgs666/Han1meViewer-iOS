@@ -126,7 +126,7 @@ class KsoupHtmlParser : HtmlParser {
                 )
             }
         }.orEmpty().sortedBy { source ->
-            RESOLUTION_ORDER[source.label.removeSuffix("P")] ?: Int.MAX_VALUE
+            source.label.removeSuffix("P").toIntOrNull()?.let { -it } ?: Int.MAX_VALUE
         }.ifEmpty {
             body.selectFirst("div#player-div-wrapper")
                 ?.select("script")
@@ -595,16 +595,6 @@ class KsoupHtmlParser : HtmlParser {
         const val BASE_URI = "https://hanime1.me"
         val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""(?:觀看次數|观看次数|Views?)[:：]\s*(.+?)(?:次|views?)?\s+(\d{4}-\d{2}-\d{2})""", RegexOption.IGNORE_CASE)
         val COMMENT_COUNT_REGEX = Regex("""\d+""")
-        val RESOLUTION_ORDER = mapOf(
-            "2160" to 0,
-            "1440" to 1,
-            "1080" to 2,
-            "720" to 3,
-            "480" to 4,
-            "360" to 5,
-            "240" to 6,
-            "auto" to Int.MAX_VALUE - 1,
-        )
         val HOME_SECTION_MAPPINGS = listOf(
             0 to "latestRelease",
             1 to "latestHanime",
