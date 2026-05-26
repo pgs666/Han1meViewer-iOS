@@ -5,6 +5,7 @@ import Han1meShared
 final class OnlineWatchHistoryViewModel: PaginatedViewModel<OnlineWatchHistoryScreenSnapshot> {
     enum SortMode: String, CaseIterable, Identifiable {
         case latest
+        case popular
         case oldest
 
         var id: String { rawValue }
@@ -13,6 +14,8 @@ final class OnlineWatchHistoryViewModel: PaginatedViewModel<OnlineWatchHistorySc
             switch self {
             case .latest:
                 return String(localized: "online_history.sort.latest")
+            case .popular:
+                return String(localized: "online_history.sort.popular")
             case .oldest:
                 return String(localized: "online_history.sort.oldest")
             }
@@ -70,6 +73,8 @@ final class OnlineWatchHistoryViewModel: PaginatedViewModel<OnlineWatchHistorySc
             switch sortMode {
             case .latest:
                 snapshot = try await feature.loadLatest(page: page)
+            case .popular:
+                snapshot = try await feature.loadPopular(page: page)
             case .oldest:
                 snapshot = try await feature.loadOldest(page: page)
             }

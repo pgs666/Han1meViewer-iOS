@@ -80,6 +80,7 @@ data class UserVideoListPage(
 @Serializable
 enum class OnlineWatchHistorySort(val value: String) {
     Latest("latest"),
+    Popular("popular"),
     Oldest("oldest"),
 }
 
