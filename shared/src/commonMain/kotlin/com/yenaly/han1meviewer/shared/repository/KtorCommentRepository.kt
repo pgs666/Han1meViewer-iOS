@@ -106,6 +106,7 @@ class KtorCommentRepository(
             cookieHeader?.let { header(HttpHeaders.Cookie, it) }
         }
         cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to post reply.")
     }
 
     override suspend fun likeComment(
