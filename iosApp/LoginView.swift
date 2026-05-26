@@ -126,6 +126,8 @@ private struct WebLoginView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
+        context.coordinator.webView = webView
+        webView.configuration.websiteDataStore.httpCookieStore.add(context.coordinator)
         context.coordinator.reloadToken = reloadToken
         context.coordinator.loadLoginPage(in: webView)
         return webView
@@ -138,8 +140,14 @@ private struct WebLoginView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.websiteDataStore.httpCookieStore.remove(coordinator)
+        coordinator.webView = nil
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         var reloadToken: UUID?
+        weak var webView: WKWebView?
 
         private let webLoginFeature: WebLoginFeature
         private let onLoginSuccess: () -> Void
@@ -170,6 +178,9 @@ private struct WebLoginView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             status = .idle
+            if isPotentialLoginCompletionURL(webView.url) {
+                scheduleCookieImport(from: webView, reportErrors: false)
+            }
             evaluateLoginSuccess(in: webView)
         }
 
@@ -186,7 +197,15 @@ private struct WebLoginView: UIViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
+            if isPotentialLoginCompletionURL(navigationAction.request.url) {
+                scheduleCookieImport(from: webView, reportErrors: false)
+            }
             decisionHandler(.allow)
+        }
+
+        func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
+            guard let webView else { return }
+            scheduleCookieImport(from: webView, reportErrors: false)
         }
 
         private func evaluateLoginSuccess(in webView: WKWebView) {
@@ -212,12 +231,30 @@ private struct WebLoginView: UIViewRepresentable {
                     return
                 }
                 Task { @MainActor in
-                    self.importConfirmedLoginCookies(from: webView)
+                    self.scheduleCookieImport(from: webView, reportErrors: true)
                 }
             }
         }
 
-        private func importConfirmedLoginCookies(from webView: WKWebView) {
+        private func isPotentialLoginCompletionURL(_ url: URL?) -> Bool {
+            guard let url,
+                  let host = url.host,
+                  host.contains("hanime1.me") else {
+                return false
+            }
+            let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+            return path != "login"
+        }
+
+        private func scheduleCookieImport(from webView: WKWebView, reportErrors: Bool) {
+            Task { @MainActor [weak self, weak webView] in
+                guard let self, let webView else { return }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                self.importConfirmedLoginCookies(from: webView, reportErrors: reportErrors)
+            }
+        }
+
+        private func importConfirmedLoginCookies(from webView: WKWebView, reportErrors: Bool) {
             guard !didCompleteLogin, !isImportingLogin else {
                 return
             }
@@ -257,7 +294,9 @@ private struct WebLoginView: UIViewRepresentable {
                         }
                     } catch {
                         self.isImportingLogin = false
-                        self.status = .failed(ErrorMessage.userFriendly(error))
+                        if reportErrors {
+                            self.status = .failed(ErrorMessage.userFriendly(error))
+                        }
                     }
                 }
             }
