@@ -9,11 +9,12 @@ class SearchHistoryStore(
         return database.searchHistoryQueries.selectRecent(limit, ::mapHistoryItem).executeAsList()
     }
 
-    fun record(keyword: String, filterSummary: String, searchedAtEpochMillis: Long) {
+    fun record(keyword: String, filterSummary: String, filterData: String = "", searchedAtEpochMillis: Long) {
         database.searchHistoryQueries.deleteByKeyword(keyword)
         database.searchHistoryQueries.insert(
             keyword = keyword,
             filter_summary = filterSummary,
+            filter_data = filterData,
             searched_at_epoch_millis = searchedAtEpochMillis,
         )
         database.searchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
@@ -27,6 +28,7 @@ class SearchHistoryStore(
         id: Long,
         keyword: String,
         filterSummary: String,
+        filterData: String,
         searchedAtEpochMillis: Long,
     ): SearchHistoryItem {
         val decoded = decodeHistoryValue(keyword, filterSummary)
@@ -34,6 +36,7 @@ class SearchHistoryStore(
             id = id,
             keyword = decoded.first,
             filterSummary = decoded.second,
+            filterData = filterData,
             searchedAtEpochMillis = searchedAtEpochMillis,
         )
     }
@@ -57,5 +60,6 @@ data class SearchHistoryItem(
     val id: Long,
     val keyword: String,
     val filterSummary: String,
+    val filterData: String = "",
     val searchedAtEpochMillis: Long,
 )

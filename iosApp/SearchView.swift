@@ -138,7 +138,7 @@ struct SearchView: View {
                             ForEach(viewModel.history) { item in
                                 Button {
                                     keyword = item.keyword
-                                    viewModel.search(keyword: item.keyword)
+                                    viewModel.restoreFromHistory(item)
                                 } label: {
                                     HStack {
                                         Image(systemName: "clock.arrow.circlepath")
