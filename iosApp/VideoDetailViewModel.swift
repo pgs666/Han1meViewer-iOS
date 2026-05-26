@@ -300,6 +300,41 @@ final class VideoDetailViewModel: ObservableObject {
         currentPlayerSourceID = nil
         didApplyRestoredPlaybackPosition = false
     }
+
+    private func observePlayerItemErrors(_ player: AVPlayer) {
+        removePlayerObservers()
+
+        // Observe player item status changes for errors
+        if let item = player.currentItem {
+            playerItemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+                guard item.status == .failed else { return }
+                let message = item.error?.localizedDescription ?? "Video playback failed."
+                Task { @MainActor [weak self] in
+                    self?.playerError = message
+                }
+            }
+        }
+
+        // Observe failedToPlayToEndTime notification
+        failedToPlayObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: player.currentItem,
+            queue: .main
+        ) { [weak self] notification in
+            let message = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?
+                .localizedDescription ?? "Video playback failed to reach end."
+            self?.playerError = message
+        }
+    }
+
+    private func removePlayerObservers() {
+        playerItemStatusObservation?.invalidate()
+        playerItemStatusObservation = nil
+        if let observer = failedToPlayObserver {
+            NotificationCenter.default.removeObserver(observer)
+            failedToPlayObserver = nil
+        }
+    }
 }
 
 struct VideoActionMessage: Identifiable {
@@ -604,42 +639,6 @@ struct VideoMyListRow: Identifiable, Hashable {
 
     func updatingSelection(_ isSelected: Bool) -> VideoMyListRow {
         VideoMyListRow(code: code, title: title, isSelected: isSelected)
-    }
-}
-
-    private func observePlayerItemErrors(_ player: AVPlayer) {
-        removePlayerObservers()
-
-        // Observe player item status changes for errors
-        if let item = player.currentItem {
-            playerItemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-                guard item.status == .failed else { return }
-                let message = item.error?.localizedDescription ?? "Video playback failed."
-                Task { @MainActor [weak self] in
-                    self?.playerError = message
-                }
-            }
-        }
-
-        // Observe failedToPlayToEndTime notification
-        failedToPlayObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemFailedToPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { [weak self] notification in
-            let message = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?
-                .localizedDescription ?? "Video playback failed to reach end."
-            self?.playerError = message
-        }
-    }
-
-    private func removePlayerObservers() {
-        playerItemStatusObservation?.invalidate()
-        playerItemStatusObservation = nil
-        if let observer = failedToPlayObserver {
-            NotificationCenter.default.removeObserver(observer)
-            failedToPlayObserver = nil
-        }
     }
 }
 
