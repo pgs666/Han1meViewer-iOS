@@ -10,6 +10,7 @@ class SearchHistoryStore(
     }
 
     fun record(keyword: String, filterSummary: String, searchedAtEpochMillis: Long) {
+        database.searchHistoryQueries.deleteByKeyword(keyword)
         database.searchHistoryQueries.insert(
             keyword = keyword,
             filter_summary = filterSummary,

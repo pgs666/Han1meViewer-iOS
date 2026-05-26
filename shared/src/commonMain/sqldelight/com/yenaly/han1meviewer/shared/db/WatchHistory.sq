@@ -42,3 +42,8 @@ WHERE video_code NOT IN (
 
 deleteAll:
 DELETE FROM watch_history;
+
+updateProgress:
+UPDATE watch_history
+SET playback_position_millis = ?
+WHERE video_code = ?;

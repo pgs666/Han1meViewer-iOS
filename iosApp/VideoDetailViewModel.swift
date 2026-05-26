@@ -117,8 +117,6 @@ final class VideoDetailViewModel: ObservableObject {
 
         videoFeature.recordPlaybackPosition(
             videoCode: snapshot.videoCode,
-            title: snapshot.title,
-            coverUrl: snapshot.coverUrl,
             playbackPositionMillis: currentTimeMillis
         )
     }
@@ -137,6 +135,10 @@ final class VideoDetailViewModel: ObservableObject {
     }
 
     func toggleFavorite(snapshot: VideoDetailScreenSnapshot) {
+        guard snapshot.currentUserId != nil else {
+            showActionMessage(String(localized: "video.action.login_required"))
+            return
+        }
         runAction(id: "favorite") {
             let nextValue = !snapshot.isFav
             try await self.videoFeature.setFavorite(
@@ -152,6 +154,10 @@ final class VideoDetailViewModel: ObservableObject {
     }
 
     func toggleWatchLater(snapshot: VideoDetailScreenSnapshot) {
+        guard snapshot.currentUserId != nil else {
+            showActionMessage(String(localized: "video.action.login_required"))
+            return
+        }
         runAction(id: "watchLater") {
             let nextValue = !snapshot.isWatchLater
             try await self.videoFeature.setMyListItem(
@@ -167,6 +173,10 @@ final class VideoDetailViewModel: ObservableObject {
     }
 
     func setMyListItem(snapshot: VideoDetailScreenSnapshot, item: VideoMyListRow, isSelected: Bool) {
+        guard snapshot.currentUserId != nil else {
+            showActionMessage(String(localized: "video.action.login_required"))
+            return
+        }
         runAction(id: "myList-\(item.code)") {
             try await self.videoFeature.setMyListItem(
                 listCode: item.code,

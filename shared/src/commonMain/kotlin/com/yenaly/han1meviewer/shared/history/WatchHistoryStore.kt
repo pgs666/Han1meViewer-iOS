@@ -31,6 +31,13 @@ class WatchHistoryStore(
         database.watchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
     }
 
+
+    fun updateProgress(videoCode: String, playbackPositionMillis: Long) {
+        database.watchHistoryQueries.updateProgress(
+            playback_position_millis = playbackPositionMillis.coerceAtLeast(0L),
+            video_code = videoCode,
+        )
+    }
     fun delete(videoCode: String) {
         database.watchHistoryQueries.deleteByVideoCode(videoCode)
     }

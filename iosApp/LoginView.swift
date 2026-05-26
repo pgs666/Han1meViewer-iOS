@@ -153,6 +153,7 @@ private struct WebLoginView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         var reloadToken: UUID?
         weak var webView: WKWebView?
+        private let importStateQueue = DispatchQueue(label: "app.han1me.login.cookie-import")
 
         private let webLoginFeature: WebLoginFeature
         private let onLoginSuccess: () -> Void
@@ -214,9 +215,11 @@ private struct WebLoginView: UIViewRepresentable {
         }
 
         private func evaluateLoginSuccess(in webView: WKWebView) {
-            guard !didCompleteLogin, !isImportingLogin else {
+            guard tryBeginImport() else {
                 return
             }
+            // Reset so the actual import can proceed if JS detects login
+            importStateQueue.sync { isImportingLogin = false }
 
             let script = """
             (() => {
@@ -260,10 +263,9 @@ private struct WebLoginView: UIViewRepresentable {
         }
 
         private func importConfirmedLoginCookies(from webView: WKWebView, reportErrors: Bool) {
-            guard !didCompleteLogin, !isImportingLogin else {
+            guard tryBeginImport() else {
                 return
             }
-            isImportingLogin = true
 
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
                 guard let self = self else { return }
@@ -275,14 +277,14 @@ private struct WebLoginView: UIViewRepresentable {
 
                 guard let cookieJson, !cookieJson.isEmpty else {
                     Task { @MainActor in
-                        self.isImportingLogin = false
+                        self.finishImport()
                     }
                     return
                 }
 
                 Task { @MainActor in
-                    guard !self.didCompleteLogin else {
-                        self.isImportingLogin = false
+                    guard !self.isResolved() else {
+                        self.finishImport()
                         return
                     }
                     do {
@@ -292,18 +294,47 @@ private struct WebLoginView: UIViewRepresentable {
                         )
                         if snapshot.isLoggedIn {
                             self.status = .imported
-                            self.didCompleteLogin = true
+                            self.markResolved()
                             self.onLoginSuccess()
                         } else {
-                            self.isImportingLogin = false
+                            self.finishImport()
                         }
                     } catch {
-                        self.isImportingLogin = false
+                        self.finishImport()
                         if reportErrors {
                             self.status = .failed(ErrorMessage.userFriendly(error))
                         }
                     }
                 }
+            }
+        }
+
+        private func tryBeginImport() -> Bool {
+            importStateQueue.sync {
+                guard !didCompleteLogin, !isImportingLogin else {
+                    return false
+                }
+                isImportingLogin = true
+                return true
+            }
+        }
+
+        private func finishImport() {
+            importStateQueue.sync {
+                isImportingLogin = false
+            }
+        }
+
+        private func markResolved() {
+            importStateQueue.sync {
+                didCompleteLogin = true
+                isImportingLogin = false
+            }
+        }
+
+        private func isResolved() -> Bool {
+            importStateQueue.sync {
+                didCompleteLogin
             }
         }
     }

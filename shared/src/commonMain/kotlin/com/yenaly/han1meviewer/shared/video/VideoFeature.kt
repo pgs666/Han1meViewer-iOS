@@ -98,15 +98,10 @@ class VideoFeature(
 
     fun recordPlaybackPosition(
         videoCode: String,
-        title: String,
-        coverUrl: String?,
         playbackPositionMillis: Long,
     ) {
-        watchHistoryStore?.record(
+        watchHistoryStore?.updateProgress(
             videoCode = videoCode,
-            title = title.ifBlank { "Untitled" },
-            coverUrl = coverUrl,
-            watchedAtEpochMillis = currentEpochMillis(),
             playbackPositionMillis = playbackPositionMillis.coerceAtLeast(0L),
         )
     }
