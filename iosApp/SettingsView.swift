@@ -23,122 +23,12 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("播放设置") {
-                Picker("默认画质", selection: $defaultVideoQuality) {
-                    Text("2160P").tag("2160P")
-                    Text("1440P").tag("1440P")
-                    Text("1080P").tag("1080P")
-                    Text("720P").tag("720P")
-                    Text("480P").tag("480P")
-                    Text("360P").tag("360P")
-                }
-                .onChange(of: defaultVideoQuality) { _, newValue in
-                    environment.preferences().defaultVideoQuality.set(newValue)
-                }
-
-                Picker("字幕语言", selection: $videoLanguage) {
-                    Text("繁体中文").tag("cht")
-                    Text("简体中文").tag("chs")
-                    Text("日文").tag("jp")
-                    Text("英文").tag("en")
-                }
-                .onChange(of: videoLanguage) { _, newValue in
-                    environment.preferences().videoLanguage.set(newValue)
-                }
-
-                HStack {
-                    Text("播放速度")
-                    Spacer()
-                    Text(String(format: "%.2fx", playerSpeed))
-                        .foregroundStyle(.secondary)
-                }
-                Slider(value: $playerSpeed, in: 0.5...3.0, step: 0.25) {
-                    Text("播放速度")
-                } minimumValueLabel: {
-                    Text("0.5x")
-                        .font(.caption)
-                } maximumValueLabel: {
-                    Text("3.0x")
-                        .font(.caption)
-                }
-                .onChange(of: playerSpeed) { _, newValue in
-                    environment.preferences().playerSpeed.set(newValue)
-                }
-
-                Toggle("自动恢复播放进度", isOn: $allowResumePlayback)
-                    .onChange(of: allowResumePlayback) { _, newValue in
-                        environment.preferences().allowResumePlayback.set(newValue)
-                    }
-            }
-
-            Section("界面") {
-                Toggle("显示已看标记", isOn: $showPlayedIndicator)
-                    .onChange(of: showPlayedIndicator) { _, newValue in
-                        environment.preferences().showPlayedIndicator.set(newValue)
-                    }
-
-                Toggle("底部进度条", isOn: $showBottomProgress)
-                    .onChange(of: showBottomProgress) { _, newValue in
-                        environment.preferences().showBottomProgress.set(newValue)
-                    }
-            }
-
-            Section("应用") {
-                SettingsInfoRow(title: "版本", value: appVersion)
-                if let repositoryURL = URL(string: "https://github.com/pgs666/Han1meViewer-iOS") {
-                    Link(destination: repositoryURL) {
-                        SettingsNavigationRow(title: "项目仓库", systemImage: "chevron.left.forwardslash.chevron.right")
-                    }
-                }
-                if let siteURL = URL(string: "https://hanime1.me") {
-                    Link(destination: siteURL) {
-                        SettingsNavigationRow(title: "打开网站", systemImage: "safari")
-                    }
-                }
-            }
-
-            Section {
-                localDataActions
-            } header: {
-                Text("本地数据")
-            } footer: {
-                Text("这里只清除 iOS 本地数据，不会修改网站账号里的在线记录。")
-            }
-
-            Section {
-                Button(role: .destructive) {
-                    Task {
-                        await refreshCacheSize()
-                    }
-                    activeConfirmation = .clearCache
-                } label: {
-                    SettingsNavigationRow(title: "清除缓存（\(cacheSizeText)）", systemImage: "trash")
-                }
-            } header: {
-                Text("缓存")
-            } footer: {
-                Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
-            }
-
-            if let crashReportSummary {
-                Section {
-                    Text(crashReportSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                    Button(role: .destructive) {
-                        CrashReporter.clearReports()
-                        self.crashReportSummary = nil
-                        resultMessage = "崩溃报告已清除。"
-                    } label: {
-                        SettingsNavigationRow(title: "清除崩溃报告", systemImage: "xmark.bin")
-                    }
-                } header: {
-                    Text("崩溃报告")
-                } footer: {
-                    Text("仅保存在本机，用于复现和定位上次异常退出。")
-                }
-            }
+            playbackSettingsSection
+            uiSection
+            appInfoSection
+            localDataSection
+            cacheSection
+            crashReportSection
         }
         .navigationTitle("设置")
         .confirmationDialog(
@@ -168,6 +58,135 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Sections
+
+    @ViewBuilder
+    private var playbackSettingsSection: some View {
+        Section("播放设置") {
+            Picker("默认画质", selection: $defaultVideoQuality) {
+                Text("2160P").tag("2160P")
+                Text("1440P").tag("1440P")
+                Text("1080P").tag("1080P")
+                Text("720P").tag("720P")
+                Text("480P").tag("480P")
+                Text("360P").tag("360P")
+            }
+            .onChange(of: defaultVideoQuality) { _, newValue in
+                environment.preferences().defaultVideoQuality.set(newValue)
+            }
+
+            Picker("字幕语言", selection: $videoLanguage) {
+                Text("繁体中文").tag("cht")
+                Text("简体中文").tag("chs")
+                Text("日文").tag("jp")
+                Text("英文").tag("en")
+            }
+            .onChange(of: videoLanguage) { _, newValue in
+                environment.preferences().videoLanguage.set(newValue)
+            }
+
+            HStack {
+                Text("播放速度")
+                Spacer()
+                Text(String(format: "%.2fx", playerSpeed))
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $playerSpeed, in: 0.5...3.0, step: 0.25) {
+                Text("播放速度")
+            } minimumValueLabel: {
+                Text("0.5x")
+                    .font(.caption)
+            } maximumValueLabel: {
+                Text("3.0x")
+                    .font(.caption)
+            }
+            .onChange(of: playerSpeed) { _, newValue in
+                environment.preferences().playerSpeed.set(newValue)
+            }
+
+            Toggle("自动恢复播放进度", isOn: $allowResumePlayback)
+                .onChange(of: allowResumePlayback) { _, newValue in
+                    environment.preferences().allowResumePlayback.set(newValue)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var uiSection: some View {
+        Section("界面") {
+            Toggle("显示已看标记", isOn: $showPlayedIndicator)
+                .onChange(of: showPlayedIndicator) { _, newValue in
+                    environment.preferences().showPlayedIndicator.set(newValue)
+                }
+
+            Toggle("底部进度条", isOn: $showBottomProgress)
+                .onChange(of: showBottomProgress) { _, newValue in
+                    environment.preferences().showBottomProgress.set(newValue)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var appInfoSection: some View {
+        Section("应用") {
+            SettingsInfoRow(title: "版本", value: appVersion)
+            if let repositoryURL = URL(string: "https://github.com/pgs666/Han1meViewer-iOS") {
+                Link(destination: repositoryURL) {
+                    SettingsNavigationRow(title: "项目仓库", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+            }
+            if let siteURL = URL(string: "https://hanime1.me") {
+                Link(destination: siteURL) {
+                    SettingsNavigationRow(title: "打开网站", systemImage: "safari")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var localDataSection: some View {
+        Section {
+            localDataActions
+        } header: {
+            Text("本地数据")
+        } footer: {
+            Text("这里只清除 iOS 本地数据，不会修改网站账号里的在线记录。")
+        }
+    }
+
+    @ViewBuilder
+    private var cacheSection: some View {
+        Section {
+            Button(role: .destructive) {
+                Task {
+                    await refreshCacheSize()
+                }
+                activeConfirmation = .clearCache
+            } label: {
+                SettingsNavigationRow(title: "清除缓存（\(cacheSizeText)）", systemImage: "trash")
+            }
+        } header: {
+            Text("缓存")
+        } footer: {
+            Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
+        }
+    }
+
+    @ViewBuilder
+    private var crashReportSection: some View {
+        if let crashReportSummary {
+            Section {
+                SettingsInfoRow(title: "上次异常", value: crashReportSummary)
+            } header: {
+                Text("崩溃报告")
+            } footer: {
+                Text("如果应用上次异常退出，这里会显示最后记录的异常摘要，帮助定位上次异常退出。")
+            }
+        }
+    }
+
+    // MARK: - Preferences
+
     private func loadPreferences() {
         let prefs = environment.preferences()
         defaultVideoQuality = prefs.defaultVideoQuality.get()
@@ -177,6 +196,8 @@ struct SettingsView: View {
         showPlayedIndicator = prefs.showPlayedIndicator.get()
         showBottomProgress = prefs.showBottomProgress.get()
     }
+
+    // MARK: - Helpers
 
     private var appVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
