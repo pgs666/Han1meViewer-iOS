@@ -243,11 +243,7 @@ final class CommentViewModel: ObservableObject {
 
     private func loadComments(generation: Int) async {
         do {
-            let snapshot = try await CloudflareRetryHandler().retryAfterCloudflareResolution(
-                onChallengeDetected: {
-                    CloudflareChallengeCenter.requestChallenge()
-                }
-            ) {
+            let snapshot = try await CloudflareRetryCenter.retryOnCloudflare {
                 try await self.feature.loadVideoComments(videoCode: self.videoCode)
             }
             guard !Task.isCancelled, generation == requestGeneration else { return }

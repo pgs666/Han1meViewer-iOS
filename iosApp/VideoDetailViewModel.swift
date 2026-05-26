@@ -69,11 +69,7 @@ final class VideoDetailViewModel: ObservableObject {
         }
 
         do {
-            let snapshot = try await CloudflareRetryHandler().retryAfterCloudflareResolution(
-                onChallengeDetected: {
-                    CloudflareChallengeCenter.requestChallenge()
-                }
-            ) {
+            let snapshot = try await CloudflareRetryCenter.retryOnCloudflare {
                 try await self.videoFeature.loadVideo(videoCode: videoCode)
             }
             guard !Task.isCancelled, loadingVideoCode == videoCode else { return }

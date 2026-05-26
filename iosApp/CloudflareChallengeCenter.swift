@@ -29,16 +29,4 @@ enum CloudflareChallengeCenter {
             )
         }
     }
-
-    /// Called when the CF challenge is resolved successfully.
-    /// This signals the shared layer to retry the failed request.
-    static func signalChallengeResolved() {
-        CloudflareRetryHandler.shared.signalResolved()
-    }
-
-    /// Called when the CF challenge fails.
-    /// This signals the shared layer that the challenge failed.
-    static func signalChallengeFailed(reason: String) {
-        CloudflareRetryHandler.shared.signalFailed(reason: reason)
-    }
 }
