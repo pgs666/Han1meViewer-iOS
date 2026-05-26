@@ -76,6 +76,15 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
         }
     }
 
+    func resetPaginationToIdle() {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        requestGeneration += 1
+        currentPage = 0
+        hasNextPage = false
+        state = .idle
+    }
+
     var currentGeneration: Int { requestGeneration }
 
     func applyLoadResult(_ snapshot: S) {
