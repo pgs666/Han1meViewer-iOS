@@ -46,6 +46,7 @@ class WebLoginFeature(
     }
 
     private suspend fun importConfirmedLoginCookies(cookies: List<SessionCookie>): AuthSnapshot {
+        sessionStore.clearLoginCookies()
         sessionStore.saveCookies(cookies)
         val snapshot = try {
             verifyCurrentSession()
