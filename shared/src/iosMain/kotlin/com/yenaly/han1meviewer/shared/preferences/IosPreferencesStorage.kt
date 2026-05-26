@@ -3,8 +3,10 @@ package com.yenaly.han1meviewer.shared.preferences
 import platform.Foundation.NSUserDefaults
 
 class IosPreferencesStorage(
-    private val defaults: NSUserDefaults = NSUserDefaults.standardUserDefaults,
+    private val defaults: NSUserDefaults,
 ) : PreferencesStorage {
+    constructor() : this(NSUserDefaults.standardUserDefaults)
+
     override fun getString(key: String, defaultValue: String): String =
         defaults.stringForKey(key) ?: defaultValue
 
