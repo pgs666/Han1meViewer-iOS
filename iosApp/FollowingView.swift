@@ -25,6 +25,7 @@ struct FollowingView: View {
                             viewModel.load()
                         } label: {
                             Image(systemName: "arrow.clockwise")
+                            .foregroundStyle(.white)
                         }
                         .disabled(isLoading)
                     }
