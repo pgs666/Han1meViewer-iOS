@@ -8,6 +8,8 @@ final class MineViewModel: ObservableObject {
     @Published private(set) var profile = MineProfileSnapshot()
     @Published private(set) var errorMessage: String?
 
+    private static let loginCheckTimeoutNanoseconds: UInt64 = 20_000_000_000
+
     private let webLoginFeature: WebLoginFeature
     private let homeFeature: HomeFeature
     private var didLoadLoginState = false
@@ -44,7 +46,13 @@ final class MineViewModel: ObservableObject {
         let generation = requestGeneration
         sessionTask = Task { [weak self] in
             guard let self else { return }
+            let timeoutTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: Self.loginCheckTimeoutNanoseconds)
+                guard !Task.isCancelled else { return }
+                await self?.failLoginCheckOnTimeout(generation: generation)
+            }
             defer {
+                timeoutTask.cancel()
                 if generation == requestGeneration {
                     isCheckingLogin = false
                 }
@@ -119,6 +127,17 @@ final class MineViewModel: ObservableObject {
                 errorMessage = ErrorMessage.userFriendly(error)
             }
         }
+    }
+
+    private func failLoginCheckOnTimeout(generation: Int) {
+        guard generation == requestGeneration, isCheckingLogin else {
+            return
+        }
+        requestGeneration += 1
+        sessionTask?.cancel()
+        profileTask?.cancel()
+        isCheckingLogin = false
+        errorMessage = String(localized: "error.timeout")
     }
 
     private func loadProfile(generation: Int) async {
