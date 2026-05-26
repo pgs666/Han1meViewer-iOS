@@ -8,11 +8,14 @@ class CookieHeaderProvider(
 ) {
     suspend fun buildCookieHeader(domain: String, requestPath: String = "/", isSecureTransport: Boolean = true): String? {
         val now = currentEpochMillis()
-        val cookies = sessionStore.loadCookies()
+        val storedCookies = sessionStore.loadCookies()
             .filter { cookie -> cookie.matchesDomain(domain) }
             .filter { cookie -> cookie.matchesPath(requestPath) }
             .filter { cookie -> cookie.expiresAtEpochMillis == null || cookie.expiresAtEpochMillis > now }
             .filter { cookie -> !cookie.secure || isSecureTransport }
+        val prefCookies = preferencesCookies(domain)
+            .filter { pref -> storedCookies.none { it.name == pref.name } }
+        val cookies = storedCookies + prefCookies
 
         if (cookies.isEmpty()) return null
         return cookies
@@ -22,6 +25,21 @@ class CookieHeaderProvider(
                 .thenBy { cookie -> cookie.domain.startsWith(".") })
             .distinctBy { cookie -> cookie.name }
             .joinToString(separator = "; ") { cookie -> "${cookie.name}=${cookie.value}" }
+    }
+
+    /**
+     * Returns preference cookies that should be sent with every request.
+     * These persist across login/logout (like Android's preferencesCookieList).
+     * The video language defaults to the device locale and can be overridden via settings.
+     */
+    fun preferencesCookies(domain: String, videoLanguage: String = "zh-TW"): List<SessionCookie> {
+        return listOf(
+            SessionCookie(
+                name = "user_lang",
+                value = videoLanguage,
+                domain = domain,
+            )
+        )
     }
 
     suspend fun saveResponseCookies(cookies: List<SessionCookie>) {
