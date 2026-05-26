@@ -92,5 +92,28 @@ class KtorUserVideoListRepository(
         }
     }
 
-
+    override suspend fun addToMyList(
+        listCode: String,
+        videoCode: String,
+        isChecked: Boolean,
+        csrfToken: String?,
+    ) {
+        val token = requireMutationCsrfToken(csrfToken)
+        val cookieHeader = cookieBridge.storedCookieHeader()
+        val response = client.submitForm(
+            url = "$baseUrl/save",
+            formParameters = parameters {
+                append("_token", token)
+                append("input_id", listCode)
+                append("video_id", videoCode)
+                append("is_checked", if (isChecked) "1" else "0")
+            },
+        ) {
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+            header("X-CSRF-TOKEN", token)
+            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+        }
+        cookieBridge.saveResponseCookies(response)
+        requireSuccessfulMutation(response, "Failed to update list state.")
+    }
 }

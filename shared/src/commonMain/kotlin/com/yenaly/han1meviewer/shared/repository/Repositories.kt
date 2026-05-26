@@ -63,10 +63,32 @@ interface UserVideoListRepository {
         videoCode: String,
         csrfToken: String?,
     )
+
+    suspend fun addToMyList(
+        listCode: String,
+        videoCode: String,
+        isChecked: Boolean,
+        csrfToken: String?,
+    )
 }
 
 interface UserPlaylistRepository {
     suspend fun getPlaylists(userId: String, page: Int): UserPlaylistPage
+
+    suspend fun createPlaylist(
+        csrfToken: String?,
+        videoCode: String,
+        title: String,
+        description: String,
+    )
+
+    suspend fun modifyPlaylist(
+        listCode: String,
+        title: String,
+        description: String,
+        delete: Boolean = false,
+        csrfToken: String?,
+    )
 }
 
 interface OnlineWatchHistoryRepository {
