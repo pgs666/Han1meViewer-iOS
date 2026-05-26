@@ -18,7 +18,8 @@ Now it is black before loading finishes, but after loading finishes it changes b
 - A plain button plus explicit primary template rendering avoids the toolbar button being recolored by the global accent tint.
 
 ## Verification
-- Pending CI after push.
+- GitHub Actions `iOS App Build` passed for run `26445909312`.
+- CI steps included shared JVM tests, Xcode project generation, unsigned device app build, IPA packaging, and artifact upload.
 - No local Swift build is available in this Linux environment.
 
 ## Mistakes
