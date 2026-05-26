@@ -39,7 +39,7 @@ struct LoginView: View {
         }
     }
 
-    private static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
+    fileprivate static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
         let payload: [[String: Any]] = cookies.compactMap { cookie in
             guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
                 return nil
@@ -102,7 +102,7 @@ private struct WebLoginStatusBar: View {
         .background(Color(.secondarySystemBackground))
     }
 
-    private static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
+    fileprivate static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
         let payload: [[String: Any]] = cookies.compactMap { cookie in
             guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
                 return nil
@@ -292,7 +292,7 @@ private struct WebLoginView: UIViewRepresentable {
         }
     }
 
-    private static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
+    fileprivate static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
         let payload: [[String: Any]] = cookies.compactMap { cookie in
             guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
                 return nil
