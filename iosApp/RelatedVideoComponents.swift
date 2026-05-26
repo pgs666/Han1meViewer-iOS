@@ -146,11 +146,7 @@ struct TabletRelatedVideoRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: video.coverURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Rectangle().fill(Color.secondary.opacity(0.15))
-                }
+                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 128)
                 .frame(width: 128, height: 72)
                 .clipped()
 
@@ -195,11 +191,7 @@ struct RelatedVideoCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottomLeading) {
-                AsyncImage(url: video.coverURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Rectangle().fill(Color.secondary.opacity(0.15))
-                }
+                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
                 .frame(height: 96)
                 .clipped()
 

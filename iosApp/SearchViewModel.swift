@@ -9,6 +9,7 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
     private let searchFeature: SearchFeature
     private var currentKeyword = ""
     private var currentFilters = SearchFilterState()
+    private var currentRecordHistory = false
     private var didLoadHistory = false
 
     init(searchFeature: SearchFeature) {
@@ -48,8 +49,10 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
     func showHistory() {
         loadHistory()
         currentKeyword = ""
+        currentFilters = SearchFilterState()
+        currentRecordHistory = false
         filters.reset()
-        state = .idle
+        resetPaginationToIdle()
     }
 
     func search(keyword: String, filters: SearchFilterState? = nil, recordHistory: Bool = true) {
@@ -57,6 +60,7 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
         let nextFilters = filters ?? self.filters
         currentKeyword = trimmedKeyword
         currentFilters = nextFilters
+        currentRecordHistory = recordHistory
         self.filters = nextFilters
         super.load()
     }
@@ -83,11 +87,11 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
                 brands: currentFilters.selectedBrandKeys.joined(separator: "\n"),
                 filterSummary: currentFilters.summaryItems.joined(separator: " · "),
                 page: page,
-                recordHistory: page == 1
+                recordHistory: currentRecordHistory && page == 1
             )
             guard !Task.isCancelled, generation == currentGeneration else { return }
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
-            if page == 1 {
+            if currentRecordHistory && page == 1 {
                 loadHistory()
             }
             applyLoadResult(screenSnapshot)
