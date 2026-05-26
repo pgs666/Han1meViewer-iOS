@@ -18,7 +18,8 @@ I want the button to be unclickable while checking login status. Currently, tapp
 - The old branching checked `isLoggedIn` first, so tapping during refresh could enter the logout flow before the session check completed.
 
 ## Verification
-- Pending CI after push.
+- GitHub Actions `iOS App Build` passed for run `26444687889`.
+- CI steps included shared JVM tests, Xcode project generation, unsigned device app build, IPA packaging, and artifact upload.
 - No local Swift build is available in this Linux environment.
 
 ## Mistakes
