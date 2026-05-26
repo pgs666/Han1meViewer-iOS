@@ -32,6 +32,10 @@ class SqlDelightSessionStore(
         database.sessionCookieQueries.deleteAll()
     }
 
+    override suspend fun clearLoginCookies() {
+        database.sessionCookieQueries.deleteNonCloudflare()
+    }
+
     private fun mapCookie(
         name: String,
         value: String,
