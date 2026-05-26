@@ -42,9 +42,11 @@ internal fun createHan1meHttpClient(): HttpClient = HttpClient {
                 )
             }
             when (response.status) {
-                HttpStatusCode.Unauthorized,
-                HttpStatusCode.Forbidden -> throw DomainException(
+                HttpStatusCode.Unauthorized -> throw DomainException(
                     DomainError.Auth("Login session expired. Please sign in again.")
+                )
+                HttpStatusCode.Forbidden -> throw DomainException(
+                    DomainError.Network("Access denied. This may be an IP or region block.", response.status.value)
                 )
                 HttpStatusCode.NotFound -> throw DomainException(
                     DomainError.Network("Requested content was not found.", response.status.value)

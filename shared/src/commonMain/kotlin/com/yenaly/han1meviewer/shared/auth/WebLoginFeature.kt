@@ -124,7 +124,7 @@ class WebLoginFeature(
         val domainError = (this as? DomainException)?.error ?: return false
         return when (domainError) {
             is DomainError.Auth -> true
-            is DomainError.Network -> domainError.statusCode == 401 || domainError.statusCode == 403
+            is DomainError.Network -> domainError.statusCode == 401
             is DomainError.CloudflareBlocked,
             is DomainError.Parse,
             is DomainError.Unknown -> false
