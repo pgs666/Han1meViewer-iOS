@@ -69,7 +69,13 @@ final class VideoDetailViewModel: ObservableObject {
         }
 
         do {
-            let snapshot = try await videoFeature.loadVideo(videoCode: videoCode)
+            let snapshot = try await CloudflareRetryHandler().retryAfterCloudflareResolution(
+                onChallengeDetected: {
+                    CloudflareChallengeCenter.requestChallenge()
+                }
+            ) {
+                try await self.videoFeature.loadVideo(videoCode: videoCode)
+            }
             guard !Task.isCancelled, loadingVideoCode == videoCode else { return }
             loadedVideoCode = videoCode
             state = .loaded(VideoDetailScreenSnapshot(snapshot))
@@ -77,7 +83,6 @@ final class VideoDetailViewModel: ObservableObject {
             return
         } catch {
             guard !Task.isCancelled, loadingVideoCode == videoCode else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }

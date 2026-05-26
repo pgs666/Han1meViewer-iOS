@@ -243,7 +243,13 @@ final class CommentViewModel: ObservableObject {
 
     private func loadComments(generation: Int) async {
         do {
-            let snapshot = try await feature.loadVideoComments(videoCode: videoCode)
+            let snapshot = try await CloudflareRetryHandler().retryAfterCloudflareResolution(
+                onChallengeDetected: {
+                    CloudflareChallengeCenter.requestChallenge()
+                }
+            ) {
+                try await self.feature.loadVideoComments(videoCode: self.videoCode)
+            }
             guard !Task.isCancelled, generation == requestGeneration else { return }
             let screenSnapshot = CommentThreadScreenSnapshot(snapshot)
             state = .loaded(screenSnapshot)
@@ -252,10 +258,10 @@ final class CommentViewModel: ObservableObject {
             return
         } catch {
             guard !Task.isCancelled, generation == requestGeneration else { return }
-            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
             state = .failed(ErrorMessage.userFriendly(error))
             sortedComments = []
         }
+    }
     }
 
     private func runAction(id: String, action: @escaping () async throws -> Void) {

@@ -1,4 +1,5 @@
 import SwiftUI
+import Han1meShared
 
 protocol PaginatedSnapshot {
     var page: Int32 { get }
@@ -25,6 +26,7 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
     private var loadTask: Task<Void, Never>?
     private var loadMoreTask: Task<Void, Never>?
     private var requestGeneration = 0
+    private var isRetryingCF = false
 
     deinit {
         loadTask?.cancel()
@@ -105,7 +107,21 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
     }
 
     func applyLoadError(_ error: Error, appendingTo existingSnapshot: S?) {
-        CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+        // Check if this is a Cloudflare error
+        let lowercased = error.localizedDescription.lowercased()
+        if lowercased.contains("cloudflare") || lowercased.contains("cf-mitigated") {
+            // Show CF challenge UI
+            CloudflareChallengeCenter.requestChallenge()
+            // Start retry task
+            Task { [weak self] in
+                await self?.retryAfterCloudflareResolution(
+                    page: existingSnapshot?.page ?? 1,
+                    appendingTo: existingSnapshot
+                )
+            }
+            return
+        }
+        
         if let existingSnapshot {
             state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
         } else {
@@ -121,6 +137,28 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
     /// Call `applyLoadResult` on success or `applyLoadError` on failure.
     func executeLoad(page: Int32, appendingTo existingSnapshot: S?, generation: Int) async {
         fatalError("Subclasses must override executeLoad")
+    }
+
+    /// Retries the load after Cloudflare challenge is resolved.
+    private func retryAfterCloudflareResolution(page: Int32, appendingTo existingSnapshot: S?) async {
+        guard !isRetryingCF else { return }
+        isRetryingCF = true
+        defer { isRetryingCF = false }
+
+        do {
+            let resolved = try await CloudflareRetryHandler().waitForResolution()
+            if resolved {
+                let generation = requestGeneration
+                await executeLoad(page: page, appendingTo: existingSnapshot, generation: generation)
+            }
+        } catch {
+            // CF challenge failed
+            if let existingSnapshot {
+                state = .loaded(existingSnapshot.withLoadMoreError(ErrorMessage.userFriendly(error)))
+            } else {
+                state = .failed(ErrorMessage.userFriendly(error))
+            }
+        }
     }
 }
 

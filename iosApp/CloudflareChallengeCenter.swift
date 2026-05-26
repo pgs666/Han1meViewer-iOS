@@ -1,4 +1,5 @@
 import Foundation
+import Han1meShared
 
 enum CloudflareChallengeCenter {
     static let requestNotification = Notification.Name("Han1meViewerCloudflareChallengeRequested")
@@ -27,5 +28,17 @@ enum CloudflareChallengeCenter {
                 userInfo: [urlKey: url]
             )
         }
+    }
+
+    /// Called when the CF challenge is resolved successfully.
+    /// This signals the shared layer to retry the failed request.
+    static func signalChallengeResolved() {
+        CloudflareRetryHandler.shared.signalResolved()
+    }
+
+    /// Called when the CF challenge fails.
+    /// This signals the shared layer that the challenge failed.
+    static func signalChallengeFailed(reason: String) {
+        CloudflareRetryHandler.shared.signalFailed(reason: reason)
     }
 }
