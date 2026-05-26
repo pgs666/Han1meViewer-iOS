@@ -17,7 +17,8 @@ The refresh button at the top of the screen currently has the wrong color. I wan
 - `.primary` follows the system text color and adapts between light and dark mode.
 
 ## Verification
-- Pending CI after push.
+- GitHub Actions `iOS App Build` passed for run `26445148186`.
+- CI steps included shared JVM tests, Xcode project generation, unsigned device app build, IPA packaging, and artifact upload.
 - No local Swift build is available in this Linux environment.
 
 ## Mistakes
