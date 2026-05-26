@@ -6,10 +6,11 @@ import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 class CookieHeaderProvider(
     private val sessionStore: SessionStore,
 ) {
-    suspend fun buildCookieHeader(domain: String, isSecureTransport: Boolean = true): String? {
+    suspend fun buildCookieHeader(domain: String, requestPath: String = "/", isSecureTransport: Boolean = true): String? {
         val now = currentEpochMillis()
         val cookies = sessionStore.loadCookies()
             .filter { cookie -> cookie.matchesDomain(domain) }
+            .filter { cookie -> cookie.matchesPath(requestPath) }
             .filter { cookie -> cookie.expiresAtEpochMillis == null || cookie.expiresAtEpochMillis > now }
             .filter { cookie -> !cookie.secure || isSecureTransport }
 
@@ -26,6 +27,17 @@ class CookieHeaderProvider(
     suspend fun saveResponseCookies(cookies: List<SessionCookie>) {
         if (cookies.isEmpty()) return
         sessionStore.saveCookies(cookies)
+    }
+
+    private fun SessionCookie.matchesPath(requestPath: String): Boolean {
+        val cookiePath = path.ifEmpty { "/" }
+        if (cookiePath == "/") return true
+        if (requestPath == cookiePath) return true
+        if (requestPath.startsWith(cookiePath) &&
+            (requestPath[cookiePath.length] == '/' || cookiePath.endsWith("/"))) {
+            return true
+        }
+        return false
     }
 
     private fun SessionCookie.matchesDomain(requestDomain: String): Boolean {
