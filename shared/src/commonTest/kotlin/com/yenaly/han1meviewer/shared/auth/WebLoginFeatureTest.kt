@@ -72,7 +72,8 @@ class WebLoginFeatureTest {
             threw = true
         }
         assertTrue(threw)
-        assertTrue(store.loadCookies().isEmpty())
+        // Cookies are preserved even on failed import; caller decides cleanup.
+        assertTrue(store.loadCookies().isNotEmpty())
     }
 
     @Test
