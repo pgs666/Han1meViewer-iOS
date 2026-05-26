@@ -28,17 +28,17 @@ struct LoginView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    status = .loading
-                    reloadToken = UUID()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .renderingMode(.template)
-                        .foregroundColor(.primary)
-                }
-                .buttonStyle(.plain)
-                .tint(.primary)
-                .accessibilityLabel("刷新登录页")
+                Image(systemName: "arrow.clockwise")
+                    .renderingMode(.template)
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        status = .loading
+                        reloadToken = UUID()
+                    }
+                    .accessibilityLabel("刷新登录页")
+                    .accessibilityAddTraits(.isButton)
             }
         }
     }
