@@ -1,6 +1,9 @@
 package com.yenaly.han1meviewer.shared.history
 
+import app.cash.sqldelight.coroutines.asFlow
 import com.yenaly.han1meviewer.shared.db.Han1meDatabase
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import com.yenaly.han1meviewer.shared.model.WatchHistoryItem
 
 class WatchHistoryStore(
@@ -8,6 +11,12 @@ class WatchHistoryStore(
 ) {
     fun recent(limit: Long = DEFAULT_RECENT_LIMIT): List<WatchHistoryItem> {
         return database.watchHistoryQueries.selectRecent(limit, ::mapHistoryItem).executeAsList()
+    }
+
+    fun recentFlow(limit: Long = DEFAULT_RECENT_LIMIT): Flow<List<WatchHistoryItem>> {
+        return database.watchHistoryQueries.selectRecent(limit, ::mapHistoryItem)
+            .asFlow()
+            .map { query -> query.executeAsList() }
     }
 
     fun find(videoCode: String): WatchHistoryItem? {

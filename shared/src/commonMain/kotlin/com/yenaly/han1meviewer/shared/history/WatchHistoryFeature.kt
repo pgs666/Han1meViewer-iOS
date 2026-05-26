@@ -1,5 +1,7 @@
 package com.yenaly.han1meviewer.shared.history
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 
 class WatchHistoryFeature(
@@ -21,6 +23,22 @@ class WatchHistoryFeature(
                 )
             },
         )
+    }
+
+    fun recentFlow(limit: Int = DEFAULT_RECENT_LIMIT): Flow<WatchHistorySnapshot> {
+        return store.recentFlow(limit.toLong()).map { items ->
+            WatchHistorySnapshot(
+                items = items.map { item ->
+                    WatchHistoryItemSnapshot(
+                        videoCode = item.videoCode,
+                        title = item.title,
+                        coverUrl = item.coverUrl,
+                        watchedAtEpochMillis = item.watchedAtEpochMillis,
+                        playbackPositionMillis = item.playbackPositionMillis,
+                    )
+                },
+            )
+        }
     }
 
     fun playbackPositionMillis(videoCode: String): Long {
