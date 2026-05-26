@@ -38,6 +38,35 @@ struct LoginView: View {
             }
         }
     }
+
+    private static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
+        let payload: [[String: Any]] = cookies.compactMap { cookie in
+            guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
+                return nil
+            }
+            var entry: [String: Any] = [
+                "name": cookie.name,
+                "value": cookie.value,
+            ]
+            if !cookie.domain.isEmpty {
+                entry["domain"] = cookie.domain
+            }
+            if !cookie.path.isEmpty {
+                entry["path"] = cookie.path
+            }
+            if let expiresDate = cookie.expiresDate {
+                entry["expiresAtEpochMillis"] = Int64(expiresDate.timeIntervalSince1970 * 1000)
+            }
+            entry["secure"] = cookie.isSecure
+            entry["httpOnly"] = cookie.isHTTPOnly
+            return entry
+        }
+
+        guard !payload.isEmpty, let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
 }
 
 private enum LoginStatus: Equatable {
@@ -71,6 +100,35 @@ private struct WebLoginStatusBar: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(Color(.secondarySystemBackground))
+    }
+
+    private static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
+        let payload: [[String: Any]] = cookies.compactMap { cookie in
+            guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
+                return nil
+            }
+            var entry: [String: Any] = [
+                "name": cookie.name,
+                "value": cookie.value,
+            ]
+            if !cookie.domain.isEmpty {
+                entry["domain"] = cookie.domain
+            }
+            if !cookie.path.isEmpty {
+                entry["path"] = cookie.path
+            }
+            if let expiresDate = cookie.expiresDate {
+                entry["expiresAtEpochMillis"] = Int64(expiresDate.timeIntervalSince1970 * 1000)
+            }
+            entry["secure"] = cookie.isSecure
+            entry["httpOnly"] = cookie.isHTTPOnly
+            return entry
+        }
+
+        guard !payload.isEmpty, let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
     }
 }
 
@@ -199,11 +257,9 @@ private struct WebLoginView: UIViewRepresentable {
                     cookie.domain.contains("hanime1.me")
                 }
 
-                let cookieHeader = hanimeCookies
-                    .map { "\($0.name)=\($0.value)" }
-                    .joined(separator: "; ")
+                let cookieJson = LoginView.encodeCookiesForImport(hanimeCookies)
 
-                guard !cookieHeader.isEmpty else {
+                guard let cookieJson, !cookieJson.isEmpty else {
                     Task { @MainActor in
                         self.isImportingLogin = false
                     }
@@ -216,9 +272,9 @@ private struct WebLoginView: UIViewRepresentable {
                         return
                     }
                     do {
-                        let snapshot = try await self.webLoginFeature.importConfirmedLoginCookieHeader(
-                            cookieHeader: cookieHeader,
-                            domain: "hanime1.me"
+                        let snapshot = try await self.webLoginFeature.importConfirmedLoginCookiesJson(
+                            cookieJson: cookieJson,
+                            fallbackDomain: "hanime1.me"
                         )
                         if snapshot.isLoggedIn {
                             self.status = .imported
@@ -234,5 +290,34 @@ private struct WebLoginView: UIViewRepresentable {
                 }
             }
         }
+    }
+
+    private static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
+        let payload: [[String: Any]] = cookies.compactMap { cookie in
+            guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
+                return nil
+            }
+            var entry: [String: Any] = [
+                "name": cookie.name,
+                "value": cookie.value,
+            ]
+            if !cookie.domain.isEmpty {
+                entry["domain"] = cookie.domain
+            }
+            if !cookie.path.isEmpty {
+                entry["path"] = cookie.path
+            }
+            if let expiresDate = cookie.expiresDate {
+                entry["expiresAtEpochMillis"] = Int64(expiresDate.timeIntervalSince1970 * 1000)
+            }
+            entry["secure"] = cookie.isSecure
+            entry["httpOnly"] = cookie.isHTTPOnly
+            return entry
+        }
+
+        guard !payload.isEmpty, let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
     }
 }
