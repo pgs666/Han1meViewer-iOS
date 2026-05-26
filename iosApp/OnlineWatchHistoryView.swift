@@ -26,7 +26,7 @@ struct OnlineWatchHistoryView: View {
                         viewModel.load()
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                     }
                     .disabled(isLoading)
                 }
