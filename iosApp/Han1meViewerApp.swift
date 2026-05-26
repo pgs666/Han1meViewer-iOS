@@ -4,7 +4,7 @@ import Han1meShared
 @main
 struct Han1meViewerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    private let sharedEnvironment = SharedAppEnvironment(driverFactory: DatabaseDriverFactory())
+    private let sharedEnvironment = SharedAppEnvironment(driverFactory: DatabaseDriverFactory(), baseUrl: "https://hanime1.me")
     @State private var selectedTab: MainTab = .home
     @State private var searchLaunchRequest: SearchLaunchRequest?
     @State private var deepLinkedVideo: DeepLinkedVideo?
