@@ -40,7 +40,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 @OptIn(ExperimentalAtomicApi::class)
 class SharedAppEnvironment(
     driverFactory: DatabaseDriverFactory,
-    baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
+    baseUrl: String = "https://hanime1.me",
 ) {
     private val database = createDatabase(driverFactory)
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
