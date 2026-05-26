@@ -119,7 +119,7 @@ class KsoupHtmlParser : HtmlParser {
                     isDefault = source.hasAttr("selected")
                 )
             }
-        }.orEmpty().sortedByDescending { source ->
+        }.orEmpty().sortedBy { source ->
             RESOLUTION_ORDER[source.label.removeSuffix("P")] ?: Int.MAX_VALUE
         }.ifEmpty {
             body.selectFirst("div#player-div-wrapper")
