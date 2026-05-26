@@ -43,7 +43,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 class SharedAppEnvironment(
     driverFactory: DatabaseDriverFactory,
     preferencesStorage: PreferencesStorage,
-    baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
+    baseUrl: String = "https://hanime1.me",
 ) {
     private val database = createDatabase(driverFactory)
     val preferencesStore = PreferencesStore(preferencesStorage)
