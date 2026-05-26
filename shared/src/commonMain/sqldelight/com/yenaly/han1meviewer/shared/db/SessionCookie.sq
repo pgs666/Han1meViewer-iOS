@@ -24,3 +24,7 @@ deleteExpired:
 DELETE FROM session_cookie
 WHERE expires_at_epoch_millis IS NOT NULL
 AND expires_at_epoch_millis <= ?;
+
+deleteNonCloudflare:
+DELETE FROM session_cookie
+WHERE name != 'cf_clearance';

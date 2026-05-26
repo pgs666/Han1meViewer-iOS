@@ -6,4 +6,5 @@ interface SessionStore {
     suspend fun loadCookies(): List<SessionCookie>
     suspend fun saveCookies(cookies: List<SessionCookie>)
     suspend fun clear()
+    suspend fun clearLoginCookies()
 }

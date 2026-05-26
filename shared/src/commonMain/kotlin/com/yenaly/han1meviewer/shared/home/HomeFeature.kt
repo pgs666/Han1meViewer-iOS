@@ -19,7 +19,7 @@ class HomeFeature(
             homePage.userId.isNullOrBlank() &&
             homePage.username.isNullOrBlank()
         ) {
-            sessionStore.clear()
+            sessionStore.clearLoginCookies()
             onSessionCleared()
             throw DomainException(DomainError.Auth("Login session expired. Please sign in again."))
         }

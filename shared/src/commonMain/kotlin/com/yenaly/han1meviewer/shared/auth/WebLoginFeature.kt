@@ -116,7 +116,7 @@ class WebLoginFeature(
     }
 
     private suspend fun clearSession() {
-        sessionStore.clear()
+        sessionStore.clearLoginCookies()
         onSessionCleared()
     }
 
