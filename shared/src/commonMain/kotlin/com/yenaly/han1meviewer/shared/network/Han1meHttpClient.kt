@@ -4,6 +4,7 @@ import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.http.HttpMethod
 import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -31,8 +32,8 @@ internal fun createHan1meHttpClient(): HttpClient = HttpClient {
         socketTimeoutMillis = 30_000
     }
     install(HttpRequestRetry) {
-        retryOnExceptionIf(maxRetries = 2) { _, cause ->
-            cause !is DomainException
+        retryOnExceptionIf(maxRetries = 2) { request, cause ->
+            cause !is DomainException && request.method == HttpMethod.Get
         }
         exponentialDelay()
     }

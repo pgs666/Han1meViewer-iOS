@@ -102,34 +102,6 @@ private struct WebLoginStatusBar: View {
         .background(Color(.secondarySystemBackground))
     }
 
-    fileprivate static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
-        let payload: [[String: Any]] = cookies.compactMap { cookie in
-            guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
-                return nil
-            }
-            var entry: [String: Any] = [
-                "name": cookie.name,
-                "value": cookie.value,
-            ]
-            if !cookie.domain.isEmpty {
-                entry["domain"] = cookie.domain
-            }
-            if !cookie.path.isEmpty {
-                entry["path"] = cookie.path
-            }
-            if let expiresDate = cookie.expiresDate {
-                entry["expiresAtEpochMillis"] = Int64(expiresDate.timeIntervalSince1970 * 1000)
-            }
-            entry["secure"] = cookie.isSecure
-            entry["httpOnly"] = cookie.isHTTPOnly
-            return entry
-        }
-
-        guard !payload.isEmpty, let data = try? JSONSerialization.data(withJSONObject: payload) else {
-            return nil
-        }
-        return String(data: data, encoding: .utf8)
-    }
 }
 
 private struct WebLoginView: UIViewRepresentable {
@@ -292,32 +264,4 @@ private struct WebLoginView: UIViewRepresentable {
         }
     }
 
-    fileprivate static func encodeCookiesForImport(_ cookies: [HTTPCookie]) -> String? {
-        let payload: [[String: Any]] = cookies.compactMap { cookie in
-            guard !cookie.name.isEmpty, !cookie.value.isEmpty else {
-                return nil
-            }
-            var entry: [String: Any] = [
-                "name": cookie.name,
-                "value": cookie.value,
-            ]
-            if !cookie.domain.isEmpty {
-                entry["domain"] = cookie.domain
-            }
-            if !cookie.path.isEmpty {
-                entry["path"] = cookie.path
-            }
-            if let expiresDate = cookie.expiresDate {
-                entry["expiresAtEpochMillis"] = Int64(expiresDate.timeIntervalSince1970 * 1000)
-            }
-            entry["secure"] = cookie.isSecure
-            entry["httpOnly"] = cookie.isHTTPOnly
-            return entry
-        }
-
-        guard !payload.isEmpty, let data = try? JSONSerialization.data(withJSONObject: payload) else {
-            return nil
-        }
-        return String(data: data, encoding: .utf8)
-    }
 }

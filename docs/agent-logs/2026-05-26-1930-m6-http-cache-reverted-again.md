@@ -1,19 +1,21 @@
-# M6: HTTP 缓存 — 再次回退
+# M6: HTTP 缓存 — 回退（Ktor 3.x 无 HttpCache 插件）
 
 ## What Changed
-- Fully reverted HttpCache plugin and ktor-client-plugins dependency
+- 完全回退 HttpCache 相关改动
 
 ## Why Changed
-- CI failed: "Could not find io.ktor:ktor-client-plugins:3.3.2"
-- The artifact name `ktor-client-plugins` doesn't exist in Ktor 3.3.2
-- HttpCache in Ktor 3.x may require a different artifact or be unavailable
+- Ktor 3.3.2 没有 `ktor-client-plugins` 这个 artifact
+- `HttpCache` 类在 `ktor-client-core` 中也找不到（KMP target 不导出）
+- 可能是 Ktor 3.x 对 KMP 的 HttpCache 支持还不完整
 
 ## Verification
-- CI failed (run 26437441615)
+- 回退后 CI 通过 (run 26437614398)
 
 ## Mistakes
-- Assumed `ktor-client-plugins` was the correct artifact name without verifying
+- 先假设 HttpCache 在 ktor-client-core 中 → 失败
+- 又假设 ktor-client-plugins 存在 → 也失败
+- 两次都未在本地验证 artifact 存在性
 
 ## Known Limits
-- M6 (HTTP cache) cannot be implemented without finding the correct Ktor artifact
-- Needs further investigation of Ktor 3.x HTTP cache module naming
+- M6 在 Ktor 3.x KMP 项目中暂时无法实现
+- 需要等 Ktor 完善 KMP HttpCache 支持，或自行实现应用层缓存
