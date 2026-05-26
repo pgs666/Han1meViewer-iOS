@@ -37,6 +37,7 @@ data class HomePage(
     val banner: HomeBanner?,
     val sections: List<HomeSection>,
     val userId: String?,
+    @Transient
     val capturedAtEpochMillis: Long = currentEpochMillis(),
 )
 
