@@ -72,7 +72,7 @@ struct SettingsView: View {
                 Text("360P").tag("360P")
             }
             .onChange(of: defaultVideoQuality) { _, newValue in
-                environment.preferences().defaultVideoQuality.set(newValue)
+                environment.preferences().defaultVideoQuality.set(value: newValue)
             }
 
             Picker("字幕语言", selection: $videoLanguage) {
@@ -82,7 +82,7 @@ struct SettingsView: View {
                 Text("英文").tag("en")
             }
             .onChange(of: videoLanguage) { _, newValue in
-                environment.preferences().videoLanguage.set(newValue)
+                environment.preferences().videoLanguage.set(value: newValue)
             }
 
             HStack {
@@ -101,12 +101,12 @@ struct SettingsView: View {
                     .font(.caption)
             }
             .onChange(of: playerSpeed) { _, newValue in
-                environment.preferences().playerSpeed.set(newValue)
+                environment.preferences().playerSpeed.set(value: newValue)
             }
 
             Toggle("自动恢复播放进度", isOn: $allowResumePlayback)
                 .onChange(of: allowResumePlayback) { _, newValue in
-                    environment.preferences().allowResumePlayback.set(newValue)
+                    environment.preferences().allowResumePlayback.set(value: newValue)
                 }
         }
     }
@@ -116,12 +116,12 @@ struct SettingsView: View {
         Section("界面") {
             Toggle("显示已看标记", isOn: $showPlayedIndicator)
                 .onChange(of: showPlayedIndicator) { _, newValue in
-                    environment.preferences().showPlayedIndicator.set(newValue)
+                    environment.preferences().showPlayedIndicator.set(value: newValue)
                 }
 
             Toggle("底部进度条", isOn: $showBottomProgress)
                 .onChange(of: showBottomProgress) { _, newValue in
-                    environment.preferences().showBottomProgress.set(newValue)
+                    environment.preferences().showBottomProgress.set(value: newValue)
                 }
         }
     }
