@@ -23,11 +23,10 @@ class WebLoginFeature(
             verifyCurrentSession()
         } catch (error: Exception) {
             if (error is CancellationException) throw error
-            clearSession()
+            // Do not clear session on transient parse failures.
             throw error
         }
         if (!snapshot.isLoggedIn) {
-            clearSession()
             throw DomainException(DomainError.Auth("Imported cookies did not produce a valid session."))
         }
         return snapshot
@@ -78,9 +77,8 @@ class WebLoginFeature(
             snapshot
         } catch (error: Exception) {
             if (error is CancellationException) throw error
-            if (error.shouldClearSession()) {
-                clearSession()
-            }
+            // Do not clear session on transient parse failures.
+            // Only clear when explicitly confirmed on the login page.
             AuthSnapshot(
                 isLoggedIn = false,
                 message = error.message ?: "Login session could not be verified",
@@ -105,7 +103,7 @@ class WebLoginFeature(
 
     private suspend fun verifyCurrentSession(): AuthSnapshot {
         val homePage = homeRepository.getHomePage()
-        val isLoggedIn = !homePage.userId.isNullOrBlank() || !homePage.username.isNullOrBlank()
+        val isLoggedIn = !homePage.userId.isNullOrBlank()
         return AuthSnapshot(
             isLoggedIn = isLoggedIn,
             message = if (isLoggedIn) {
