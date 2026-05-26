@@ -16,7 +16,7 @@ struct CloudflareChallengePresenter: ViewModifier {
                     challengeRequest = CloudflareChallengeRequest(url: fallbackURL)
                 }
             }
-            .sheet(item: $challengeRequest) { request in
+            .fullScreenCover(item: $challengeRequest) { request in
                 CloudflareChallengeView(
                     url: request.url,
                     cloudflareFeature: cloudflareFeature,

@@ -1,12 +1,21 @@
 package com.yenaly.han1meviewer.shared.search
 
+import app.cash.sqldelight.coroutines.asFlow
 import com.yenaly.han1meviewer.shared.db.Han1meDatabase
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class SearchHistoryStore(
     private val database: Han1meDatabase,
 ) {
     fun recent(limit: Long): List<SearchHistoryItem> {
         return database.searchHistoryQueries.selectRecent(limit, ::mapHistoryItem).executeAsList()
+    }
+
+    fun recentFlow(limit: Long): Flow<List<SearchHistoryItem>> {
+        return database.searchHistoryQueries.selectRecent(limit, ::mapHistoryItem)
+            .asFlow()
+            .map { query -> query.executeAsList() }
     }
 
     fun record(keyword: String, filterSummary: String, filterData: String = "", searchedAtEpochMillis: Long) {
