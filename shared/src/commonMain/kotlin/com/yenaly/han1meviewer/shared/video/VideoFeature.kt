@@ -3,6 +3,7 @@ package com.yenaly.han1meviewer.shared.video
 import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
 import com.yenaly.han1meviewer.shared.repository.VideoRepository
 import com.yenaly.han1meviewer.shared.util.currentEpochMillis
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.serialization.Serializable
 
 class VideoFeature(
@@ -19,12 +20,18 @@ class VideoFeature(
             ?.playbackPositionMillis
             ?: 0L
 
+        val releaseDateMillis = video.uploadTime
+            ?.atStartOfDayIn(kotlinx.datetime.TimeZone.UTC)
+            ?.toEpochMilliseconds()
+            ?: 0L
+
         watchHistoryStore?.record(
             videoCode = video.videoCode,
             title = video.title.ifBlank { "Untitled" },
             coverUrl = video.coverUrl,
             watchedAtEpochMillis = currentEpochMillis(),
             playbackPositionMillis = playbackPositionMillis,
+            releaseDateEpochMillis = releaseDateMillis,
         )
 
         return VideoDetailSnapshot(
