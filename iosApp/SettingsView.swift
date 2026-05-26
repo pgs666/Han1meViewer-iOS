@@ -9,12 +9,80 @@ struct SettingsView: View {
     @State private var cacheSizeText = "计算中…"
     @State private var crashReportSummary = CrashReporter.latestReportSummary()
 
+    // Preferences
+    @State private var defaultVideoQuality: String = "1080P"
+    @State private var videoLanguage: String = "cht"
+    @State private var playerSpeed: Float = 1.0
+    @State private var allowResumePlayback: Bool = true
+    @State private var showPlayedIndicator: Bool = true
+    @State private var showBottomProgress: Bool = true
+
     init(environment: SharedAppEnvironment) {
         self.environment = environment
     }
 
     var body: some View {
         List {
+            Section("播放设置") {
+                Picker("默认画质", selection: $defaultVideoQuality) {
+                    Text("2160P").tag("2160P")
+                    Text("1440P").tag("1440P")
+                    Text("1080P").tag("1080P")
+                    Text("720P").tag("720P")
+                    Text("480P").tag("480P")
+                    Text("360P").tag("360P")
+                }
+                .onChange(of: defaultVideoQuality) { _, newValue in
+                    environment.preferences().defaultVideoQuality.set(newValue)
+                }
+
+                Picker("字幕语言", selection: $videoLanguage) {
+                    Text("繁体中文").tag("cht")
+                    Text("简体中文").tag("chs")
+                    Text("日文").tag("jp")
+                    Text("英文").tag("en")
+                }
+                .onChange(of: videoLanguage) { _, newValue in
+                    environment.preferences().videoLanguage.set(newValue)
+                }
+
+                HStack {
+                    Text("播放速度")
+                    Spacer()
+                    Text(String(format: "%.2fx", playerSpeed))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $playerSpeed, in: 0.5...3.0, step: 0.25) {
+                    Text("播放速度")
+                } minimumValueLabel: {
+                    Text("0.5x")
+                        .font(.caption)
+                } maximumValueLabel: {
+                    Text("3.0x")
+                        .font(.caption)
+                }
+                .onChange(of: playerSpeed) { _, newValue in
+                    environment.preferences().playerSpeed.set(newValue)
+                }
+
+                Toggle("自动恢复播放进度", isOn: $allowResumePlayback)
+                    .onChange(of: allowResumePlayback) { _, newValue in
+                        environment.preferences().allowResumePlayback.set(newValue)
+                    }
+            }
+
+            Section("界面") {
+                Toggle("显示已看标记", isOn: $showPlayedIndicator)
+                    .onChange(of: showPlayedIndicator) { _, newValue in
+                        environment.preferences().showPlayedIndicator.set(newValue)
+                    }
+
+                Toggle("底部进度条", isOn: $showBottomProgress)
+                    .onChange(of: showBottomProgress) { _, newValue in
+                        environment.preferences().showBottomProgress.set(newValue)
+                    }
+            }
+
             Section("应用") {
                 SettingsInfoRow(title: "版本", value: appVersion)
                 if let repositoryURL = URL(string: "https://github.com/pgs666/Han1meViewer-iOS") {
@@ -96,7 +164,18 @@ struct SettingsView: View {
         }
         .task {
             await refreshCacheSize()
+            loadPreferences()
         }
+    }
+
+    private func loadPreferences() {
+        let prefs = environment.preferences()
+        defaultVideoQuality = prefs.defaultVideoQuality.get()
+        videoLanguage = prefs.videoLanguage.get()
+        playerSpeed = prefs.playerSpeed.get()
+        allowResumePlayback = prefs.allowResumePlayback.get()
+        showPlayedIndicator = prefs.showPlayedIndicator.get()
+        showBottomProgress = prefs.showBottomProgress.get()
     }
 
     private var appVersion: String {
