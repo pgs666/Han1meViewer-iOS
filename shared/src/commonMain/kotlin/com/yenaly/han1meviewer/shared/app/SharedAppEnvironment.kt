@@ -50,7 +50,8 @@ class SharedAppEnvironment(
     private val userVideoListRepository = KtorUserVideoListRepository(sessionStore, client = httpClient)
     private val userPlaylistRepository = KtorUserPlaylistRepository(sessionStore, client = httpClient)
     private val onlineWatchHistoryRepository = KtorOnlineWatchHistoryRepository(sessionStore, client = httpClient)
-    private val cachedCurrentUserId = AtomicReference<String?>(null)
+    private val cachedCurrentUserId = AtomicReference<CachedCurrentUserId?>(null)
+    private val currentUserIdCacheGeneration = AtomicReference(0)
     private val currentUserIdLock = Mutex()
 
     fun webLoginFeature(): WebLoginFeature {
@@ -137,16 +138,31 @@ class SharedAppEnvironment(
     }
 
     fun clearCachedCurrentUserId() {
+        currentUserIdCacheGeneration.store(currentUserIdCacheGeneration.load() + 1)
         cachedCurrentUserId.store(null)
     }
 
     private suspend fun resolveCurrentUserId(): String? {
-        cachedCurrentUserId.load()?.let { return it }
+        cachedCurrentUserId.load()?.let { cache ->
+            if (cache.generation == currentUserIdCacheGeneration.load()) {
+                return cache.userId
+            }
+        }
+        val generation = currentUserIdCacheGeneration.load()
         return currentUserIdLock.withLock {
-            cachedCurrentUserId.load()?.let { return@withLock it }
-            homeRepository.getHomePage().userId?.also { userId ->
-                cachedCurrentUserId.store(userId)
+            cachedCurrentUserId.load()?.let { cache ->
+                if (cache.generation == currentUserIdCacheGeneration.load()) {
+                    return@withLock cache.userId
+                }
+            }
+            homeRepository.getHomePage().userId?.takeIf { generation == currentUserIdCacheGeneration.load() }?.also { userId ->
+                cachedCurrentUserId.store(CachedCurrentUserId(userId, generation))
             }
         }
     }
+
+    private data class CachedCurrentUserId(
+        val userId: String,
+        val generation: Int,
+    )
 }
