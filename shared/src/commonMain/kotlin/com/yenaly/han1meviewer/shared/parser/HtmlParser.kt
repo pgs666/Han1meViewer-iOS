@@ -14,7 +14,7 @@ interface HtmlParser {
     fun parseHome(html: String, isAlreadyLogin: Boolean = false): HomePage
     fun parseSearch(html: String, params: SearchParams, page: Int): PageResult<HanimeInfo>
     fun parseVideo(html: String, videoCode: String): HanimeVideo
-    fun parseSubscriptions(html: String): MySubscriptions
+    fun parseSubscriptions(html: String, page: Int = 1): MySubscriptions
     fun parseUserVideoList(html: String, page: Int): UserVideoListPage
     fun parseUserPlaylists(html: String, page: Int): UserPlaylistPage
     fun parseComments(json: String): VideoComments

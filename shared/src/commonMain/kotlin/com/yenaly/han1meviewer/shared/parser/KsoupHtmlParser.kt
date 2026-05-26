@@ -240,20 +240,22 @@ class KsoupHtmlParser : HtmlParser {
         )
     }
 
-    override fun parseSubscriptions(html: String): MySubscriptions {
+    override fun parseSubscriptions(html: String, page: Int): MySubscriptions {
         val body = parseHtml(html).body()
         val subscriptionsRoot = body.selectFirst("div.subscriptions-nav")
             ?: return MySubscriptions(
                 subscriptions = emptyList(),
                 subscriptionVideos = emptyList(),
-                maxPage = 1,
+                page = page,
+                hasNext = false,
                 authRequired = true,
             )
         val subscriptionVideosRoot = body.selectFirst("div.content-padding-new")
             ?: return MySubscriptions(
                 subscriptions = emptyList(),
                 subscriptionVideos = emptyList(),
-                maxPage = 1,
+                page = page,
+                hasNext = false,
                 authRequired = true,
             )
 
@@ -301,7 +303,8 @@ class KsoupHtmlParser : HtmlParser {
         return MySubscriptions(
             subscriptions = artists,
             subscriptionVideos = videos,
-            maxPage = body.parseMaxPage() ?: 1,
+            page = page,
+            hasNext = page < (body.parseMaxPage() ?: 1),
         )
     }
 
