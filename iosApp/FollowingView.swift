@@ -17,7 +17,7 @@ struct FollowingView: View {
             content
                 .navigationTitle("关注")
                 .refreshable {
-                    viewModel.load()
+                    await viewModel.refresh()
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {

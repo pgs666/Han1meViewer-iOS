@@ -178,7 +178,7 @@ class KsoupHtmlParser : HtmlParser {
                     detailUrl = detailUrl,
                     duration = durationParts?.firstOrNull()?.text()?.trim()?.ifBlank { null },
                     views = durationParts?.getOrNull(2)?.text()?.substringBefore("次")?.trim()?.ifBlank { null },
-                    isPlaying = panel?.text()?.contains("播放") == true,
+                    isPlaying = panel?.select("div > div > div > div")?.firstOrNull()?.text()?.contains("播放") == true,
                     itemType = HanimeItemType.Normal,
                 )
             }
@@ -337,7 +337,7 @@ class KsoupHtmlParser : HtmlParser {
             val total = item.selectFirst(".stat-item")
                 ?.text()
                 ?.filter { char -> char.isDigit() }
-                ?.toIntOrNull() ?: 0
+                ?.toIntOrNull() ?: -1
             val coverUrl = item.selectFirst("img.main-thumb")?.absUrl("src")
                 ?.ifBlank { item.selectFirst("img.main-thumb")?.attr("src") }
 
@@ -517,6 +517,7 @@ class KsoupHtmlParser : HtmlParser {
             ?.attr("value")
             ?.toIntOrNull()
         val fallbackThumbUp = postElement
+            ?.selectFirst("#comment-like-form-wrapper")
             ?.select("span[style]")
             ?.getOrNull(1)
             ?.text()
@@ -592,7 +593,7 @@ class KsoupHtmlParser : HtmlParser {
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
         val VIDEO_SOURCE_REGEX = Regex("""const source = ["'`](.+?)["'`]""")
         const val BASE_URI = "https://hanime1.me"
-        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""^(?:觀看次數|观看次数|Views?)[:：]\s*(.+?)(?:次|views?)?\s+(\d{4}-\d{2}-\d{2})$""", RegexOption.IGNORE_CASE)
+        val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""(?:觀看次數|观看次数|Views?)[:：]\s*(.+?)(?:次|views?)?\s+(\d{4}-\d{2}-\d{2})""", RegexOption.IGNORE_CASE)
         val COMMENT_COUNT_REGEX = Regex("""\d+""")
         val RESOLUTION_ORDER = mapOf(
             "2160" to 0,

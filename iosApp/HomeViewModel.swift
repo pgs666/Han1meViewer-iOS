@@ -25,10 +25,12 @@ final class HomeViewModel: ObservableObject {
     }
 
     func loadIfNeeded() {
-        guard case .idle = state else {
+        switch state {
+        case .idle, .failed:
+            load()
+        case .loading, .loaded:
             return
         }
-        load()
     }
 
     func load() {
@@ -39,6 +41,13 @@ final class HomeViewModel: ObservableObject {
         loadTask = Task { [weak self] in
             await self?.loadHome(generation: generation)
         }
+    }
+
+    func refresh() async {
+        loadTask?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
+        await loadHome(generation: generation)
     }
 
     private func loadHome(generation: Int) async {

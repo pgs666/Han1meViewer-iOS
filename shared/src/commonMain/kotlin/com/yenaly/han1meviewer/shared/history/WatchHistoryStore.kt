@@ -21,12 +21,17 @@ class WatchHistoryStore(
         watchedAtEpochMillis: Long,
         playbackPositionMillis: Long = 0,
     ) {
+        val effectiveProgress = if (playbackPositionMillis > 0) {
+            playbackPositionMillis
+        } else {
+            find(videoCode)?.playbackPositionMillis ?: 0L
+        }
         database.watchHistoryQueries.upsert(
             video_code = videoCode,
             title = title,
             cover_url = coverUrl,
             watched_at_epoch_millis = watchedAtEpochMillis,
-            playback_position_millis = playbackPositionMillis,
+            playback_position_millis = effectiveProgress,
         )
         database.watchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
     }

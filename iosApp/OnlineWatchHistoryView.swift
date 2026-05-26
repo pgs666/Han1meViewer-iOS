@@ -18,7 +18,7 @@ struct OnlineWatchHistoryView: View {
         content
             .navigationTitle("在线历史")
             .refreshable {
-                viewModel.load()
+                await viewModel.refresh()
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
