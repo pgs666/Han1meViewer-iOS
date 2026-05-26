@@ -226,6 +226,25 @@ private struct AndroidStylePlayerHeader: View {
             if let player = viewModel.player {
                 VideoPlayer(player: player)
                     .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                    .overlay(alignment: .center) {
+                        if let error = viewModel.playerError {
+                            VStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.title2)
+                                Text(error)
+                                    .font(.caption)
+                                    .multilineTextAlignment(.center)
+                                Button("切换清晰度") {
+                                    viewModel.playerError = nil
+                                }
+                                .font(.caption)
+                                .buttonStyle(.bordered)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(16)
+                            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
             } else {
                 AsyncImage(url: snapshot.coverURL) { image in
                     image
