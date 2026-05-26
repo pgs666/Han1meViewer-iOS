@@ -12,12 +12,11 @@ Look at this file (review-fix-quality.md)
 
 ### H2 — 分辨率排序反向
 - `KsoupHtmlParser.kt`: `sortedByDescending` → `sortedBy`
-- 原来 RESOLUTION_ORDER 映射 2160→0, 240→6，sortedByDescending 让 value 大的（240P）排前面
-- 改为 sortedBy 后，value 小的（2160P）排前面，高画质优先
+- RESOLUTION_ORDER 映射 2160→0, 240→6，sortedBy 让 value 小的（2160P）排前面
 
 ### M5 — POST 请求也会重试
 - `Han1meHttpClient.kt`: 添加 `request.method == HttpMethod.Get` 过滤
-- 防止 mutation 请求（like/save/subscribe）超时后重复执行
+- 只对 GET 请求重试，防止 mutation 重复执行
 
 ### H6 — encodeCookiesForImport 重复 3 次
 - `LoginView.swift`: 删除 WebLoginStatusBar 和 Coordinator 中的重复定义
@@ -27,7 +26,7 @@ Look at this file (review-fix-quality.md)
 - review-fix-quality.md 指出这 3 个是"必须立即修的 bug，修了才能发版"
 
 ## Verification
-- CI pending
+- CI 通过 (run 26438119299)
 
 ## Mistakes
 - H2: 初始实现用 sortedByDescending 但映射值是低值=高画质，导致排序反向

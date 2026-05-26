@@ -58,4 +58,22 @@ class CookieHeaderProviderTest {
         assertNull(provider.buildCookieHeader("hanime1.me", isSecureTransport = false))
         assertEquals("session=abc", provider.buildCookieHeader("hanime1.me", isSecureTransport = true))
     }
+
+    @Test
+    fun deduplicatesCookiesByNamePreferringExactDomain() = runTest {
+        val store = MemorySessionStore(
+            listOf(
+                SessionCookie(name = "hanime1_session", value = "old", domain = ".hanime1.me"),
+                SessionCookie(name = "hanime1_session", value = "new", domain = "hanime1.me"),
+                SessionCookie(name = "XSRF-TOKEN", value = "token", domain = ".hanime1.me"),
+            )
+        )
+        val provider = CookieHeaderProvider(store)
+
+        assertEquals(
+            "hanime1_session=new; XSRF-TOKEN=token",
+            provider.buildCookieHeader("hanime1.me")
+        )
+    }
+
 }
