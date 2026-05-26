@@ -131,6 +131,7 @@ data class WatchHistoryItem(
     val coverUrl: String?,
     val watchedAtEpochMillis: Long,
     val playbackPositionMillis: Long,
+    val releaseDateEpochMillis: Long = 0L,
 )
 
 @Serializable

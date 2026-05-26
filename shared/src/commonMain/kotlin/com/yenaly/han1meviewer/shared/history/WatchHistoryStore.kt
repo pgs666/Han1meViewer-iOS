@@ -29,6 +29,7 @@ class WatchHistoryStore(
         coverUrl: String?,
         watchedAtEpochMillis: Long,
         playbackPositionMillis: Long = 0,
+        releaseDateEpochMillis: Long = 0,
     ) {
         val existing = find(videoCode)
         if (existing != null) {
@@ -46,6 +47,7 @@ class WatchHistoryStore(
                 cover_url = coverUrl,
                 watched_at_epoch_millis = watchedAtEpochMillis,
                 playback_position_millis = playbackPositionMillis.coerceAtLeast(0L),
+                release_date_epoch_millis = releaseDateEpochMillis,
             )
             database.watchHistoryQueries.deleteOldestBeyondLimit(MAX_RETAINED_ITEMS)
         }
@@ -72,6 +74,7 @@ class WatchHistoryStore(
         coverUrl: String?,
         watchedAtEpochMillis: Long,
         playbackPositionMillis: Long,
+        releaseDateEpochMillis: Long,
     ): WatchHistoryItem {
         return WatchHistoryItem(
             videoCode = videoCode,
@@ -79,6 +82,7 @@ class WatchHistoryStore(
             coverUrl = coverUrl,
             watchedAtEpochMillis = watchedAtEpochMillis,
             playbackPositionMillis = playbackPositionMillis,
+            releaseDateEpochMillis = releaseDateEpochMillis,
         )
     }
 
