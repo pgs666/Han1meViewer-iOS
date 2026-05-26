@@ -25,7 +25,13 @@ struct MineView: View {
         CompatibleNavigationStack {
             List {
                 Section {
-                    if viewModel.isLoggedIn {
+                    if viewModel.isCheckingLogin {
+                        MineAccountRow(
+                            isLoggedIn: viewModel.isLoggedIn,
+                            isChecking: viewModel.isCheckingLogin,
+                            profile: viewModel.profile
+                        )
+                    } else if viewModel.isLoggedIn {
                         Button {
                             activeAlert = .confirmLogout
                         } label: {
