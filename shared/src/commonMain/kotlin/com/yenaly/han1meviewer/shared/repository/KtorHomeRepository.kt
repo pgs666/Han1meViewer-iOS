@@ -4,6 +4,7 @@ import com.yenaly.han1meviewer.shared.model.HomePage
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -12,12 +13,13 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 
 class KtorHomeRepository(
-    sessionStore: SessionStore,
+    private val sessionStore: SessionStore,
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
-    private val client: HttpClient = createHan1meHttpClient(),
+    client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : HomeRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
 
     override suspend fun getHomePage(): HomePage {
         val response = client.get(baseUrl) {
@@ -27,6 +29,7 @@ class KtorHomeRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseHome(response.bodyAsText())
+        val isAlreadyLogin = sessionStore.loadCookies().hasConfirmedLogin()
+        return parser.parseHome(response.bodyAsText(), isAlreadyLogin)
     }
 }

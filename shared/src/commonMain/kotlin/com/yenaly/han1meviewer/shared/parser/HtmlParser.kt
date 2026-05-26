@@ -11,7 +11,7 @@ import com.yenaly.han1meviewer.shared.model.UserVideoListPage
 import com.yenaly.han1meviewer.shared.model.VideoComments
 
 interface HtmlParser {
-    fun parseHome(html: String): HomePage
+    fun parseHome(html: String, isAlreadyLogin: Boolean = false): HomePage
     fun parseSearch(html: String, params: SearchParams, page: Int): PageResult<HanimeInfo>
     fun parseVideo(html: String, videoCode: String): HanimeVideo
     fun parseSubscriptions(html: String): MySubscriptions

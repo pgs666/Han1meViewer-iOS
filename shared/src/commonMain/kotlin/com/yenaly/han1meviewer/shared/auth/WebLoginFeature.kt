@@ -166,7 +166,7 @@ class WebLoginFeature(
 }
 
 @Serializable
-private data class WebCookiePayload(
+internal data class WebCookiePayload(
     val name: String,
     val value: String,
     val domain: String? = null,
