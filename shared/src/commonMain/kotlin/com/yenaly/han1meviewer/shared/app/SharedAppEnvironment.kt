@@ -28,6 +28,8 @@ import com.yenaly.han1meviewer.shared.search.SearchHistoryStore
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import com.yenaly.han1meviewer.shared.session.SqlDelightSessionStore
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
+import com.yenaly.han1meviewer.shared.preferences.PreferencesStorage
+import com.yenaly.han1meviewer.shared.preferences.PreferencesStore
 import com.yenaly.han1meviewer.shared.playlist.UserPlaylistFeature
 import com.yenaly.han1meviewer.shared.userlist.PlaylistVideoListFeature
 import com.yenaly.han1meviewer.shared.userlist.UserVideoListFeature
@@ -40,9 +42,11 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 @OptIn(ExperimentalAtomicApi::class)
 class SharedAppEnvironment(
     driverFactory: DatabaseDriverFactory,
+    preferencesStorage: PreferencesStorage,
     baseUrl: String = "https://hanime1.me",
 ) {
     private val database = createDatabase(driverFactory)
+    val preferencesStore = PreferencesStore(preferencesStorage)
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
     private val watchHistoryStore = WatchHistoryStore(database)
     private val searchHistoryStore = SearchHistoryStore(database)
@@ -145,6 +149,8 @@ class SharedAppEnvironment(
             listRepository = userVideoListRepository,
         )
     }
+
+    fun preferences(): PreferencesStore = preferencesStore
 
     fun clearCachedCurrentUserId() {
         currentUserIdCacheToken.store(Any())
