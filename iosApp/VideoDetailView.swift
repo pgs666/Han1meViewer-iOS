@@ -235,6 +235,12 @@ private struct AndroidStylePlayerHeader: View {
                                     .font(.caption)
                                     .multilineTextAlignment(.center)
                                 Button("切换清晰度") {
+                                    let sources = snapshot.playbackSources
+                                    if sources.count > 1,
+                                       let currentIndex = sources.firstIndex(where: { $0.id == viewModel.selectedPlaybackSourceID }) {
+                                        let nextIndex = (currentIndex + 1) % sources.count
+                                        viewModel.selectPlaybackSource(snapshot: snapshot, sourceID: sources[nextIndex].id)
+                                    }
                                     viewModel.playerError = nil
                                 }
                                 .font(.caption)

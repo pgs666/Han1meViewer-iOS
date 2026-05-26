@@ -41,7 +41,7 @@ internal fun createHan1meHttpClient(
     }
     install(HttpRequestRetry) {
         retryOnExceptionIf(maxRetries = 2) { request, cause ->
-            cause !is DomainException && request.method == HttpMethod.Get
+            cause !is DomainException && request.method in setOf(HttpMethod.Get, HttpMethod.Head)
         }
         exponentialDelay()
     }

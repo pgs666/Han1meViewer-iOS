@@ -76,6 +76,13 @@ final class CommentViewModel: ObservableObject {
         }
     }
 
+    func refresh() async {
+        loadTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        await loadComments(generation: generation)
+    }
+
     func postComment(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
@@ -145,7 +152,7 @@ final class CommentViewModel: ObservableObject {
             throw CommentViewModelError.loginRequired
         }
         let generation = requestGeneration
-        let actionID = "like-\(comment.id)-\(isPositive)"
+        let actionID = "like-\(comment.id)"
         guard !runningActionIDs.contains(actionID) else {
             return comment
         }

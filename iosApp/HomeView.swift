@@ -23,7 +23,7 @@ struct HomeView: View {
                     viewModel.loadIfNeeded()
                 }
                 .refreshable {
-                    viewModel.load()
+                    await viewModel.refresh()
                 }
         }
     }

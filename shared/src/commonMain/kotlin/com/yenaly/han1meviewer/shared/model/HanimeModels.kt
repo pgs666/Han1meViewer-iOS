@@ -1,6 +1,7 @@
 package com.yenaly.han1meviewer.shared.model
 
 import com.yenaly.han1meviewer.shared.util.currentEpochMillis
+import kotlin.jvm.JvmInline
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.datetime.LocalDate
@@ -62,10 +63,13 @@ data class MySubscriptions(
     val authRequired: Boolean = false,
 )
 
+@JvmInline
 @Serializable
-enum class UserVideoListType(val path: String) {
-    WatchLater("saves"),
-    Favorites("likes"),
+value class UserVideoListType(val path: String) {
+    companion object {
+        val WatchLater = UserVideoListType("saves")
+        val Favorites = UserVideoListType("likes")
+    }
 }
 
 @Serializable
@@ -230,7 +234,7 @@ data class VideoComment(
     val isChildComment: Boolean,
     val hasMoreReplies: Boolean = false,
     val replyCount: Int? = 0,
-    val id: String? = null,
+    val id: String? = "-1",
     val post: VideoCommentPost,
     val redirectUrl: String? = null,
     val reportableId: String? = null,

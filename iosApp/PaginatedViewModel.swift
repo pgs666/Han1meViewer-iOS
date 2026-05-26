@@ -44,6 +44,17 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
         }
     }
 
+    func refresh() async {
+        loadTask?.cancel()
+        loadMoreTask?.cancel()
+        requestGeneration += 1
+        let generation = requestGeneration
+        currentPage = 0
+        hasNextPage = false
+        let existingSnapshot: S? = if case .loaded(let s) = state { s } else { nil }
+        await executeLoad(page: 1, appendingTo: existingSnapshot, generation: generation)
+    }
+
     func loadIfNeeded() {
         if case .idle = state {
             load()
