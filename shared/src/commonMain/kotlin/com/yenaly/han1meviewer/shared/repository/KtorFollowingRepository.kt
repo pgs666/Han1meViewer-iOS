@@ -1,6 +1,8 @@
 package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.MySubscriptions
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
@@ -19,7 +21,7 @@ class KtorFollowingRepository(
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : FollowingRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
-    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getSubscriptions(page: Int): MySubscriptions {
         val response = client.get("$baseUrl/subscriptions") {

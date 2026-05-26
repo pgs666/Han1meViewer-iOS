@@ -3,6 +3,8 @@ package com.yenaly.han1meviewer.shared.repository
 import com.yenaly.han1meviewer.shared.model.HanimeInfo
 import com.yenaly.han1meviewer.shared.model.PageResult
 import com.yenaly.han1meviewer.shared.model.SearchParams
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
@@ -21,7 +23,7 @@ class KtorSearchRepository(
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : SearchRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
-    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun search(params: SearchParams, page: Int): PageResult<HanimeInfo> {
         val response = client.get("$baseUrl/search") {

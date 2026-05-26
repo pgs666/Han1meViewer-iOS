@@ -2,10 +2,13 @@ package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.UserVideoListPage
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
 import com.yenaly.han1meviewer.shared.session.SessionStore
+import kotlinx.serialization.json.Json
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
@@ -22,7 +25,7 @@ class KtorUserVideoListRepository(
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : UserVideoListRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
-    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getUserVideoList(
         userId: String,
@@ -75,6 +78,18 @@ class KtorUserVideoListRepository(
         }
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to remove user list item.")
+        val body = response.bodyAsText()
+        val returnedVideoCode = try {
+            val jsonObj = Json.decodeFromString<kotlinx.serialization.json.JsonObject>(body)
+            jsonObj["video_id"]?.toString()?.trim('"')
+        } catch (_: Exception) { null }
+        if (returnedVideoCode != videoCode) {
+            throw com.yenaly.han1meviewer.shared.model.DomainException(
+                com.yenaly.han1meviewer.shared.model.DomainError.Unknown(
+                    "Delete response video_id mismatch: expected $videoCode, got $returnedVideoCode"
+                )
+            )
+        }
     }
 
 

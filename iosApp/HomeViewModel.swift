@@ -161,6 +161,8 @@ struct HomeSectionRow: Identifiable {
             return String(localized: "home.section.cosplay")
         case "watchingNow":
             return String(localized: "home.section.watching_now")
+        case "newAnimeTrailer":
+            return String(localized: "home.section.new_anime_trailer")
         default:
             return key
         }
