@@ -2656,6 +2656,22 @@
           }
         }
       }
+    },
+    "home.section.new_anime_trailer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Anime Trailer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新番预告"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

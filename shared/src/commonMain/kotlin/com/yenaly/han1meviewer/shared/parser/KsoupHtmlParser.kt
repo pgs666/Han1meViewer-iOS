@@ -618,6 +618,7 @@ class KsoupHtmlParser : HtmlParser {
             11 to "mmd",
             12 to "cosplay",
             13 to "watchingNow",
+            14 to "newAnimeTrailer",
         )
     }
 }

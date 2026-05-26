@@ -19,7 +19,7 @@ class KtorHomeRepository(
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : HomeRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
-    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getHomePage(): HomePage {
         val response = client.get(baseUrl) {

@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
 
 internal fun createHan1meHttpClient(
     saveCookies: (suspend (io.ktor.client.statement.HttpResponse) -> Unit)? = null,
+    isAlreadyLogin: (suspend () -> Boolean)? = null,
 ): HttpClient = HttpClient {
     install(ContentNegotiation) {
         json(
@@ -64,9 +65,14 @@ internal fun createHan1meHttpClient(
                 HttpStatusCode.Forbidden -> throw DomainException(
                     DomainError.Network("Access denied. This may be an IP or region block.", response.status.value)
                 )
-                HttpStatusCode.NotFound -> throw DomainException(
-                    DomainError.Network("Requested content was not found.", response.status.value)
-                )
+                HttpStatusCode.NotFound -> {
+                    if (isAlreadyLogin?.invoke() == false) {
+                        throw DomainException(DomainError.Auth("Not logged in. Please sign in first."))
+                    }
+                    throw DomainException(
+                        DomainError.Network("Requested content was not found.", response.status.value)
+                    )
+                }
                 HttpStatusCode.TooManyRequests -> throw DomainException(
                     DomainError.Network("Too many requests. Please try again later.", response.status.value)
                 )

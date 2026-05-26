@@ -6,6 +6,8 @@ import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
 import com.yenaly.han1meviewer.shared.model.VideoComment
 import com.yenaly.han1meviewer.shared.model.VideoComments
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
@@ -26,7 +28,7 @@ class KtorCommentRepository(
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
 ) : CommentRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
-    private val client: HttpClient = client ?: createHan1meHttpClient(cookieBridge::saveResponseCookies)
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getComments(type: CommentTargetType, code: String): VideoComments {
         val response = client.get("$baseUrl/loadComment") {

@@ -180,13 +180,34 @@ private struct CloudflareWebView: UIViewRepresentable {
             guard let webView else {
                 return
             }
-            importClearanceCookies(from: webView)
+            // Delay import to allow challenge to fully complete (match Android's 1s delay)
+            Task { @MainActor [weak self, weak webView] in
+                guard let self, let webView else { return }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !self.isResolved else { return }
+                self.importClearanceCookies(from: webView)
+            }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             if !isResolved {
                 status = .waiting
-                importClearanceCookies(from: webView)
+                // Check if challenge elements are gone before importing
+                let checkScript = """
+                (() => {
+                    const head = document.head ? document.head.innerHTML : '';
+                    return !head.includes('#challenge-form') &&
+                           !head.includes('#challenge-success-text') &&
+                           !head.includes('#challenge-error-text');
+                })();
+                """
+                webView.evaluateJavaScript(checkScript) { [weak self, weak webView] result, _ in
+                    guard let self, let webView else { return }
+                    let challengeCleared = (result as? Bool) == true
+                    if challengeCleared {
+                        self.importClearanceCookies(from: webView)
+                    }
+                }
             }
         }
 
