@@ -24,7 +24,11 @@ struct VideoDetailView: View {
             .navigationTitle("详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(isPlayerFullscreen ? .hidden : .visible, for: .navigationBar)
-            .toolbar(isPlayerFullscreen ? .hidden : .visible, for: .tabBar)
+            // The video detail page always hides the tab bar — it's a
+            // pushed sub-page that benefits from extra vertical space, not a
+            // top-level tab. (Fullscreen state doesn't matter; both inline
+            // and fullscreen want the tab bar gone.)
+            .toolbar(.hidden, for: .tabBar)
             .statusBarHidden(isPlayerFullscreen)
             .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
             .task {
