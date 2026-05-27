@@ -5,6 +5,7 @@ import Han1meShared
 struct Han1meViewerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let sharedEnvironment = SharedAppEnvironment(driverFactory: DatabaseDriverFactory(), preferencesStorage: IosPreferencesStorage(), baseUrl: "https://hanime1.me")
+    @StateObject private var tabBarVisibility = TabBarVisibilityController()
     @State private var selectedTab: MainTab = .home
     @State private var searchLaunchRequest: SearchLaunchRequest?
     @State private var deepLinkedVideo: DeepLinkedVideo?
@@ -16,6 +17,7 @@ struct Han1meViewerApp: App {
     var body: some Scene {
         WindowGroup {
             rootView
+                .environmentObject(tabBarVisibility)
                 .onReceive(NotificationCenter.default.publisher(for: SearchNavigationCenter.requestNotification)) { notification in
                     if let keyword = notification.userInfo?[SearchNavigationCenter.keywordKey] as? String {
                         openSearch(keyword: keyword)
@@ -74,6 +76,7 @@ struct Han1meViewerApp: App {
         }
         .tint(.red)
         .tabBarMinimizeBehavior(.onScrollDown)
+        .toolbar(tabBarVisibility.visibility, for: .tabBar)
     }
 
     private var legacyTabView: some View {
@@ -106,6 +109,7 @@ struct Han1meViewerApp: App {
                 .tag(MainTab.search)
         }
         .tint(.red)
+        .toolbar(tabBarVisibility.visibility, for: .tabBar)
     }
 
     private func handleDeepLink(_ url: URL) {

@@ -31,7 +31,7 @@ struct SettingsView: View {
             crashReportSection
         }
         .navigationTitle("设置")
-        .hidesTabBar()
+        .hidesTabBarOnAppear()
         .confirmationDialog(
             activeConfirmation?.title ?? "",
             isPresented: confirmationBinding,
