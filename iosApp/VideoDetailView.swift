@@ -24,6 +24,7 @@ struct VideoDetailView: View {
             .navigationTitle("详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(isPlayerFullscreen ? .hidden : .visible, for: .navigationBar)
+            .toolbar(isPlayerFullscreen ? .hidden : .visible, for: .tabBar)
             .statusBarHidden(isPlayerFullscreen)
             .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
             .task {
