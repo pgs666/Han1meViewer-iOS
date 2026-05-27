@@ -8,24 +8,49 @@ import UIKit
 /// this is the conventional approach (Bilibili / 哔哩哔哩 / iina / KSPlayer's
 /// own demo all use the same trick).
 ///
-/// The MPVolumeView must be attached to the view hierarchy and have non-zero
-/// size & non-hidden state for its slider to be functional, so we add a
-/// 1×1 effectively-invisible view to the active window once and forward
-/// writes to its slider.
+/// **Important**: as soon as a visible `MPVolumeView` (even alpha ~0) is in
+/// the view hierarchy, iOS hands the system volume HUD ownership over to it
+/// and stops showing its own HUD on hardware-button presses — anywhere in the
+/// app. To avoid suppressing the system HUD outside the player, we keep this
+/// ref-counted: `acquire()` mounts the hidden view, `release()` unmounts it.
+/// `KSPlayerView` calls acquire on `.onAppear` and release on `.onDisappear`.
 @MainActor
 enum SystemVolumeController {
     private static var volumeView: MPVolumeView?
+    private static var refCount = 0
 
-    private static func ensureMounted() {
-        if volumeView != nil { return }
+    /// Increment the active-player count and mount the hidden volume view if
+    /// this is the first acquirer.
+    static func acquire() {
+        refCount += 1
+        if volumeView == nil {
+            mount()
+        }
+    }
+
+    /// Decrement the active-player count; if no players remain, remove the
+    /// hidden view so iOS resumes showing its own system volume HUD anywhere
+    /// else in the app.
+    static func release() {
+        refCount = max(0, refCount - 1)
+        if refCount == 0 {
+            unmount()
+        }
+    }
+
+    private static func mount() {
         guard let window = activeWindow() else { return }
         let v = MPVolumeView(frame: CGRect(x: -100, y: -100, width: 1, height: 1))
-        // visible + alpha ~0 so the slider is laid out but invisible
         v.isHidden = false
         v.alpha = 0.0001
         v.showsRouteButton = false
         window.addSubview(v)
         volumeView = v
+    }
+
+    private static func unmount() {
+        volumeView?.removeFromSuperview()
+        volumeView = nil
     }
 
     private static func activeWindow() -> UIWindow? {
@@ -49,11 +74,10 @@ enum SystemVolumeController {
         AVAudioSession.sharedInstance().outputVolume
     }
 
-    /// Programmatically set the system output volume in [0, 1].
-    /// No-op if the hidden slider couldn't be located (e.g. before the first
-    /// window is up).
+    /// Programmatically set the system output volume in [0, 1]. No-op if no
+    /// caller has currently acquired the controller (slider unavailable).
     static func setVolume(_ value: Float) {
-        ensureMounted()
+        guard volumeView != nil else { return }
         // Apple recommends dispatching to the next runloop so MPVolumeView
         // has a chance to lay out its private subviews on first use.
         DispatchQueue.main.async {
