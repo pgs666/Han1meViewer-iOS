@@ -61,7 +61,7 @@ struct HomeView: View {
             }
         case .loaded(let snapshot):
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 18) {
                     if let banner = snapshot.banner {
                         HomeBannerView(
                             banner: banner,
@@ -73,13 +73,15 @@ struct HomeView: View {
                         .padding(.bottom, horizontalSizeClass == .regular ? 10 : 0)
                     }
 
-                    ForEach(snapshot.sections) { section in
-                        HomeCategorySection(
-                            section: section,
-                            videoFeature: videoFeature,
-                            commentFeature: commentFeature,
-                            onMore: onOpenSearch
-                        )
+                    LazyVStack(alignment: .leading, spacing: 18) {
+                        ForEach(snapshot.sections) { section in
+                            HomeCategorySection(
+                                section: section,
+                                videoFeature: videoFeature,
+                                commentFeature: commentFeature,
+                                onMore: onOpenSearch
+                            )
+                        }
                     }
                 }
                 .padding(.vertical, 12)
