@@ -189,8 +189,17 @@ struct KSPlayerView: View {
                 controlsOverlay.transition(.opacity)
             }
         }
-        .onAppear { scheduleAutoHide() }
-        .onDisappear { hideControlsTask?.cancel() }
+        .onAppear {
+            scheduleAutoHide()
+            // Mount the hidden MPVolumeView so swipe-volume can write the
+            // system output volume. Released on disappear so iOS's own
+            // volume HUD works everywhere else in the app.
+            SystemVolumeController.acquire()
+        }
+        .onDisappear {
+            hideControlsTask?.cancel()
+            SystemVolumeController.release()
+        }
     }
 
     private var controlsOverlay: some View {
