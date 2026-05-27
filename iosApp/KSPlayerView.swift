@@ -30,6 +30,10 @@ struct KSPlayerView: View {
     @State private var isPlaying = false
     @State private var isBoosted = false
     @State private var savedPlaybackRate: Float = 1.0
+    /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
+    /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
+    /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
+    @AppStorage("long_press_speed_times") private var storedBoostPlaybackRate: Double = 2.0
     /// 拖动 slider 时本地暂存目标值；松手后调 coordinator.seek 并清空。
     @State private var sliderSeekTarget: TimeInterval?
 
@@ -296,7 +300,7 @@ struct KSPlayerView: View {
         VStack {
             HStack {
                 Spacer()
-                Label("2x", systemImage: "forward.fill")
+                Label(Self.formatRate(effectiveBoostRate), systemImage: "forward.fill")
                     .font(.caption.weight(.bold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -370,7 +374,7 @@ struct KSPlayerView: View {
     private func startBoost() {
         guard !isBoosted else { return }
         savedPlaybackRate = coordinator.playbackRate
-        coordinator.playbackRate = 2.0
+        coordinator.playbackRate = effectiveBoostRate
         withAnimation(.easeInOut(duration: 0.15)) { isBoosted = true }
     }
 
@@ -378,6 +382,13 @@ struct KSPlayerView: View {
         guard isBoosted else { return }
         coordinator.playbackRate = savedPlaybackRate
         withAnimation(.easeInOut(duration: 0.15)) { isBoosted = false }
+    }
+
+    /// Boost 倍速从 `long_press_speed_times` setting 读；防御性 clamp 到 [1.0, 3.0]
+    /// 避免外部异常值（默认 2.0；slider 上限 3.0）。
+    private var effectiveBoostRate: Float {
+        let v = Float(storedBoostPlaybackRate)
+        return min(max(v, 1.0), 3.0)
     }
 
     private func scheduleAutoHide() {
