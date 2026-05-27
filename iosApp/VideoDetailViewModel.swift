@@ -30,6 +30,10 @@ final class VideoDetailViewModel: ObservableObject {
     private var didApplyRestoredPlaybackPosition = false
     private var playerItemStatusObservation: NSKeyValueObservation?
     private var failedToPlayObserver: NSObjectProtocol?
+    /// 已写入 db 的最近一次播放进度（毫秒）。`recordPlaybackPosition(seconds:)` 用它做
+    /// 大幅倒退保护，避免 KSPlayer 启动期 onPlay(0~少秒) 把已保存的 resume position
+    /// 抹掉。每次 `load(videoCode:)` 时 reset；snapshot loaded 后用 db 已存值初始化。
+    private var lastSavedPlaybackMillis: Int64?
 
     init(videoFeature: VideoFeature) {
         self.videoFeature = videoFeature
@@ -54,6 +58,7 @@ final class VideoDetailViewModel: ObservableObject {
         persistPlaybackPosition()
         releasePlayer()
         loadedVideoCode = nil
+        lastSavedPlaybackMillis = nil
         loadingVideoCode = videoCode
         state = .loading
         loadTask = Task { [weak self] in
@@ -74,6 +79,9 @@ final class VideoDetailViewModel: ObservableObject {
             }
             guard !Task.isCancelled, loadingVideoCode == videoCode else { return }
             loadedVideoCode = videoCode
+            // Initialize the regression baseline to the value already in db so
+            // early-stage onPlay (current=0..few seconds) cannot clobber it.
+            lastSavedPlaybackMillis = snapshot.playbackPositionMillis
             state = .loaded(VideoDetailScreenSnapshot(snapshot))
         } catch is CancellationError {
             return
@@ -128,6 +136,20 @@ final class VideoDetailViewModel: ObservableObject {
         guard case .loaded(let snapshot) = state else { return }
         let clampedSeconds = max(0, seconds)
         let millis = Int64(clampedSeconds * 1000)
+        // Defensive: KSPlayer fires onPlay during initial buffering BEFORE
+        // applying KSOptions.startPlayTime, sometimes with current=0..few seconds.
+        // If we wrote those to the watch-history db they'd clobber a real saved
+        // resume position (e.g. 30000 → 2000), and the next time the user opened
+        // the video they'd lose 28s of progress. Block writes that would
+        // regress the saved value by more than 30s. Small backward seeks (under
+        // 30s, typical user "rewind a bit") are still allowed; large seeks back
+        // (e.g. starting over from minute 5 to minute 0) — we lose that one
+        // edge case but gain robust resume.
+        let baseline = lastSavedPlaybackMillis ?? snapshot.playbackPositionMillis
+        if millis < baseline - 30_000 {
+            return
+        }
+        lastSavedPlaybackMillis = millis
         videoFeature.recordPlaybackPosition(
             videoCode: snapshot.videoCode,
             playbackPositionMillis: millis
