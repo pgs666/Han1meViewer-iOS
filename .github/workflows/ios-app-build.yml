@@ -42,6 +42,16 @@ jobs:
           restore-keys: |
             konan-${{ runner.os }}-
 
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('project.yml') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
