@@ -119,7 +119,7 @@ private struct HomeBannerView: View {
 
     private var bannerFrame: some View {
         ZStack(alignment: .bottomLeading) {
-            CachedRemoteImage(urlString: banner.imageUrl, resizeWidth: 900)
+            CachedRemoteImage(urlString: banner.imageUrl, resizeWidth: 600)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
 
@@ -156,6 +156,7 @@ private struct HomeCategorySection: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let onMore: (HomeSectionRow) -> Void
+    @State private var isVisible = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -174,20 +175,26 @@ private struct HomeCategorySection: View {
             }
             .padding(.horizontal, 16)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 12) {
-                    ForEach(section.videos) { video in
-                        NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
-                        } label: {
-                            HomeVideoCard(video: video)
+            if isVisible {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 12) {
+                        ForEach(section.videos) { video in
+                            NavigationLink {
+                                VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                            } label: {
+                                HomeVideoCard(video: video)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
+            } else {
+                Color.clear.frame(height: 170)
             }
         }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
     }
 }
 
