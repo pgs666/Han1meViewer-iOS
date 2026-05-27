@@ -73,7 +73,6 @@ struct KSPlayerView: View {
         ZStack {
             KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                 .onPlay { current, _ in
-                    if current.isFinite { currentSeconds = current }
                     // Skip the initial 0 → ~1s burst of onPlay ticks. KSPlayer fires
                     // these BEFORE applying KSOptions.startPlayTime, and writing them
                     // to the watch-history db would overwrite the user's saved
