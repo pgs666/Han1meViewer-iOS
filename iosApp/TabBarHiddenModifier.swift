@@ -78,7 +78,13 @@ private struct HidesTabBarOnAppearModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onAppear { controller.acquireHidden(animated: false) }
+            // Animate BOTH directions. onAppear used to be unanimated under
+            // the assumption that NavigationStack's own push transition
+            // would carry the tab bar slide for free, but in practice that
+            // didn't happen (tab bar would just snap out instantly while
+            // the rest of the push animated). Animating the visibility
+            // change explicitly produces a slide that runs alongside push.
+            .onAppear { controller.acquireHidden(animated: true) }
             .onDisappear { controller.release(animated: true) }
     }
 }
