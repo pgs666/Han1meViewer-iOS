@@ -76,7 +76,6 @@ struct Han1meViewerApp: App {
         }
         .tint(.red)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .toolbar(tabBarVisibility.visibility, for: .tabBar)
     }
 
     private var legacyTabView: some View {
@@ -109,7 +108,6 @@ struct Han1meViewerApp: App {
                 .tag(MainTab.search)
         }
         .tint(.red)
-        .toolbar(tabBarVisibility.visibility, for: .tabBar)
     }
 
     private func handleDeepLink(_ url: URL) {
