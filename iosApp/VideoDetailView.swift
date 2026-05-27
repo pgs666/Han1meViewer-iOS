@@ -76,74 +76,58 @@ struct VideoDetailView: View {
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let snapshot):
-            GeometryReader { proxy in
-                if horizontalSizeClass == .regular && proxy.size.width >= 900 {
-                    tabletContent(snapshot: snapshot, size: proxy.size)
-                } else {
-                    phoneContent(snapshot: snapshot, size: proxy.size)
+            // KEY: Keep KSPlayerView at a STABLE SwiftUI tree position across phone/tablet
+            // size-class changes. Previously it lived inside two different branches
+            // (phoneContent / tabletContent) so when iPad rotated to landscape and the
+            // GeometryReader switched branches, SwiftUI rebuilt KSPlayerView, the
+            // @StateObject KSVideoPlayer.Coordinator was recreated, KSPlayerLayer was
+            // re-initialized, and the video reloaded from 0. By placing playerArea ONCE
+            // here, the player view identity never changes when the bottom layout swaps.
+            VStack(spacing: 0) {
+                playerArea(snapshot: snapshot)
+                    .frame(maxWidth: .infinity)
+                    .modifier(PlayerSizeModifier(
+                        isFullscreen: isPlayerFullscreen,
+                        isCollapsed: isPlayerCollapsed
+                    ))
+
+                if !isPlayerFullscreen {
+                    GeometryReader { proxy in
+                        if horizontalSizeClass == .regular && proxy.size.width >= 900 {
+                            tabletBottomContent(snapshot: snapshot, size: proxy.size)
+                        } else {
+                            phoneBottomContent(snapshot: snapshot)
+                        }
+                    }
                 }
             }
             .background(Color(.systemGroupedBackground))
         }
     }
 
-    /// Phone / iPad portrait split：顶部 player（fixed sticky），下方 ScrollView。
-    /// 全屏时 ScrollView 隐藏，player 占满整个可用区域；折叠时 player 高度变 50pt。
-    private func phoneContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
-        VStack(spacing: 0) {
-            playerArea(snapshot: snapshot)
-                .frame(
-                    width: size.width,
-                    height: playerHeight(in: size)
-                )
-
-            if !isPlayerFullscreen {
-                belowPlayerScroll(snapshot: snapshot, showsRelated: true)
-            }
-        }
+    /// Phone / iPad compact / iPad portrait: 单一 ScrollView 占据 player 下方全部空间。
+    private func phoneBottomContent(snapshot: VideoDetailScreenSnapshot) -> some View {
+        belowPlayerScroll(snapshot: snapshot, showsRelated: true)
     }
 
-    /// iPad regular landscape：左侧主内容（顶部 player + 下方 scroll），右侧相关视频侧栏。
-    private func tabletContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
-        if isPlayerFullscreen {
-            // 全屏：忽略 split，整个屏幕都给 player
-            return AnyView(
-                playerArea(snapshot: snapshot)
-                    .frame(width: size.width, height: size.height)
-            )
-        }
+    /// iPad regular landscape (split layout below the top-pinned player):
+    /// 左主 scroll + 右相关视频 sidebar。
+    private func tabletBottomContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
         let leftWidth = min(max(size.width * 0.64, 620), size.width - 360)
-        return AnyView(
-            HStack(alignment: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    playerArea(snapshot: snapshot)
-                        .frame(
-                            width: leftWidth,
-                            height: playerHeight(in: CGSize(width: leftWidth, height: size.height))
-                        )
-
-                    belowPlayerScroll(snapshot: snapshot, showsRelated: false)
-                }
+        return HStack(alignment: .top, spacing: 0) {
+            belowPlayerScroll(snapshot: snapshot, showsRelated: false)
                 .frame(width: leftWidth)
 
-                Divider()
+            Divider()
 
-                TabletRelatedSidebar(
-                    videos: snapshot.relatedVideos,
-                    videoFeature: videoFeature,
-                    commentFeature: commentFeature
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemBackground))
-            }
-        )
-    }
-
-    /// Player 高度：全屏 = 整个父高度；折叠 = 50pt；默认 = 16:9
-    private func playerHeight(in size: CGSize) -> CGFloat {
-        if isPlayerFullscreen { return size.height }
-        if isPlayerCollapsed { return 50 }
-        return size.width * 9 / 16
+            TabletRelatedSidebar(
+                videos: snapshot.relatedVideos,
+                videoFeature: videoFeature,
+                commentFeature: commentFeature
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemBackground))
+        }
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
@@ -190,6 +174,25 @@ struct VideoDetailView: View {
                 }
             }
             .padding(.bottom, 24)
+        }
+    }
+}
+
+/// Drives the inline → fullscreen → collapsed sizing of the sticky-top KSPlayerView
+/// without changing its position in the SwiftUI view tree, so view identity (and the
+/// underlying KSVideoPlayer.Coordinator + KSPlayerLayer) is preserved across all
+/// transitions.
+private struct PlayerSizeModifier: ViewModifier {
+    let isFullscreen: Bool
+    let isCollapsed: Bool
+
+    func body(content: Content) -> some View {
+        if isFullscreen {
+            content.frame(maxHeight: .infinity)
+        } else if isCollapsed {
+            content.frame(height: 50)
+        } else {
+            content.aspectRatio(16.0 / 9.0, contentMode: .fit)
         }
     }
 }
