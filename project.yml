@@ -57,3 +57,29 @@ targets:
           cd "$SRCROOT"
           chmod +x ./gradlew
           ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+    postBuildScripts:
+      - name: Fix invalid framework bundle ids (KSPlayer/libshaderc_combined etc.)
+        basedOnDependencyAnalysis: false
+        script: |
+          # Some frameworks shipped via KSPlayer (e.g. libshaderc_combined) have
+          # CFBundleIdentifier with underscores, which violates RFC 1034 / Apple
+          # framework validation. Replace any underscores with hyphens in
+          # embedded frameworks' Info.plist.
+          APP_FRAMEWORKS="$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Frameworks"
+          if [ ! -d "$APP_FRAMEWORKS" ]; then
+            echo "No Frameworks directory at $APP_FRAMEWORKS, skipping"
+            exit 0
+          fi
+          for framework in "$APP_FRAMEWORKS"/*.framework; do
+            plist="$framework/Info.plist"
+            if [ ! -f "$plist" ]; then continue; fi
+            current_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist" 2>/dev/null || true)
+            if [ -z "$current_id" ]; then continue; fi
+            case "$current_id" in
+              *_*)
+                fixed=$(echo "$current_id" | tr '_' '-')
+                /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $fixed" "$plist"
+                echo "Fixed CFBundleIdentifier in $(basename "$framework"): $current_id -> $fixed"
+                ;;
+            esac
+          done
