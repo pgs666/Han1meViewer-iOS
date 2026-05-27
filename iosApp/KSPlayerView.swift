@@ -498,6 +498,21 @@ struct KSPlayerView: View {
     /// long-press timer (=> startBoost); subsequent calls cancel that timer
     /// and switch to swipe handling once the finger moves > the threshold.
     private func handlePressOrSwipe(_ value: DragGesture.Value, in size: CGSize) {
+        // Reserve the top and bottom edges for iOS system gestures
+        // (status bar / Notification Center / Control Center pull-down,
+        // home indicator swipe-up). When the touch STARTS in these strips,
+        // ignore it entirely so a user dragging Control Center down from
+        // the top doesn't accidentally crank the brightness, and a user
+        // swiping up from the home indicator to go home doesn't seek.
+        // Only meaningful in fullscreen (where the player covers those
+        // areas), but harmless in inline.
+        let topInset: CGFloat = 50
+        let bottomInset: CGFloat = 34
+        let startY = value.startLocation.y
+        if startY < topInset || startY > size.height - bottomInset {
+            return
+        }
+
         // Higher threshold so a slight finger tremor during the long-press
         // boost doesn't accidentally classify as swipe and abort the boost.
         // 36pt ≈ a deliberate finger movement; pixel jitter while holding
