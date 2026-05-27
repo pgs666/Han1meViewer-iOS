@@ -35,16 +35,11 @@ struct KSPlayerView: UIViewRepresentable {
         Coordinator(onProgress: onProgress, onPlaybackEnded: onPlaybackEnded)
     }
 
-    func makeUIView(context: Context) -> IOSVideoPlayerView {
+    func makeUIView(context: Context) -> KSPlayerContainerView {
         // 一次性全局配置 KSPlayer：自动播放 + 后台音频会话（解决审计 P0-L1 的一半）
         _ = Self.configureKSPlayerGlobalsOnce
-        let playerView = IOSVideoPlayerView()
-        playerView.translatesAutoresizingMaskIntoConstraints = false
-        // KSPlayer 的内部 toolbar / overlay 不一定 clip 到 view bounds，
-        // 在 SwiftUI ScrollView + LazyVStack pinnedSectionHeaders 场景下会穿透到下方 tab 栏。
-        // 强制 clipsToBounds 限制所有子视图在 player view 内部。
-        playerView.clipsToBounds = true
-        playerView.layer.masksToBounds = true
+        let container = KSPlayerContainerView()
+        let playerView = container.playerView
         // 进度回调
         playerView.playTimeDidChange = { [weak playerView] currentTime, _ in
             context.coordinator.onProgress(currentTime)
@@ -55,22 +50,22 @@ struct KSPlayerView: UIViewRepresentable {
             playerView.set(resource: resource)
         }
         context.coordinator.attachEndedObserver(to: playerView)
-        return playerView
+        return container
     }
 
-    func updateUIView(_ playerView: IOSVideoPlayerView, context: Context) {
+    func updateUIView(_ container: KSPlayerContainerView, context: Context) {
         // snapshot 变化时（如切换清晰度/视频）重新装入资源
         if context.coordinator.lastVideoCode != snapshot.videoCode {
             if let resource = Self.makeResource(from: snapshot) {
-                playerView.set(resource: resource)
+                container.playerView.set(resource: resource)
             }
             context.coordinator.lastVideoCode = snapshot.videoCode
         }
     }
 
-    static func dismantleUIView(_ playerView: IOSVideoPlayerView, coordinator: Coordinator) {
+    static func dismantleUIView(_ container: KSPlayerContainerView, coordinator: Coordinator) {
         coordinator.detach()
-        playerView.pause()
+        container.playerView.pause()
     }
 
     // MARK: - Coordinator
@@ -179,6 +174,48 @@ struct KSPlayerView: UIViewRepresentable {
         KSOptions.isAutoPlay = true
         KSOptions.setAudioSession()
     }()
+}
+
+/// 包裹 `IOSVideoPlayerView` 的容器 UIView。
+///
+/// 直接把 `IOSVideoPlayerView` 作为 SwiftUI `UIViewRepresentable` 的 root view 时，
+/// SwiftUI 给的 `aspectRatio(16/9)` 约束会被 KSPlayer 内部 Auto Layout 约束覆盖（
+/// 它内部 toolbar / cover overlay 等子视图有自己的 size 约束），导致 player view
+/// 实际高度远超 16:9。
+///
+/// 解决：用一个普通 UIView 接受 SwiftUI 给的 frame 约束，再用 fill constraints
+/// 把 IOSVideoPlayerView 撑满容器。这样 player view 的实际尺寸 = SwiftUI 给的 frame，
+/// 且容器开启 `clipsToBounds` / `layer.masksToBounds` 防止 KSPlayer 内部 overlay 越界。
+final class KSPlayerContainerView: UIView {
+    let playerView: IOSVideoPlayerView
+
+    override init(frame: CGRect) {
+        playerView = IOSVideoPlayerView()
+        playerView.translatesAutoresizingMaskIntoConstraints = false
+        super.init(frame: frame)
+        translatesAutoresizingMaskIntoConstraints = false
+        clipsToBounds = true
+        layer.masksToBounds = true
+        backgroundColor = .black
+
+        addSubview(playerView)
+        NSLayoutConstraint.activate([
+            playerView.topAnchor.constraint(equalTo: topAnchor),
+            playerView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            playerView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            playerView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    /// 让 SwiftUI 完全控制 layout，不让 UIKit auto layout 自己算 intrinsic size。
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
 }
 
 // MARK: - End
