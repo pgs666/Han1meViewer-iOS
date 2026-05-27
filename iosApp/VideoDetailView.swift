@@ -199,6 +199,7 @@ private struct AndroidStylePlayerHeader: View {
                 }
             )
             .aspectRatio(16.0 / 9.0, contentMode: .fit)
+            .clipped()
         } else {
             ZStack {
                 if let coverString = snapshot.coverUrl, let url = URL(string: coverString) {

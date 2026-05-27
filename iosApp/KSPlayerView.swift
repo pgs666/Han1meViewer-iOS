@@ -40,6 +40,11 @@ struct KSPlayerView: UIViewRepresentable {
         _ = Self.configureKSPlayerGlobalsOnce
         let playerView = IOSVideoPlayerView()
         playerView.translatesAutoresizingMaskIntoConstraints = false
+        // KSPlayer 的内部 toolbar / overlay 不一定 clip 到 view bounds，
+        // 在 SwiftUI ScrollView + LazyVStack pinnedSectionHeaders 场景下会穿透到下方 tab 栏。
+        // 强制 clipsToBounds 限制所有子视图在 player view 内部。
+        playerView.clipsToBounds = true
+        playerView.layer.masksToBounds = true
         // 进度回调
         playerView.playTimeDidChange = { [weak playerView] currentTime, _ in
             context.coordinator.onProgress(currentTime)
