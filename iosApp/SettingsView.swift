@@ -12,7 +12,7 @@ struct SettingsView: View {
     // Preferences
     @State private var defaultVideoQuality: String = "1080P"
     @State private var videoLanguage: String = "cht"
-    @State private var playerSpeed: Float = 1.0
+    @State private var longPressSpeed: Float = 2.0
     @State private var allowResumePlayback: Bool = true
     @State private var showPlayedIndicator: Bool = true
     @State private var showBottomProgress: Bool = true
@@ -86,23 +86,26 @@ struct SettingsView: View {
             }
 
             HStack {
-                Text("播放速度")
+                Text("长按倍速")
                 Spacer()
-                Text(String(format: "%.2fx", playerSpeed))
+                Text(String(format: "%.2fx", longPressSpeed))
                     .foregroundStyle(.secondary)
             }
-            Slider(value: $playerSpeed, in: 0.5...3.0, step: 0.25) {
-                Text("播放速度")
+            Slider(value: $longPressSpeed, in: 1.0...3.0, step: 0.25) {
+                Text("长按倍速")
             } minimumValueLabel: {
-                Text("0.5x")
+                Text("1.0x")
                     .font(.caption)
             } maximumValueLabel: {
                 Text("3.0x")
                     .font(.caption)
             }
-            .onValueChange(of: playerSpeed) { newValue in
-                environment.preferences().playerSpeed.set(value: newValue)
+            .onValueChange(of: longPressSpeed) { newValue in
+                environment.preferences().longPressSpeedTimes.set(value: newValue)
             }
+            Text("按住屏幕时切换到该倍速，松手恢复。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Toggle("自动恢复播放进度", isOn: $allowResumePlayback)
                 .onValueChange(of: allowResumePlayback) { newValue in
@@ -191,7 +194,7 @@ struct SettingsView: View {
         let prefs = environment.preferences()
         defaultVideoQuality = prefs.defaultVideoQuality.get()
         videoLanguage = prefs.videoLanguage.get()
-        playerSpeed = prefs.playerSpeed.get()
+        longPressSpeed = prefs.longPressSpeedTimes.get()
         allowResumePlayback = prefs.allowResumePlayback.get()
         showPlayedIndicator = prefs.showPlayedIndicator.get()
         showBottomProgress = prefs.showBottomProgress.get()
