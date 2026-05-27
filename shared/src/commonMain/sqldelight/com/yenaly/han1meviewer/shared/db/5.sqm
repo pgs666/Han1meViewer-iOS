@@ -1,0 +1,1 @@
+ALTER TABLE search_history ADD COLUMN filter_data TEXT NOT NULL DEFAULT '';
