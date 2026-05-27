@@ -4,24 +4,12 @@ import SwiftUI
 /// (e.g. video detail, settings) calling `acquireHidden(...)` / `release(...)`
 /// on appear / disappear.
 ///
-/// Why an external observable instead of `.toolbar(.hidden, for: .tabBar)`
-/// directly on the sub-page:
-///
-/// SwiftUI's runtime does not reliably animate the tab-bar transition when a
-/// `.toolbar(_:for:)` modifier is applied to the destination view inside a
-/// NavigationStack push (verified bug-class on iOS 16–26 across versions).
-/// The well-known working pattern (Stack Overflow / community-vetted) is:
-///   • Hold `Visibility` as `@State` at a higher level.
-///   • Apply `.toolbar(visibility, for: .tabBar)` to the NavigationStack
-///     container, NOT the destination view.
-///   • Toggle the @State inside `withAnimation { … }` from the destination's
-///     `.onAppear` / `.onDisappear`.
-/// SwiftUI then animates the tab-bar slide because the change is bound to
-/// the NavigationStack's own layout pass.
-///
-/// Putting the state in an environment object lets every NavigationStack in
-/// the four tabs subscribe to the same visibility, and lets every sub-page
-/// (no matter how deep) toggle it without prop-drilling Bindings.
+/// **Only used on iOS 17+.** On iPadOS 16 attaching
+/// `.toolbar(visibility, for: .tabBar)` to the NavigationStack root content
+/// causes severe layout corruption (overlapping nav bar with list rows /
+/// section headers) and the page becomes unresponsive. iOS 16 therefore
+/// falls back to the destination-level `.toolbar(.hidden, for: .tabBar)`
+/// — correct visual outcome, just without the slide animation.
 @MainActor
 final class TabBarVisibilityController: ObservableObject {
     @Published var visibility: Visibility = .visible
@@ -31,7 +19,7 @@ final class TabBarVisibilityController: ObservableObject {
     /// the tab bar hidden until the whole chain pops.
     private var hiddenRequesters: Int = 0
 
-    func acquireHidden(animated: Bool = false) {
+    func acquireHidden(animated: Bool = true) {
         hiddenRequesters += 1
         let target: Visibility = .hidden
         if animated {
@@ -58,33 +46,37 @@ final class TabBarVisibilityController: ObservableObject {
 }
 
 extension View {
-    /// Sub-page convenience: bind `.onAppear` / `.onDisappear` to the shared
-    /// `TabBarVisibilityController` so the tab bar slides out on push and
-    /// slides back in on pop.
+    /// Sub-page convenience: hide the tab bar on appear and restore it on
+    /// disappear.
     ///
-    /// onAppear sets hidden WITHOUT animation — SwiftUI's NavigationStack
-    /// push transition is already running, so the tab bar disappearance
-    /// rides along with it (perceived as a slide). onDisappear (pop) wraps
-    /// the visible flip in `withAnimation` so the bar slides back in
-    /// smoothly even though pop has already finished animating the view.
+    /// On iOS 17+ this uses the shared `TabBarVisibilityController` so the
+    /// flip happens via `withAnimation`, producing a slide.
+    ///
+    /// On iPadOS 16 the controller path causes a layout-corruption /
+    /// unresponsive-page bug, so we fall back to the simpler destination
+    /// `.toolbar(.hidden, for: .tabBar)` (no animation, but correct).
     @MainActor
     func hidesTabBarOnAppear() -> some View {
-        modifier(HidesTabBarOnAppearModifier())
+        modifier(HidesTabBarModifier())
     }
 }
 
-private struct HidesTabBarOnAppearModifier: ViewModifier {
+private struct HidesTabBarModifier: ViewModifier {
     @EnvironmentObject private var controller: TabBarVisibilityController
 
     func body(content: Content) -> some View {
-        content
-            // Animate BOTH directions. onAppear used to be unanimated under
-            // the assumption that NavigationStack's own push transition
-            // would carry the tab bar slide for free, but in practice that
-            // didn't happen (tab bar would just snap out instantly while
-            // the rest of the push animated). Animating the visibility
-            // change explicitly produces a slide that runs alongside push.
-            .onAppear { controller.acquireHidden(animated: true) }
-            .onDisappear { controller.release(animated: true) }
+        if #available(iOS 17.0, *) {
+            content
+                // Animate BOTH directions. NavigationStack's push transition
+                // does NOT carry a tab-bar slide for free, so we drive it
+                // explicitly via withAnimation in the controller.
+                .onAppear { controller.acquireHidden(animated: true) }
+                .onDisappear { controller.release(animated: true) }
+        } else {
+            // iPadOS 16: the controller-driven container approach corrupts
+            // layout. Fall back to direct destination-level hide.
+            content
+                .toolbar(.hidden, for: .tabBar)
+        }
     }
 }
