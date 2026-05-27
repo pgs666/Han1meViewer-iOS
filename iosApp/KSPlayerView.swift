@@ -1,12 +1,14 @@
 import SwiftUI
 import KSPlayer
 import Han1meShared
+import SwiftUI
+import UIKit
 
 /// SwiftUI 包装 KSPlayer 的底层 `KSVideoPlayer`（仅显示视频内容，无内置 UI），控件层完全
 /// 自己拼装但都通过 `KSVideoPlayer.Coordinator` 的 **public API** 操作（`seek(time:)` /
-/// `skip(interval:)` / `playbackRate` / `isScaleAspectFill` / `state.isPlaying` /
-/// `timemodel.currentTime/totalTime`），所以播放/暂停/倍速/aspect mode/进度都跟 KSPlayer
-/// 内部完全同步。
+/// `skip(interval:)` / `playbackRate` / `isScaleAspectFill` / `playbackVolume` /
+/// `state.isPlaying` / `timemodel.currentTime/totalTime`），所以播放/暂停/倍速/aspect
+/// mode/进度都跟 KSPlayer 内部完全同步。
 ///
 /// 不用上游 `KSVideoPlayerView` 的原因：它内部带 `.preferredColorScheme(.dark)` 这是
 /// SwiftUI PreferenceKey，会一直 propagate 到 root window，**嵌套 NavigationStack 不能
@@ -14,7 +16,7 @@ import Han1meShared
 /// 也用不了。
 ///
 /// 通过 `@Binding isFullscreen` / `@Binding isCollapsed` 让外部容器（VideoDetailView）
-/// 控制 player 形态。**关键**：始终在 SwiftUI view tree 同一位置，仅靠外层 frame 切换大小，
+/// 控制 player 形态。**关键**：始终在 SwiftUI view tree 同一位置，仅靠外层 frame 切换大小,
 /// view identity 不变 → KSPlayerLayer 复用 → 视频不重新加载，进度不丢失。
 @MainActor
 struct KSPlayerView: View {
@@ -34,8 +36,33 @@ struct KSPlayerView: View {
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
     @AppStorage("long_press_speed_times") private var storedBoostPlaybackRate: Double = 2.0
-    /// 拖动 slider 时本地暂存目标值；松手后调 coordinator.seek 并清空。
-    @State private var sliderSeekTarget: TimeInterval?
+
+    // MARK: - Slider state
+    /// 进度条本地值。**plain @State**(不是 closure-based binding)，避免 SwiftUI Slider
+    /// 第一次拖动时 binding source 没及时更新导致 thumb 跳回原位的问题。
+    /// 通过 `.onReceive(coordinator.timemodel.$currentTime)` 同步外部时间，但
+    /// 仅在非 dragging 状态下覆盖，避免拖动时被 +1s/s 的播放进度抢走。
+    @State private var sliderValue: TimeInterval = 0
+    @State private var isSliderEditing = false
+
+    // MARK: - Swipe gesture state
+    @State private var dragState: DragKind = .none
+    @State private var dragStartProgressSeconds: TimeInterval = 0
+    @State private var dragTargetProgressSeconds: TimeInterval = 0
+    @State private var dragStartBrightness: CGFloat = 0
+    @State private var dragCurrentBrightness: CGFloat = 0
+    @State private var dragStartVolume: Float = 0
+    @State private var dragCurrentVolume: Float = 0
+
+    private enum DragKind: Equatable {
+        case none
+        /// 左右滑：调整播放进度（松手后 commit seek）
+        case seek
+        /// 左半屏上下滑：屏幕亮度
+        case brightness
+        /// 右半屏上下滑：播放器音量
+        case volume
+    }
 
     init(
         snapshot: VideoDetailScreenSnapshot,
@@ -74,60 +101,85 @@ struct KSPlayerView: View {
         let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
         let options = makeKSOptions(resumeSeconds: resumeSeconds)
 
+        // GeometryReader wraps KSVideoPlayer (alone, not the whole ZStack) so the
+        // DragGesture handler can see the player's own size — needed to decide
+        // whether a vertical swipe started on the LEFT half (brightness) or the
+        // RIGHT half (volume), and to scale a horizontal swipe to a sensible
+        // seek delta. KSVideoPlayer is the only child of this GeometryReader,
+        // no branching, so view identity is preserved.
         ZStack {
-            KSVideoPlayer(coordinator: coordinator, url: url, options: options)
-                .onPlay { current, _ in
-                    // Skip the initial 0 → ~1s burst of onPlay ticks. KSPlayer fires
-                    // these BEFORE applying KSOptions.startPlayTime, and writing them
-                    // to the watch-history db would overwrite the user's saved
-                    // resume position with 0 every time the screen is opened.
-                    if current.isFinite, current >= 2.0 {
-                        onProgress(current)
-                    }
-                }
-                .onFinish { _, _ in onPlaybackEnded() }
-                .onStateChanged { _, state in
-                    isPlaying = state.isPlaying
-                }
-                // Attach gestures to the video layer, NOT to the outer ZStack.
-                // Otherwise outer .onTapGesture(count: 1) raced with Buttons /
-                // Menu inside controlsOverlay — tapping the "1x" rate menu was
-                // both opening the menu AND toggling showsControls, so the
-                // controls (and the menu) immediately disappeared together.
-                // Now Button / Menu inside controlsOverlay handle their taps
-                // first (they sit on top in z-order); taps on truly empty mask
-                // areas fall through (gradient is allowsHitTesting(false), the
-                // VStack has natural pass-through in gaps) and reach the video
-                // layer's gestures below.
-                .contentShape(Rectangle())
-                .onTapGesture(count: 2) {
-                    togglePlayPause()
-                    scheduleAutoHide()
-                }
-                .onTapGesture(count: 1) {
-                    withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
-                    if showsControls { scheduleAutoHide() }
-                }
-                .onLongPressGesture(
-                    minimumDuration: 0.4,
-                    pressing: { isPressing in
-                        if !isPressing, isBoosted { endBoost() }
-                    },
-                    perform: { startBoost() }
-                )
-                .simultaneousGesture(
-                    MagnificationGesture()
-                        .onEnded { value in
-                            if !isFullscreen, value > 1.15 {
-                                withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
-                            } else if isFullscreen, value < 0.85 {
-                                withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
-                            }
+            GeometryReader { proxy in
+                KSVideoPlayer(coordinator: coordinator, url: url, options: options)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .onPlay { current, _ in
+                        // Skip the initial 0 → ~1s burst of onPlay ticks. KSPlayer fires
+                        // these BEFORE applying KSOptions.startPlayTime, and writing them
+                        // to the watch-history db would overwrite the user's saved
+                        // resume position with 0 every time the screen is opened.
+                        if current.isFinite, current >= 2.0 {
+                            onProgress(current)
                         }
-                )
+                    }
+                    .onFinish { _, _ in onPlaybackEnded() }
+                    .onStateChanged { _, state in
+                        isPlaying = state.isPlaying
+                    }
+                    // Attach gestures to the video layer, NOT to the outer ZStack.
+                    // Otherwise outer .onTapGesture(count: 1) raced with Buttons /
+                    // Menu inside controlsOverlay — tapping the "1x" rate menu was
+                    // both opening the menu AND toggling showsControls, so the
+                    // controls (and the menu) immediately disappeared together.
+                    // Now Button / Menu inside controlsOverlay handle their taps
+                    // first (they sit on top in z-order); taps on truly empty mask
+                    // areas fall through (gradient is allowsHitTesting(false), the
+                    // VStack has natural pass-through in gaps) and reach the video
+                    // layer's gestures below.
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        togglePlayPause()
+                        scheduleAutoHide()
+                    }
+                    .onTapGesture(count: 1) {
+                        withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
+                        if showsControls { scheduleAutoHide() }
+                    }
+                    .onLongPressGesture(
+                        minimumDuration: 0.4,
+                        pressing: { isPressing in
+                            if !isPressing, isBoosted { endBoost() }
+                        },
+                        perform: { startBoost() }
+                    )
+                    .simultaneousGesture(
+                        MagnificationGesture()
+                            .onEnded { value in
+                                if !isFullscreen, value > 1.15 {
+                                    withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
+                                } else if isFullscreen, value < 0.85 {
+                                    withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
+                                }
+                            }
+                    )
+                    // Swipe gestures: vertical on left half = brightness, on right
+                    // half = volume; horizontal = seek. minimumDistance: 12 keeps
+                    // taps / long-press from being mis-classified as drags.
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 12)
+                            .onChanged { value in
+                                handleSwipeChanged(value, in: proxy.size)
+                            }
+                            .onEnded { _ in
+                                handleSwipeEnded()
+                            }
+                    )
+            }
 
             if isBoosted {
                 boostHint.transition(.opacity)
+            }
+
+            if dragState != .none {
+                swipeHUD.transition(.opacity)
             }
 
             if showsControls {
@@ -236,29 +288,39 @@ struct KSPlayerView: View {
 
     private var bottomBar: some View {
         let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
-        let displayCurrent = sliderSeekTarget ?? TimeInterval(coordinator.timemodel.currentTime)
+        // Slider value is now a PLAIN @State (not a closure-based binding) so
+        // SwiftUI's first drag delta correctly persists into binding source on
+        // the same render cycle. External player progress is reflected via
+        // .onReceive on coordinator.timemodel.$currentTime, but only when the
+        // user isn't actively dragging — otherwise the +1s/s update would
+        // immediately snap the thumb back from where the finger is.
         return HStack(spacing: 10) {
-            Text(Self.formatTime(displayCurrent))
+            Text(Self.formatTime(sliderValue))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.white)
 
             Slider(
-                value: Binding(
-                    get: { displayCurrent },
-                    set: { sliderSeekTarget = $0 }
-                ),
+                value: $sliderValue,
                 in: 0...total,
                 onEditingChanged: { editing in
                     if editing {
+                        isSliderEditing = true
                         hideControlsTask?.cancel()
-                    } else if let target = sliderSeekTarget {
-                        coordinator.seek(time: target)
-                        sliderSeekTarget = nil
+                    } else {
+                        isSliderEditing = false
+                        coordinator.seek(time: sliderValue)
                         scheduleAutoHide()
                     }
                 }
             )
             .tint(.white)
+            .onReceive(coordinator.timemodel.$currentTime) { newTime in
+                guard !isSliderEditing else { return }
+                let asTime = TimeInterval(newTime)
+                if abs(asTime - sliderValue) > 0.5 {
+                    sliderValue = asTime
+                }
+            }
 
             Text(Self.formatTime(TimeInterval(coordinator.timemodel.totalTime)))
                 .font(.caption2.monospacedDigit())
@@ -310,6 +372,68 @@ struct KSPlayerView: View {
             }
             Spacer()
         }
+    }
+
+    /// HUD displayed in the centre of the player while a swipe gesture is active.
+    /// Shows progress preview / brightness / volume depending on dragState.
+    @ViewBuilder
+    private var swipeHUD: some View {
+        ZStack {
+            switch dragState {
+            case .seek:
+                let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
+                let delta = dragTargetProgressSeconds - dragStartProgressSeconds
+                let sign = delta >= 0 ? "+" : "−"
+                VStack(spacing: 6) {
+                    HStack(spacing: 4) {
+                        Image(systemName: delta >= 0 ? "forward.fill" : "backward.fill")
+                            .font(.title3)
+                        Text("\(sign)\(Self.formatTime(abs(delta)))")
+                            .font(.title3.monospacedDigit().weight(.semibold))
+                    }
+                    Text("\(Self.formatTime(dragTargetProgressSeconds)) / \(Self.formatTime(total))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 10))
+            case .brightness:
+                hudBar(systemImage: "sun.max.fill",
+                       label: "亮度",
+                       value: Float(dragCurrentBrightness))
+            case .volume:
+                hudBar(systemImage: dragCurrentVolume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                       label: "音量",
+                       value: dragCurrentVolume)
+            case .none:
+                EmptyView()
+            }
+        }
+    }
+
+    private func hudBar(systemImage: String, label: String, value: Float) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                Text(label)
+                Spacer(minLength: 0)
+                Text("\(Int((value * 100).rounded()))%")
+                    .monospacedDigit()
+            }
+            .font(.subheadline.weight(.semibold))
+            .frame(width: 160)
+
+            ProgressView(value: Double(value), total: 1.0)
+                .progressViewStyle(.linear)
+                .tint(.white)
+                .frame(width: 160)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func iconButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
@@ -364,6 +488,77 @@ struct KSPlayerView: View {
 
     private func primarySource() -> VideoPlaybackSourceRow? {
         snapshot.playbackSources.first(where: { $0.isDefault }) ?? snapshot.playbackSources.first
+    }
+
+    /// First call of a drag determines the kind based on direction & start
+    /// location. Subsequent calls update the active dimension only.
+    private func handleSwipeChanged(_ value: DragGesture.Value, in size: CGSize) {
+        if dragState == .none {
+            // Decide direction: vertical vs horizontal based on dominant axis of
+            // the cumulative translation. The DragGesture's minimumDistance: 12
+            // already fires only after the user committed to a direction.
+            let dx = value.translation.width
+            let dy = value.translation.height
+            if abs(dx) > abs(dy) {
+                dragState = .seek
+                dragStartProgressSeconds = TimeInterval(coordinator.timemodel.currentTime)
+                dragTargetProgressSeconds = dragStartProgressSeconds
+            } else {
+                let onLeftHalf = value.startLocation.x < size.width / 2
+                if onLeftHalf {
+                    dragState = .brightness
+                    dragStartBrightness = UIScreen.main.brightness
+                    dragCurrentBrightness = dragStartBrightness
+                } else {
+                    dragState = .volume
+                    dragStartVolume = coordinator.playbackVolume
+                    dragCurrentVolume = dragStartVolume
+                }
+            }
+            // While a swipe is active, do not auto-hide the overlay HUD.
+            hideControlsTask?.cancel()
+        }
+
+        switch dragState {
+        case .seek:
+            // Map horizontal drag to a seek delta. Full screen-width swipe
+            // covers ~50% of the video duration so a meaningful drag travels
+            // a usable amount without becoming jittery on long videos.
+            let total = TimeInterval(coordinator.timemodel.totalTime)
+            guard total > 0, size.width > 0 else { return }
+            let fraction = value.translation.width / size.width
+            let secondsDelta = TimeInterval(fraction) * total * 0.5
+            dragTargetProgressSeconds = max(0, min(total, dragStartProgressSeconds + secondsDelta))
+        case .brightness:
+            // Up = brighter (negative dy in SwiftUI = upward motion).
+            guard size.height > 0 else { return }
+            let fraction = -value.translation.height / size.height
+            dragCurrentBrightness = max(0, min(1, dragStartBrightness + fraction))
+            UIScreen.main.brightness = dragCurrentBrightness
+        case .volume:
+            // Up = louder.
+            guard size.height > 0 else { return }
+            let fraction = -Float(value.translation.height / size.height)
+            dragCurrentVolume = max(0, min(1, dragStartVolume + fraction))
+            coordinator.playbackVolume = dragCurrentVolume
+        case .none:
+            break
+        }
+    }
+
+    private func handleSwipeEnded() {
+        if dragState == .seek {
+            // Commit the seek only on release; intermediate drag positions
+            // were preview-only via the HUD.
+            coordinator.seek(time: dragTargetProgressSeconds)
+            // Sync slider too so it doesn't snap back to the pre-drag value.
+            sliderValue = dragTargetProgressSeconds
+        }
+        // Hide HUD with a small fade.
+        withAnimation(.easeOut(duration: 0.2)) {
+            dragState = .none
+        }
+        scheduleAutoHide()
     }
 
     private func togglePlayPause() {
