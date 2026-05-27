@@ -13,12 +13,14 @@ import Han1meShared
 /// - **`KSVideoPlayer` 是底层 `UIViewRepresentable`，仅显示视频内容（无内置 UI）**，
 ///   inline 嵌入完全友好；项目支持 iOS 15+，KSVideoPlayer 没有 iOS 16 限制。
 ///
-/// 控件用 SwiftUI 自己写在 ZStack 上层：
-/// - 单击屏幕：toggle 控件显示
-/// - 中央：播放/暂停按钮
-/// - 底部：进度条 + 当前/总时长
-/// - cookie 不注入；UA + Referer 通过 `KSOptions.appendHeader` 写入两条 backend
-/// - 长按倍速 / 双指缩放等手势作为后续 increment 加，spike 阶段先满足"能正常播放 + 不破坏布局"。
+/// 控件用 SwiftUI 自己写在 ZStack 上层，并实现"中国式"播放器手势：
+/// - 单击：toggle 控件显示
+/// - 双击：播放/暂停
+/// - 长按 0.4s+：进入 2x 倍速；松开恢复原速
+/// - 双指 pinch：切换 fit ⇔ fill 模式
+/// - 中央按钮：播放/暂停
+/// - 底部进度条：当前/总时长
+/// - 右上角全屏按钮：fullScreenCover + 共享 coordinator + 强制横屏
 @MainActor
 struct KSPlayerView: View {
     let snapshot: VideoDetailScreenSnapshot
@@ -31,6 +33,9 @@ struct KSPlayerView: View {
     @State private var currentSeconds: TimeInterval = 0
     @State private var totalSeconds: TimeInterval = 0
     @State private var isPlaying: Bool = false
+    @State private var showsFullscreen = false
+    @State private var savedPlaybackRate: Float = 1.0
+    @State private var isBoosted: Bool = false
 
     init(
         snapshot: VideoDetailScreenSnapshot,
@@ -46,9 +51,16 @@ struct KSPlayerView: View {
         // 一次性全局配置 KSPlayer（自动播放 + 后台音频会话，解决审计 P0-L1 一半）
         let _ = Self.configureKSPlayerGlobalsOnce
         Group {
-            if let primarySource = primarySource(),
+            if let primarySource = Self.primarySource(in: snapshot),
                let url = URL(string: primarySource.url) {
                 playerWithControls(url: url)
+                    .fullScreenCover(isPresented: $showsFullscreen) {
+                        FullscreenKSPlayerView(
+                            coordinator: coordinator,
+                            snapshot: snapshot,
+                            onClose: { showsFullscreen = false }
+                        )
+                    }
             } else {
                 emptyPlaceholder
             }
@@ -58,12 +70,12 @@ struct KSPlayerView: View {
         .clipped()
     }
 
-    // MARK: - Player + Controls
+    // MARK: - Inline player + controls + gestures
 
     @ViewBuilder
     private func playerWithControls(url: URL) -> some View {
         let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
-        let options = makeKSOptions(resumeSeconds: resumeSeconds)
+        let options = Self.makeKSOptions(resumeSeconds: resumeSeconds)
 
         ZStack {
             // 视频内容层
@@ -80,27 +92,64 @@ struct KSPlayerView: View {
                     isPlaying = state.isPlaying
                 }
 
-            // 控件层（半透明渐变 + 中央播放按钮 + 底部进度条）
+            // 长按倍速 hint
+            if isBoosted {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Label("2x", systemImage: "forward.fill")
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.55), in: Capsule())
+                            .foregroundStyle(.white)
+                            .padding(12)
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
+            }
+
+            // 控件层
             if showsControls {
                 controlsOverlay
                     .transition(.opacity)
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
+        // 双击：播放/暂停
+        .onTapGesture(count: 2) {
+            togglePlayPause()
+            scheduleAutoHide()
+        }
+        // 单击：切换控件可见性
+        .onTapGesture(count: 1) {
             withAnimation(.easeInOut(duration: 0.18)) {
                 showsControls.toggle()
             }
-            if showsControls {
-                scheduleAutoHide()
+            if showsControls { scheduleAutoHide() }
+        }
+        // 长按 0.4s+ 进入 2x 倍速；松开恢复
+        .onLongPressGesture(
+            minimumDuration: 0.4,
+            pressing: { isPressing in
+                if !isPressing, isBoosted {
+                    endBoost()
+                }
+            },
+            perform: {
+                startBoost()
             }
-        }
-        .onAppear {
-            scheduleAutoHide()
-        }
-        .onDisappear {
-            hideControlsTask?.cancel()
-        }
+        )
+        // 双指 pinch 切换 fit/fill
+        .simultaneousGesture(
+            MagnificationGesture()
+                .onEnded { value in
+                    coordinator.isScaleAspectFill = value > 1.1
+                }
+        )
+        .onAppear { scheduleAutoHide() }
+        .onDisappear { hideControlsTask?.cancel() }
     }
 
     private var controlsOverlay: some View {
@@ -114,6 +163,10 @@ struct KSPlayerView: View {
             .allowsHitTesting(false)
 
             VStack {
+                HStack {
+                    Spacer()
+                    fullscreenButton
+                }
                 Spacer()
                 centerPlayPauseButton
                 Spacer()
@@ -121,6 +174,20 @@ struct KSPlayerView: View {
             }
             .padding(12)
         }
+    }
+
+    private var fullscreenButton: some View {
+        Button {
+            showsFullscreen = true
+        } label: {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(.black.opacity(0.45), in: Circle())
+                .accessibilityLabel("全屏")
+        }
+        .buttonStyle(.plain)
     }
 
     private var centerPlayPauseButton: some View {
@@ -139,13 +206,13 @@ struct KSPlayerView: View {
 
     private var bottomProgressBar: some View {
         HStack(spacing: 10) {
-            Text(formatTime(currentSeconds))
+            Text(Self.formatTime(currentSeconds))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.white)
             ProgressView(value: progressFraction)
                 .progressViewStyle(.linear)
                 .tint(.white)
-            Text(formatTime(totalSeconds))
+            Text(Self.formatTime(totalSeconds))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.white)
         }
@@ -167,10 +234,6 @@ struct KSPlayerView: View {
 
     // MARK: - Helpers
 
-    private func primarySource() -> VideoPlaybackSourceRow? {
-        snapshot.playbackSources.first(where: { $0.isDefault }) ?? snapshot.playbackSources.first
-    }
-
     private func togglePlayPause() {
         guard let layer = coordinator.playerLayer else { return }
         if isPlaying {
@@ -178,6 +241,19 @@ struct KSPlayerView: View {
         } else {
             layer.play()
         }
+    }
+
+    private func startBoost() {
+        guard !isBoosted else { return }
+        savedPlaybackRate = coordinator.playbackRate
+        coordinator.playbackRate = 2.0
+        withAnimation(.easeInOut(duration: 0.15)) { isBoosted = true }
+    }
+
+    private func endBoost() {
+        guard isBoosted else { return }
+        coordinator.playbackRate = savedPlaybackRate
+        withAnimation(.easeInOut(duration: 0.15)) { isBoosted = false }
     }
 
     private func scheduleAutoHide() {
@@ -196,7 +272,13 @@ struct KSPlayerView: View {
         return min(max(currentSeconds / totalSeconds, 0), 1)
     }
 
-    private func formatTime(_ seconds: TimeInterval) -> String {
+    // MARK: - Static helpers (shared with FullscreenKSPlayerView)
+
+    static func primarySource(in snapshot: VideoDetailScreenSnapshot) -> VideoPlaybackSourceRow? {
+        snapshot.playbackSources.first(where: { $0.isDefault }) ?? snapshot.playbackSources.first
+    }
+
+    static func formatTime(_ seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "00:00" }
         let total = Int(seconds)
         let h = total / 3600
@@ -209,7 +291,7 @@ struct KSPlayerView: View {
         }
     }
 
-    private func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
+    static func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
         let options = KSOptions()
         // hanime1.me 视频 CDN 通常需要正确的 UA 和 Referer 才能播放。
         // 用 KSOptions.appendHeader 同时写入 AVURLAsset 和 FFmpeg 两条 backend 路径。
@@ -231,4 +313,193 @@ struct KSPlayerView: View {
         KSOptions.isAutoPlay = true
         KSOptions.setAudioSession()
     }()
+}
+
+// MARK: - Fullscreen player
+
+/// 全屏 player 视图。和 inline 的 KSPlayerView 共享同一 `KSVideoPlayer.Coordinator`，
+/// 复用底层 `KSPlayerLayer.player`（不重新加载视频，不重置进度）。
+/// 进入时强制横屏，退出时恢复原方向。
+@MainActor
+private struct FullscreenKSPlayerView: View {
+    @ObservedObject var coordinator: KSVideoPlayer.Coordinator
+    let snapshot: VideoDetailScreenSnapshot
+    let onClose: () -> Void
+
+    @State private var showsControls = true
+    @State private var hideControlsTask: Task<Void, Never>?
+    @State private var currentSeconds: TimeInterval = 0
+    @State private var totalSeconds: TimeInterval = 0
+    @State private var isPlaying: Bool = false
+    @State private var savedPlaybackRate: Float = 1.0
+    @State private var isBoosted: Bool = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let primarySource = KSPlayerView.primarySource(in: snapshot),
+               let url = URL(string: primarySource.url) {
+                let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
+                let options = KSPlayerView.makeKSOptions(resumeSeconds: resumeSeconds)
+
+                KSVideoPlayer(coordinator: coordinator, url: url, options: options)
+                    .onPlay { current, total in
+                        if current.isFinite { currentSeconds = current }
+                        if total.isFinite { totalSeconds = total }
+                    }
+                    .onStateChanged { _, state in
+                        isPlaying = state.isPlaying
+                    }
+                    .ignoresSafeArea()
+            }
+
+            if isBoosted {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Label("2x", systemImage: "forward.fill")
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.55), in: Capsule())
+                            .foregroundStyle(.white)
+                    }
+                    Spacer()
+                }
+                .padding(.top, 24)
+                .padding(.trailing, 24)
+                .transition(.opacity)
+            }
+
+            if showsControls {
+                fullscreenControlsOverlay
+                    .transition(.opacity)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            togglePlayPause()
+            scheduleAutoHide()
+        }
+        .onTapGesture(count: 1) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showsControls.toggle()
+            }
+            if showsControls { scheduleAutoHide() }
+        }
+        .onLongPressGesture(
+            minimumDuration: 0.4,
+            pressing: { isPressing in
+                if !isPressing, isBoosted {
+                    endBoost()
+                }
+            },
+            perform: {
+                startBoost()
+            }
+        )
+        .simultaneousGesture(
+            MagnificationGesture()
+                .onEnded { value in
+                    coordinator.isScaleAspectFill = value > 1.1
+                }
+        )
+        .onAppear {
+            AppOrientationController.shared.lockForFullscreen(to: .landscape)
+            scheduleAutoHide()
+        }
+        .onDisappear {
+            hideControlsTask?.cancel()
+            AppOrientationController.shared.unlockAfterFullscreen()
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private var fullscreenControlsOverlay: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.black.opacity(0.55), .clear, .black.opacity(0.65)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+            .ignoresSafeArea()
+
+            VStack {
+                HStack {
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(width: 42, height: 42)
+                            .background(.black.opacity(0.5), in: Circle())
+                    }
+                    .accessibilityLabel("退出全屏")
+                    Spacer()
+                }
+                Spacer()
+                Button {
+                    togglePlayPause()
+                    scheduleAutoHide()
+                } label: {
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 80, weight: .regular))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 6)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                HStack(spacing: 12) {
+                    Text(KSPlayerView.formatTime(currentSeconds))
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.white)
+                    ProgressView(value: progressFraction)
+                        .progressViewStyle(.linear)
+                        .tint(.white)
+                    Text(KSPlayerView.formatTime(totalSeconds))
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+        }
+    }
+
+    private func togglePlayPause() {
+        guard let layer = coordinator.playerLayer else { return }
+        if isPlaying { layer.pause() } else { layer.play() }
+    }
+
+    private func startBoost() {
+        guard !isBoosted else { return }
+        savedPlaybackRate = coordinator.playbackRate
+        coordinator.playbackRate = 2.0
+        withAnimation(.easeInOut(duration: 0.15)) { isBoosted = true }
+    }
+
+    private func endBoost() {
+        guard isBoosted else { return }
+        coordinator.playbackRate = savedPlaybackRate
+        withAnimation(.easeInOut(duration: 0.15)) { isBoosted = false }
+    }
+
+    private func scheduleAutoHide() {
+        hideControlsTask?.cancel()
+        hideControlsTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 4_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showsControls = false
+            }
+        }
+    }
+
+    private var progressFraction: Double {
+        guard totalSeconds > 0 else { return 0 }
+        return min(max(currentSeconds / totalSeconds, 0), 1)
+    }
 }
