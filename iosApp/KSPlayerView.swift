@@ -4,18 +4,23 @@ import Han1meShared
 
 /// SwiftUI 包装 KSPlayer，inline + fullscreen 分治：
 ///
-/// - **inline 模式**：用底层 `KSVideoPlayer`（仅显示视频内容，无内置 UI），叠加一组最小
-///   控件 —— 中央播放/暂停按钮 + 右上全屏按钮，仅靠单击/双击触发。
-///   这部分必须自己写，因为 KSPlayer 上游的所有完整 player view（`IOSVideoPlayerView` /
-///   `KSVideoPlayerView`）都是为 fullscreen 设计的，inline 嵌入时它们的内部修饰符
-///   （`.ignoresSafeArea` / `.toolbar(.hidden, for: .automatic)` /
-///   `.persistentSystemOverlays(.hidden)`）会破坏外层 NavigationStack 的 toolbar 与
-///   边缘返回手势；公共 `KSVideoPlayerViewBuilder` 也只提供单按钮 helper，不提供完整 inline 控件。
+/// - **inline 模式**：用底层 `KSVideoPlayer`（仅显示视频内容，无内置 UI），叠加最小
+///   控件 —— 中央播放/暂停按钮 + 右上全屏按钮，靠单击/双击触发。
+/// - **fullscreen 模式**：用 `KSVideoPlayerView`（上游完整 SwiftUI player view，
+///   含字幕 / PiP / 倍速 / 清晰度 / AirPlay / 长按倍速 / 滑动调音量亮度 seek）。
 ///
-/// - **fullscreen 模式**：用 `KSVideoPlayerView`（上游完整 SwiftUI player view，自带
-///   控件 / 字幕 / PiP / 倍速 / 清晰度切换 / AirPlay / 长按倍速等手势）。通过
-///   `.fullScreenCover` 弹出；共享同一 `KSVideoPlayer.Coordinator`，KSPlayerLayer 复用，
-///   不会重新加载视频或重置进度。进入时锁横屏，退出时恢复方向。
+/// 关键点：**inline 和 fullscreen 各自一个 `KSVideoPlayer.Coordinator`**，不能共享。
+/// KSPlayer 的 `KSVideoPlayer.dismantleUIView` 会调用 `coordinator.resetPlayer()`，
+/// 把 `playerLayer` 置 nil 并清空所有回调。如果 inline 和 fullscreen 共享 coordinator，
+/// fullscreen 关闭瞬间 dismantle 会破坏 inline（inline 失去回调 + playerLayer，
+/// 必须重新加载视频且 isPlaying 等 state 不再同步）。
+///
+/// 进度同步策略：
+/// - inline 的 `onPlay` 持续把 currentTime 记到 `lastInlineCurrentTime`
+/// - 点全屏按钮：先暂停 inline，把 `lastInlineCurrentTime` 作为 fullscreen 的 startTime
+/// - fullscreen 的 `onPlay` 把 currentTime 记到 `lastFullscreenCurrentTime`
+/// - 退出全屏（`onDismiss`）：inline 的 playerLayer 仍存在，seek 到
+///   `lastFullscreenCurrentTime` 并 play，从全屏看到的位置继续
 ///
 /// 部署目标 iOS 16+。
 @MainActor
@@ -29,6 +34,8 @@ struct KSPlayerView: View {
     @State private var hideControlsTask: Task<Void, Never>?
     @State private var isPlaying = false
     @State private var showsFullscreen = false
+    @State private var lastInlineCurrentTime: TimeInterval = 0
+    @State private var lastFullscreenCurrentTime: TimeInterval = 0
 
     init(
         snapshot: VideoDetailScreenSnapshot,
@@ -46,10 +53,16 @@ struct KSPlayerView: View {
             if let primarySource = Self.primarySource(in: snapshot),
                let url = URL(string: primarySource.url) {
                 inlinePlayer(url: url)
-                    .fullScreenCover(isPresented: $showsFullscreen) {
+                    .fullScreenCover(
+                        isPresented: $showsFullscreen,
+                        onDismiss: handleFullscreenDismiss
+                    ) {
                         FullscreenKSPlayerView(
-                            coordinator: coordinator,
                             snapshot: snapshot,
+                            startTime: lastInlineCurrentTime,
+                            onProgressUpdate: { current in
+                                lastFullscreenCurrentTime = current
+                            },
                             onClose: { showsFullscreen = false }
                         )
                     }
@@ -73,7 +86,10 @@ struct KSPlayerView: View {
         ZStack {
             KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                 .onPlay { current, _ in
-                    if current.isFinite { onProgress(current) }
+                    if current.isFinite {
+                        lastInlineCurrentTime = current
+                        onProgress(current)
+                    }
                 }
                 .onFinish { _, _ in
                     onPlaybackEnded()
@@ -102,7 +118,6 @@ struct KSPlayerView: View {
 
     private var inlineControlsOverlay: some View {
         ZStack {
-            // 顶部 + 底部薄渐变让按钮可读
             LinearGradient(
                 colors: [.black.opacity(0.4), .clear, .black.opacity(0.45)],
                 startPoint: .top,
@@ -124,7 +139,11 @@ struct KSPlayerView: View {
     }
 
     private var fullscreenButton: some View {
-        Button { showsFullscreen = true } label: {
+        Button {
+            // 进入全屏前暂停 inline，避免 inline 与 fullscreen 同时播放（音频/带宽冲突）。
+            coordinator.playerLayer?.pause()
+            showsFullscreen = true
+        } label: {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.headline)
                 .foregroundStyle(.white)
@@ -181,6 +200,22 @@ struct KSPlayerView: View {
         }
     }
 
+    private func handleFullscreenDismiss() {
+        // 退出全屏：把 fullscreen 看到的进度同步回 inline，恢复 inline 播放。
+        // inline 的 KSPlayerLayer 在全屏期间没有被 dismantle（inline view 仍在 view tree
+        // 中，只是被 fullScreenCover 遮挡），所以 seek 直接生效。
+        if lastFullscreenCurrentTime > 0 {
+            coordinator.playerLayer?.seek(time: lastFullscreenCurrentTime)
+        }
+        coordinator.playerLayer?.play()
+        // 同步给本地观看历史
+        if lastFullscreenCurrentTime.isFinite {
+            onProgress(lastFullscreenCurrentTime)
+        }
+        // 重置全屏进度记录
+        lastFullscreenCurrentTime = 0
+    }
+
     // MARK: - Static helpers (shared with FullscreenKSPlayerView)
 
     static func primarySource(in snapshot: VideoDetailScreenSnapshot) -> VideoPlaybackSourceRow? {
@@ -211,27 +246,38 @@ struct KSPlayerView: View {
 
 // MARK: - Fullscreen player
 
-/// 全屏 player：直接用上游 `KSVideoPlayerView`，自带完整控件 / 字幕 / PiP / 倍速 /
-/// 清晰度切换 / AirPlay / 长按倍速等手势。共享 inline `Coordinator`，不重新加载视频。
+/// 全屏 player：用上游 `KSVideoPlayerView` 自带完整 UI。
+/// **使用独立的 KSVideoPlayer.Coordinator**，与 inline 不共享 —— 因为 KSPlayer 的
+/// `dismantleUIView` 会 `resetPlayer`，会破坏共享的 inline state。代价是视频要重新
+/// 加载（约 1-2 秒延迟），但 inline 状态稳定，退出后能从 fullscreen 看到的进度继续。
 @MainActor
 private struct FullscreenKSPlayerView: View {
-    @ObservedObject var coordinator: KSVideoPlayer.Coordinator
     let snapshot: VideoDetailScreenSnapshot
+    let startTime: TimeInterval
+    let onProgressUpdate: (TimeInterval) -> Void
     let onClose: () -> Void
+
+    @StateObject private var coordinator = KSVideoPlayer.Coordinator()
 
     var body: some View {
         Group {
             if let primarySource = KSPlayerView.primarySource(in: snapshot),
                let url = URL(string: primarySource.url) {
-                let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
-                let options = KSPlayerView.makeKSOptions(resumeSeconds: resumeSeconds)
-
+                let options = KSPlayerView.makeKSOptions(resumeSeconds: startTime)
                 KSVideoPlayerView(
                     coordinator: coordinator,
                     url: url,
                     options: options,
                     title: snapshot.title
                 )
+                .onAppear {
+                    // 持续把 fullscreen 的进度回写给外层，供退出时同步给 inline。
+                    coordinator.onPlay = { current, _ in
+                        if current.isFinite {
+                            onProgressUpdate(current)
+                        }
+                    }
+                }
             } else {
                 Color.black.ignoresSafeArea()
             }
@@ -242,7 +288,5 @@ private struct FullscreenKSPlayerView: View {
         .onDisappear {
             AppOrientationController.shared.unlockAfterFullscreen()
         }
-        // KSVideoPlayerView 内部的 dismiss 通过 @Environment(\.dismiss) 触发；fullScreenCover
-        // 自动响应。这里仅在 onDisappear 通知父 view 状态同步。
     }
 }
