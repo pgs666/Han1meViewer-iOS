@@ -1,0 +1,1 @@
+ALTER TABLE watch_history ADD COLUMN release_date_epoch_millis INTEGER NOT NULL DEFAULT 0;
