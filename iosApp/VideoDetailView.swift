@@ -8,6 +8,8 @@ struct VideoDetailView: View {
     private let commentFeature: CommentFeature
     @StateObject private var viewModel: VideoDetailViewModel
     @State private var selectedTab = VideoPageTab.introduction
+    @State private var isPlayerFullscreen = false
+    @State private var isPlayerCollapsed = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(videoCode: String, videoFeature: VideoFeature, commentFeature: CommentFeature) {
@@ -21,6 +23,9 @@ struct VideoDetailView: View {
         content
             .navigationTitle("详情")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(isPlayerFullscreen ? .hidden : .visible, for: .navigationBar)
+            .statusBarHidden(isPlayerFullscreen)
+            .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
@@ -29,9 +34,19 @@ struct VideoDetailView: View {
             }
             .onDisappear {
                 viewModel.pausePlayer()
+                if isPlayerFullscreen {
+                    AppOrientationController.shared.unlockAfterFullscreen()
+                }
             }
             .alert(item: $viewModel.actionMessage) { message in
                 Alert(title: Text(message.message))
+            }
+            .onValueChange(of: isPlayerFullscreen) { newValue in
+                if newValue {
+                    AppOrientationController.shared.lockForFullscreen(to: .landscape)
+                } else {
+                    AppOrientationController.shared.unlockAfterFullscreen()
+                }
             }
     }
 
@@ -64,97 +79,116 @@ struct VideoDetailView: View {
                 if horizontalSizeClass == .regular && proxy.size.width >= 900 {
                     tabletContent(snapshot: snapshot, size: proxy.size)
                 } else {
-                    ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                    AndroidStylePlayerHeader(snapshot: snapshot, viewModel: viewModel)
-
-                    Section {
-                        switch selectedTab {
-                        case .introduction:
-                            AndroidStyleIntroduction(
-                                snapshot: snapshot,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature,
-                                isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                                onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                                onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                                onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                                onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                                onShowMessage: { viewModel.showActionMessage($0) },
-                                showsRelated: true
-                            )
-                        case .comments:
-                            CommentView(videoCode: videoCode, commentFeature: commentFeature)
-                        }
-                    } header: {
-                        Picker("Content", selection: $selectedTab) {
-                            ForEach(VideoPageTab.allCases) { tab in
-                                Text(tab.title).tag(tab)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.background)
-                    }
-                }
-                .padding(.bottom, 24)
-            }
+                    phoneContent(snapshot: snapshot, size: proxy.size)
                 }
             }
             .background(Color(.systemGroupedBackground))
         }
     }
 
-    private func tabletContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
-        HStack(alignment: .top, spacing: 0) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                    AndroidStylePlayerHeader(snapshot: snapshot, viewModel: viewModel)
+    /// Phone / iPad portrait split：顶部 player（fixed sticky），下方 ScrollView。
+    /// 全屏时 ScrollView 隐藏，player 占满整个可用区域；折叠时 player 高度变 50pt。
+    private func phoneContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
+        VStack(spacing: 0) {
+            playerArea(snapshot: snapshot)
+                .frame(
+                    width: size.width,
+                    height: playerHeight(in: size)
+                )
 
-                    Section {
-                        switch selectedTab {
-                        case .introduction:
-                            AndroidStyleIntroduction(
-                                snapshot: snapshot,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature,
-                                isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                                onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                                onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                                onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                                onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                                onShowMessage: { viewModel.showActionMessage($0) },
-                                showsRelated: false
-                            )
-                        case .comments:
-                            CommentView(videoCode: videoCode, commentFeature: commentFeature)
-                        }
-                    } header: {
-                        Picker("Content", selection: $selectedTab) {
-                            ForEach(VideoPageTab.allCases) { tab in
-                                Text(tab.title).tag(tab)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.background)
-                    }
-                }
-                .padding(.bottom, 24)
+            if !isPlayerFullscreen {
+                belowPlayerScroll(snapshot: snapshot, showsRelated: true)
             }
-            .frame(width: min(max(size.width * 0.64, 620), size.width - 360))
+        }
+    }
 
-            Divider()
-
-            TabletRelatedSidebar(
-                videos: snapshot.relatedVideos,
-                videoFeature: videoFeature,
-                commentFeature: commentFeature
+    /// iPad regular landscape：左侧主内容（顶部 player + 下方 scroll），右侧相关视频侧栏。
+    private func tabletContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
+        if isPlayerFullscreen {
+            // 全屏：忽略 split，整个屏幕都给 player
+            return AnyView(
+                playerArea(snapshot: snapshot)
+                    .frame(width: size.width, height: size.height)
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemBackground))
+        }
+        let leftWidth = min(max(size.width * 0.64, 620), size.width - 360)
+        return AnyView(
+            HStack(alignment: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    playerArea(snapshot: snapshot)
+                        .frame(
+                            width: leftWidth,
+                            height: playerHeight(in: CGSize(width: leftWidth, height: size.height))
+                        )
+
+                    belowPlayerScroll(snapshot: snapshot, showsRelated: false)
+                }
+                .frame(width: leftWidth)
+
+                Divider()
+
+                TabletRelatedSidebar(
+                    videos: snapshot.relatedVideos,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
+            }
+        )
+    }
+
+    /// Player 高度：全屏 = 整个父高度；折叠 = 50pt；默认 = 16:9
+    private func playerHeight(in size: CGSize) -> CGFloat {
+        if isPlayerFullscreen { return size.height }
+        if isPlayerCollapsed { return 50 }
+        return size.width * 9 / 16
+    }
+
+    private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
+        KSPlayerView(
+            snapshot: snapshot,
+            isFullscreen: $isPlayerFullscreen,
+            isCollapsed: $isPlayerCollapsed,
+            onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
+            onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) }
+        )
+    }
+
+    private func belowPlayerScroll(snapshot: VideoDetailScreenSnapshot, showsRelated: Bool) -> some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    switch selectedTab {
+                    case .introduction:
+                        AndroidStyleIntroduction(
+                            snapshot: snapshot,
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature,
+                            isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                            onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                            onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                            onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                            onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                            onShowMessage: { viewModel.showActionMessage($0) },
+                            showsRelated: showsRelated
+                        )
+                    case .comments:
+                        CommentView(videoCode: videoCode, commentFeature: commentFeature)
+                    }
+                } header: {
+                    Picker("Content", selection: $selectedTab) {
+                        ForEach(VideoPageTab.allCases) { tab in
+                            Text(tab.title).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.background)
+                }
+            }
+            .padding(.bottom, 24)
         }
     }
 }
@@ -171,57 +205,6 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
             return String(localized: "简介")
         case .comments:
             return String(localized: "评论")
-        }
-    }
-}
-
-private struct AndroidStylePlayerHeader: View {
-    let snapshot: VideoDetailScreenSnapshot
-    @ObservedObject var viewModel: VideoDetailViewModel
-
-    var body: some View {
-        playerSurface
-            .frame(maxWidth: .infinity)
-            .background(Color.black)
-    }
-
-    @ViewBuilder
-    private var playerSurface: some View {
-        if !snapshot.playbackSources.isEmpty {
-            // KSPlayer 接管整个 player UI（清晰度切换、倍速、全屏、手势、PiP 等内置）
-            KSPlayerView(
-                snapshot: snapshot,
-                onProgress: { seconds in
-                    viewModel.recordPlaybackPosition(seconds: seconds)
-                },
-                onPlaybackEnded: {
-                    viewModel.recordPlaybackPosition(seconds: 0)
-                }
-            )
-            .aspectRatio(16.0 / 9.0, contentMode: .fit)
-            .clipped()
-        } else {
-            ZStack {
-                if let coverString = snapshot.coverUrl, let url = URL(string: coverString) {
-                    AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } placeholder: {
-                        Rectangle().fill(Color.black)
-                    }
-                } else {
-                    Rectangle().fill(Color.black)
-                }
-                VStack(spacing: 10) {
-                    Image(systemName: "play.slash")
-                        .font(.title)
-                    Text("未解析到可播放源")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(.white)
-            }
-            .aspectRatio(16.0 / 9.0, contentMode: .fit)
         }
     }
 }
