@@ -129,7 +129,7 @@ struct HomeBannerRow {
     }
 }
 
-struct HomeSectionRow: Identifiable {
+struct HomeSectionRow: Identifiable, Equatable {
     let key: String
     let title: String
     let videos: [HomeVideoRow]
@@ -170,7 +170,7 @@ struct HomeSectionRow: Identifiable {
     }
 }
 
-struct HomeVideoRow: Identifiable {
+struct HomeVideoRow: Identifiable, Equatable {
     let videoCode: String
     let title: String
     let coverUrl: String?
@@ -179,11 +179,29 @@ struct HomeVideoRow: Identifiable {
     let uploadTime: String?
     let artist: String?
     let reviews: String?
+    let footerMetadata: String
 
     var id: String { videoCode }
 
-    var footerMetadata: String {
-        [reviews, uploadTime]
+    init(
+        videoCode: String,
+        title: String,
+        coverUrl: String?,
+        duration: String?,
+        views: String?,
+        uploadTime: String?,
+        artist: String?,
+        reviews: String?
+    ) {
+        self.videoCode = videoCode
+        self.title = title
+        self.coverUrl = coverUrl
+        self.duration = duration
+        self.views = views
+        self.uploadTime = uploadTime
+        self.artist = artist
+        self.reviews = reviews
+        self.footerMetadata = [reviews, uploadTime]
             .compactMap { value in
                 guard let value, !value.isEmpty else { return nil }
                 return value

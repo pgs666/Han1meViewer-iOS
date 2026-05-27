@@ -230,6 +230,7 @@ private struct HomeVideoCard: View {
                 .padding(.horizontal, 7)
                 .padding(.bottom, 5)
             }
+            .compositingGroup()
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             Text(video.title)
