@@ -32,6 +32,15 @@ struct KSPlayerView: View {
     @State private var isPlaying = false
     @State private var isBoosted = false
     @State private var savedPlaybackRate: Float = 1.0
+    /// Tracks whether KSPlayer has already applied `KSOptions.startPlayTime`
+    /// (i.e. the player's current time has reached the saved resume
+    /// position). Until that happens we MUST NOT forward onPlay current
+    /// values to onProgress, otherwise the early-stage 0–few-second ticks
+    /// (which fire BEFORE startPlayTime is applied) would overwrite the
+    /// saved value in the watch-history db with a small number — losing
+    /// resume on the next entry. Once the player jumps to ≥ savedSeconds
+    /// - 2s we flip this and resume normal persistence.
+    @State private var hasReachedStartPlayTime = false
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -115,11 +124,23 @@ struct KSPlayerView: View {
             GeometryReader { proxy in
                 KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                     .onPlay { current, _ in
-                        // Skip the initial 0 → ~1s burst of onPlay ticks. KSPlayer fires
-                        // these BEFORE applying KSOptions.startPlayTime, and writing them
-                        // to the watch-history db would overwrite the user's saved
-                        // resume position with 0 every time the screen is opened.
-                        if current.isFinite, current >= 2.0 {
+                        // Don't persist progress until KSPlayer has actually
+                        // applied KSOptions.startPlayTime. Until that
+                        // happens the player still reports `current`
+                        // climbing from 0; writing those small values would
+                        // clobber the saved resume position. We detect the
+                        // jump by waiting for current to come within 2s of
+                        // savedSeconds (i.e. the seek has just landed).
+                        guard current.isFinite, current >= 0 else { return }
+                        let savedSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
+                        if savedSeconds > 5, !hasReachedStartPlayTime {
+                            if current >= savedSeconds - 2 {
+                                hasReachedStartPlayTime = true
+                            } else {
+                                return
+                            }
+                        }
+                        if current >= 2.0 {
                             onProgress(current)
                         }
                     }
@@ -199,6 +220,12 @@ struct KSPlayerView: View {
         .onDisappear {
             hideControlsTask?.cancel()
             SystemVolumeController.release()
+            // Pause the player when this view is no longer on-screen.
+            // Necessary because pushing another VideoDetailView (e.g. via a
+            // related-video tap) keeps the previous player alive in the
+            // navigation stack — without an explicit pause, BOTH videos
+            // would keep playing audio simultaneously.
+            coordinator.playerLayer?.pause()
         }
     }
 
