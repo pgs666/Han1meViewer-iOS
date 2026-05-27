@@ -36,6 +36,8 @@ struct KSPlayerView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> IOSVideoPlayerView {
+        // 一次性全局配置 KSPlayer：自动播放 + 后台音频会话（解决审计 P0-L1 的一半）
+        _ = Self.configureKSPlayerGlobalsOnce
         let playerView = IOSVideoPlayerView()
         playerView.translatesAutoresizingMaskIntoConstraints = false
         // 进度回调
@@ -46,13 +48,6 @@ struct KSPlayerView: UIViewRepresentable {
         // 装入资源
         if let resource = Self.makeResource(from: snapshot) {
             playerView.set(resource: resource)
-            // 恢复播放进度（KMP 已记录在 snapshot.playbackPositionMillis）
-            let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
-            if resumeSeconds > 1 {
-                // KSOptions.startPlayTime 必须在 set(resource:) 之前设置才生效；
-                // 这里已经在 makeResource 中通过每个 definition.options.startPlayTime 设置
-                _ = resumeSeconds
-            }
         }
         context.coordinator.attachEndedObserver(to: playerView)
         return playerView
@@ -157,16 +152,14 @@ struct KSPlayerView: UIViewRepresentable {
     private static func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
         let options = KSOptions()
         // hanime1.me 视频 CDN 通常需要正确的 UA 和 Referer 才能播放。
+        // 用 KSOptions.appendHeader 同时写入 AVURLAsset 和 FFmpeg 两条 backend 路径。
         // UA 与项目其他 WKWebView 入口（LoginView / CloudflareChallengeView）保持一致 —
-        // KMP 端 `HanimeNetworkDefaults.DEFAULT_USER_AGENT` 是 `const val`，Swift 不可访问，
-        // 因此沿用项目内 inline 写法。
-        let headers: [String: String] = [
+        // KMP 端 `HanimeNetworkDefaults.DEFAULT_USER_AGENT` 是 `const val`，Swift 不可访问。
+        options.appendHeader([
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
             "Referer": "https://hanime1.me/",
-        ]
-        options.avOptions = ["AVURLAssetHTTPHeaderFieldsKey": headers]
-        // 自动播放，恢复进度
-        options.isAutoPlay = true
+        ])
+        // seek 后自动恢复播放、精确 seek、恢复进度
         options.isSeekedAutoPlay = true
         options.isAccurateSeek = true
         if resumeSeconds > 1 {
@@ -174,6 +167,13 @@ struct KSPlayerView: UIViewRepresentable {
         }
         return options
     }
+
+    /// KSPlayer 一次性全局配置：自动播放 + 后台音频会话（解决审计 P0-L1 的一半）。
+    /// 注意：`KSOptions.isAutoPlay` 在最新版 KSPlayer 是 static，不能在 instance 上设置。
+    private static let configureKSPlayerGlobalsOnce: Void = {
+        KSOptions.isAutoPlay = true
+        KSOptions.setAudioSession()
+    }()
 }
 
 // MARK: - End
