@@ -9,7 +9,28 @@ import kotlinx.datetime.toInstant
 
 object SetCookieParser {
     fun parseAll(headers: List<String>, fallbackDomain: String): List<SessionCookie> {
-        return headers.mapNotNull { header -> parse(header, fallbackDomain) }
+        return headers
+            .flatMap { it.splitCombinedSetCookies() }
+            .mapNotNull { header -> parse(header, fallbackDomain) }
+    }
+
+    /**
+     * iOS [io.ktor.client.engine.darwin.Darwin] engine collapses multiple `Set-Cookie`
+     * response headers into ONE comma-separated string (this is what
+     * `NSHTTPURLResponse.allHeaderFields` returns natively). Without splitting we'd treat
+     * the whole concatenation as a single cookie and silently lose `laravel_session` /
+     * `XSRF-TOKEN` / `cf_clearance` etc. — which then leads to HTTP 419 on every
+     * authenticated mutation.
+     *
+     * Split on `, ` only when the next token starts with a cookie-name + `=`, so that
+     * commas inside `Expires=Wed, 21 Oct 2015 ...` aren't misinterpreted as separators.
+     * Cookie names per RFC 6265 are token chars: `[!#$%&'*+\-.^_`|~A-Za-z0-9]+`.
+     */
+    private fun String.splitCombinedSetCookies(): List<String> {
+        if (isEmpty()) return emptyList()
+        return split(Regex(""", (?=[A-Za-z0-9!#$%&'*+\-.^_`|~]+=)"""))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
     }
 
     fun parse(header: String, fallbackDomain: String): SessionCookie? {
