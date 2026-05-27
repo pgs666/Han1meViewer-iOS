@@ -114,24 +114,21 @@ struct KSPlayerView: UIViewRepresentable {
     // MARK: - Resource 构造
 
     private static func makeResource(from snapshot: VideoDetailScreenSnapshot) -> KSPlayerResource? {
-        let sourceCount = Int(snapshot.playbackSourceCount())
-        guard sourceCount > 0 else {
+        let sources = snapshot.playbackSources
+        guard !sources.isEmpty else {
             return nil
         }
 
         var definitions: [KSPlayerResourceDefinition] = []
         // 默认源排第一（KSPlayer 选第一个 definition 作为 default）
-        let defaultIndex: Int = (0..<sourceCount).first(where: { index in
-            snapshot.playbackSourceAt(index: Int32(index))?.isDefault == true
-        }) ?? 0
-
-        let orderedIndices: [Int] = [defaultIndex] + (0..<sourceCount).filter { $0 != defaultIndex }
+        let defaultIndex: Int = sources.firstIndex(where: { $0.isDefault }) ?? 0
+        let orderedIndices: [Int] = [defaultIndex] + sources.indices.filter { $0 != defaultIndex }
 
         let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
 
         for index in orderedIndices {
-            guard let source = snapshot.playbackSourceAt(index: Int32(index)),
-                  let url = URL(string: source.url) else {
+            let source = sources[index]
+            guard let url = URL(string: source.url) else {
                 continue
             }
             let options = makeKSOptions(resumeSeconds: resumeSeconds)
@@ -179,11 +176,4 @@ struct KSPlayerView: UIViewRepresentable {
     }
 }
 
-// MARK: - Snapshot 兼容扩展（提供 coverUrl 的 String? 访问）
-
-private extension VideoDetailScreenSnapshot {
-    /// `coverUrl` 在 KMP 模型中是可选 String；这里提供方便访问。
-    /// 注意：如果 KMP 端字段叫 `coverUrl`，Kotlin 的 `val coverUrl: String?` 会暴露为 Swift `var coverUrl: String?`。
-    /// 此扩展仅是显式声明（Kotlin/Native 已自动桥接）。
-    var coverUrlString: String? { coverUrl }
-}
+// MARK: - End
