@@ -2,7 +2,7 @@ name: Han1meViewer
 options:
   bundleIdPrefix: com.yenaly
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "16.0"
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -21,7 +21,7 @@ targets:
   Han1meViewer:
     type: application
     platform: iOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "16.0"
     sources:
       - path: iosApp
     settings:
