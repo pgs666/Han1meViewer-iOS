@@ -205,7 +205,7 @@ struct KSPlayerView: View {
         // inline 的 KSPlayerLayer 在全屏期间没有被 dismantle（inline view 仍在 view tree
         // 中，只是被 fullScreenCover 遮挡），所以 seek 直接生效。
         if lastFullscreenCurrentTime > 0 {
-            coordinator.playerLayer?.seek(time: lastFullscreenCurrentTime)
+            coordinator.seek(time: lastFullscreenCurrentTime)
         }
         coordinator.playerLayer?.play()
         // 同步给本地观看历史
