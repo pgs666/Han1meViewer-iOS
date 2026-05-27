@@ -20,7 +20,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     private func configureImagePipeline() {
         var config = ImagePipeline.Configuration()
         config.isProgressiveDecodingEnabled = false
-        config.isPrepareForDisplayEnabled = true
         config.imageCache = ImageCache(costLimit: 100 * 1024 * 1024)
         ImagePipeline.shared = ImagePipeline(configuration: config)
     }
