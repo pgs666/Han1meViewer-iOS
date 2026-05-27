@@ -187,7 +187,7 @@ private struct AndroidStylePlayerHeader: View {
 
     @ViewBuilder
     private var playerSurface: some View {
-        if Int(snapshot.playbackSourceCount()) > 0 {
+        if !snapshot.playbackSources.isEmpty {
             // KSPlayer 接管整个 player UI（清晰度切换、倍速、全屏、手势、PiP 等内置）
             KSPlayerView(
                 snapshot: snapshot,
