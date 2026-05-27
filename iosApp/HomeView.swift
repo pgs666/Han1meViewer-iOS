@@ -175,23 +175,20 @@ private struct HomeCategorySection: View {
             }
             .padding(.horizontal, 16)
 
-            if isVisible {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 12) {
-                        ForEach(section.videos) { video in
-                            NavigationLink {
-                                VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
-                            } label: {
-                                HomeVideoCard(video: video)
-                            }
-                            .buttonStyle(.plain)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 12) {
+                    ForEach(section.videos) { video in
+                        NavigationLink {
+                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                        } label: {
+                            HomeVideoCard(video: video)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 16)
                 }
-            } else {
-                Color.clear.frame(height: 170)
+                .padding(.horizontal, 16)
             }
+            .opacity(isVisible ? 1 : 0)
         }
         .onAppear { isVisible = true }
         .onDisappear { isVisible = false }

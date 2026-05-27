@@ -61,7 +61,7 @@ class HomeFeature(
     }
 
     private companion object {
-        const val MAX_SECTION_VIDEOS = 12
+        const val MAX_SECTION_VIDEOS = 8
     }
 }
 
