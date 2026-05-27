@@ -53,6 +53,10 @@ struct KSPlayerView: View {
     @State private var dragCurrentBrightness: CGFloat = 0
     @State private var dragStartVolume: Float = 0
     @State private var dragCurrentVolume: Float = 0
+    /// 长按 timer。finger 落下后启动；移动 > 12pt 或 finger 抬起时 cancel。
+    @State private var longPressTask: Task<Void, Never>?
+    /// 当前手势是否已经决定走 swipe 路径（以避免长按 timer 重复 schedule）。
+    @State private var hasMovedToSwipe = false
 
     private enum DragKind: Equatable {
         case none
@@ -143,13 +147,6 @@ struct KSPlayerView: View {
                         withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
                         if showsControls { scheduleAutoHide() }
                     }
-                    .onLongPressGesture(
-                        minimumDuration: 0.4,
-                        pressing: { isPressing in
-                            if !isPressing, isBoosted { endBoost() }
-                        },
-                        perform: { startBoost() }
-                    )
                     .simultaneousGesture(
                         MagnificationGesture()
                             .onEnded { value in
@@ -160,16 +157,22 @@ struct KSPlayerView: View {
                                 }
                             }
                     )
-                    // Swipe gestures: vertical on left half = brightness, on right
-                    // half = volume; horizontal = seek. minimumDistance: 12 keeps
-                    // taps / long-press from being mis-classified as drags.
+                    // ONE DragGesture handles BOTH long-press boost and swipe
+                    // (brightness/volume/seek). minimumDistance: 0 means we get
+                    // an onChanged on every touch-down so we can start a 0.4s
+                    // long-press timer; if the finger then moves > 12pt we
+                    // cancel the timer and switch to swipe handling. onEnded
+                    // ALWAYS endBoosts — fixes the case where boost wasn't
+                    // releasing because .onLongPressGesture(pressing:) doesn't
+                    // reliably fire pressing(false) when composed with other
+                    // simultaneous gestures.
                     .simultaneousGesture(
-                        DragGesture(minimumDistance: 12)
+                        DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                handleSwipeChanged(value, in: proxy.size)
+                                handlePressOrSwipe(value, in: proxy.size)
                             }
                             .onEnded { _ in
-                                handleSwipeEnded()
+                                handlePressOrSwipeEnded()
                             }
                     )
             }
@@ -490,13 +493,52 @@ struct KSPlayerView: View {
         snapshot.playbackSources.first(where: { $0.isDefault }) ?? snapshot.playbackSources.first
     }
 
-    /// First call of a drag determines the kind based on direction & start
-    /// location. Subsequent calls update the active dimension only.
+    /// Unified down/move handler. Called from `DragGesture(minimumDistance: 0)`
+    /// so we get an onChanged on every touch-down. First call starts a 0.4s
+    /// long-press timer (=> startBoost); subsequent calls cancel that timer
+    /// and switch to swipe handling once the finger moves > 12pt.
+    private func handlePressOrSwipe(_ value: DragGesture.Value, in size: CGSize) {
+        let distance = hypot(value.translation.width, value.translation.height)
+
+        // First call (just touched down)? Schedule the long-press boost.
+        if longPressTask == nil && !hasMovedToSwipe && dragState == .none && !isBoosted {
+            longPressTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                if !Task.isCancelled, !hasMovedToSwipe {
+                    startBoost()
+                }
+            }
+        }
+
+        // Already past the 12pt threshold OR already in swipe mode → swipe path.
+        if distance > 12 || hasMovedToSwipe {
+            // Cancel pending long-press; if boost already started, abort it.
+            longPressTask?.cancel()
+            longPressTask = nil
+            if isBoosted { endBoost() }
+            hasMovedToSwipe = true
+            handleSwipeChanged(value, in: size)
+        }
+    }
+
+    /// Always called on finger-up. Cancels long-press timer; ALWAYS endBoost
+    /// (so boost can never get stuck on); commits any in-progress swipe.
+    private func handlePressOrSwipeEnded() {
+        longPressTask?.cancel()
+        longPressTask = nil
+        if isBoosted { endBoost() }
+        if dragState != .none {
+            handleSwipeEnded()
+        }
+        hasMovedToSwipe = false
+    }
+
+    /// First swipe-onChanged call (after the 12pt threshold) decides the kind
+    /// based on dominant axis & start location. Subsequent calls update the
+    /// active dimension only.
     private func handleSwipeChanged(_ value: DragGesture.Value, in size: CGSize) {
         if dragState == .none {
-            // Decide direction: vertical vs horizontal based on dominant axis of
-            // the cumulative translation. The DragGesture's minimumDistance: 12
-            // already fires only after the user committed to a direction.
+            // Decide direction: vertical vs horizontal based on dominant axis.
             let dx = value.translation.width
             let dy = value.translation.height
             if abs(dx) > abs(dy) {
@@ -511,7 +553,7 @@ struct KSPlayerView: View {
                     dragCurrentBrightness = dragStartBrightness
                 } else {
                     dragState = .volume
-                    dragStartVolume = coordinator.playbackVolume
+                    dragStartVolume = SystemVolumeController.currentVolume()
                     dragCurrentVolume = dragStartVolume
                 }
             }
@@ -536,11 +578,12 @@ struct KSPlayerView: View {
             dragCurrentBrightness = max(0, min(1, dragStartBrightness + fraction))
             UIScreen.main.brightness = dragCurrentBrightness
         case .volume:
-            // Up = louder.
+            // Up = louder. Writes the SYSTEM volume (the same one the hardware
+            // buttons control), via the hidden MPVolumeView slider.
             guard size.height > 0 else { return }
             let fraction = -Float(value.translation.height / size.height)
             dragCurrentVolume = max(0, min(1, dragStartVolume + fraction))
-            coordinator.playbackVolume = dragCurrentVolume
+            SystemVolumeController.setVolume(dragCurrentVolume)
         case .none:
             break
         }
