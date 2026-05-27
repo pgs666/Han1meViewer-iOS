@@ -14,6 +14,9 @@ packages:
   Nuke:
     url: https://github.com/kean/Nuke.git
     from: "12.8.0"
+  KSPlayer:
+    url: https://github.com/kingslay/KSPlayer.git
+    branch: main
 targets:
   Han1meViewer:
     type: application
@@ -42,6 +45,8 @@ targets:
         product: Nuke
       - package: Nuke
         product: NukeUI
+      - package: KSPlayer
+        product: KSPlayer
       - framework: shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/Han1meShared.framework
         embed: true
         codeSign: false

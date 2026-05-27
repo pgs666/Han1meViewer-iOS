@@ -122,6 +122,18 @@ final class VideoDetailViewModel: ObservableObject {
         )
     }
 
+    /// 由外部播放器（如 KSPlayer）回调当前播放时间时使用，
+    /// 与 `persistPlaybackPosition()` 等价但不依赖 `self.player`。
+    func recordPlaybackPosition(seconds: TimeInterval) {
+        guard case .loaded(let snapshot) = state else { return }
+        let clampedSeconds = max(0, seconds)
+        let millis = Int64(clampedSeconds * 1000)
+        videoFeature.recordPlaybackPosition(
+            videoCode: snapshot.videoCode,
+            playbackPositionMillis: millis
+        )
+    }
+
     func pausePlayer() {
         persistPlaybackPosition()
         player?.pause()

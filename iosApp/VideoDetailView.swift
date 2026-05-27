@@ -1,4 +1,3 @@
-﻿import AVKit
 import SwiftUI
 import UIKit
 import Han1meShared
@@ -179,240 +178,50 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
 private struct AndroidStylePlayerHeader: View {
     let snapshot: VideoDetailScreenSnapshot
     @ObservedObject var viewModel: VideoDetailViewModel
-    @State private var isShowingFullscreen = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            playerSurface
-                .frame(maxWidth: .infinity)
-                .background(Color.black)
+        playerSurface
+            .frame(maxWidth: .infinity)
+            .background(Color.black)
+    }
 
-            if !snapshot.playbackSources.isEmpty {
-                VStack(spacing: 10) {
-                    Picker("清晰度", selection: $viewModel.selectedPlaybackSourceID) {
-                        ForEach(snapshot.playbackSources) { source in
-                            Text(source.label).tag(source.id)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    playbackRatePicker
-                }
-                .padding(12)
-                .background(Color(.systemBackground))
-            }
-        }
-        .onAppear {
-            viewModel.preparePlayer(snapshot: snapshot)
-        }
-        .onValueChange(of: viewModel.selectedPlaybackSourceID) { sourceID in
-            viewModel.selectPlaybackSource(snapshot: snapshot, sourceID: sourceID)
-        }
-        .fullScreenCover(isPresented: $isShowingFullscreen, onDismiss: {
-            AppOrientationController.shared.enforceCurrentOrientationMask()
-        }) {
-            FullscreenVideoPlayer(
-                title: snapshot.title,
-                player: viewModel.player,
-                onClose: {
-                    isShowingFullscreen = false
+    @ViewBuilder
+    private var playerSurface: some View {
+        if Int(snapshot.playbackSourceCount()) > 0 {
+            // KSPlayer 接管整个 player UI（清晰度切换、倍速、全屏、手势、PiP 等内置）
+            KSPlayerView(
+                snapshot: snapshot,
+                onProgress: { seconds in
+                    viewModel.recordPlaybackPosition(seconds: seconds)
+                },
+                onPlaybackEnded: {
+                    viewModel.recordPlaybackPosition(seconds: 0)
                 }
             )
-        }
-    }
-
-    private var playerSurface: some View {
-        ZStack(alignment: .bottomTrailing) {
-            if let player = viewModel.player {
-                VideoPlayer(player: player)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                    .overlay(alignment: .center) {
-                        if let error = viewModel.playerError {
-                            VStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle")
-                                    .font(.title2)
-                                Text(error)
-                                    .font(.caption)
-                                    .multilineTextAlignment(.center)
-                                Button("切换清晰度") {
-                                    let sources = snapshot.playbackSources
-                                    if sources.count > 1,
-                                       let currentIndex = sources.firstIndex(where: { $0.id == viewModel.selectedPlaybackSourceID }) {
-                                        let nextIndex = (currentIndex + 1) % sources.count
-                                        viewModel.selectPlaybackSource(snapshot: snapshot, sourceID: sources[nextIndex].id)
-                                    }
-                                    viewModel.playerError = nil
-                                }
-                                .font(.caption)
-                                .buttonStyle(.bordered)
-                            }
-                            .foregroundStyle(.white)
-                            .padding(16)
-                            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
-                        }
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
+        } else {
+            ZStack {
+                if let coverString = snapshot.coverUrl, let url = URL(string: coverString) {
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        Rectangle().fill(Color.black)
                     }
-            } else {
-                AsyncImage(url: snapshot.coverURL) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
+                } else {
                     Rectangle().fill(Color.black)
                 }
-                .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                .overlay {
-                    VStack(spacing: 10) {
-                        Image(systemName: "play.slash")
-                            .font(.title)
-                        Text("未解析到可播放源")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
+                VStack(spacing: 10) {
+                    Image(systemName: "play.slash")
+                        .font(.title)
+                    Text("未解析到可播放源")
+                        .font(.subheadline.weight(.semibold))
                 }
+                .foregroundStyle(.white)
             }
-
-            if viewModel.player != nil {
-                Button {
-                    isShowingFullscreen = true
-                } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(.black.opacity(0.48), in: Circle())
-                }
-                .padding(12)
-                .accessibilityLabel("全屏播放")
-            }
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
         }
-    }
-
-    private var playbackRatePicker: some View {
-        HStack(spacing: 10) {
-            Text(String(localized: "video.playback.speed"))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            Picker(
-                String(localized: "video.playback.speed"),
-                selection: Binding(
-                    get: { viewModel.selectedPlaybackRate },
-                    set: { viewModel.selectPlaybackRate($0) }
-                )
-            ) {
-                ForEach(viewModel.playbackRates, id: \.self) { rate in
-                    Text(playbackRateLabel(rate)).tag(rate)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-    }
-
-    private func playbackRateLabel(_ rate: Float) -> String {
-        var label = String(format: "%.2f", rate)
-        while label.contains(".") && label.last == "0" {
-            label.removeLast()
-        }
-        if label.last == "." {
-            label.removeLast()
-        }
-        return "\(label)x"
-    }
-}
-
-private struct FullscreenVideoPlayer: View {
-    let title: String
-    let player: AVPlayer?
-    let onClose: () -> Void
-    @StateObject private var metrics = FullscreenVideoMetrics()
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color.black.ignoresSafeArea()
-
-            if let player {
-                GeometryReader { proxy in
-                    VideoPlayer(player: player)
-                        .aspectRatio(metrics.aspectRatio, contentMode: .fit)
-                        .frame(
-                            width: proxy.size.width,
-                            height: proxy.size.height,
-                            alignment: .center
-                        )
-                }
-                .ignoresSafeArea()
-            } else {
-                Text("未解析到可播放源")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            HStack(spacing: 12) {
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(.black.opacity(0.52), in: Circle())
-                }
-                .accessibilityLabel("退出全屏")
-
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-        }
-        .onAppear {
-            metrics.start(player: player)
-            AppOrientationController.shared.lockForFullscreen(to: metrics.orientation)
-        }
-        .onValueChange(of: metrics.orientation) { orientation in
-            AppOrientationController.shared.lockForFullscreen(to: orientation)
-        }
-        .onDisappear {
-            metrics.stop()
-            AppOrientationController.shared.unlockAfterFullscreen()
-        }
-    }
-}
-
-@MainActor
-private final class FullscreenVideoMetrics: ObservableObject {
-    @Published private(set) var orientation: VideoFullscreenOrientation = .landscape
-    @Published private(set) var aspectRatio: CGFloat = 16.0 / 9.0
-
-    private var presentationSizeObservation: NSKeyValueObservation?
-
-    func start(player: AVPlayer?) {
-        stop()
-        guard let item = player?.currentItem else {
-            return
-        }
-
-        update(size: item.presentationSize)
-        presentationSizeObservation = item.observe(\.presentationSize, options: [.initial, .new]) { [weak self] item, _ in
-            Task { @MainActor in
-                self?.update(size: item.presentationSize)
-            }
-        }
-    }
-
-    func stop() {
-        presentationSizeObservation?.invalidate()
-        presentationSizeObservation = nil
-    }
-
-    private func update(size: CGSize) {
-        guard size.width > 0, size.height > 0 else {
-            return
-        }
-
-        aspectRatio = size.width / size.height
-        orientation = size.width >= size.height ? .landscape : .portrait
     }
 }
 
