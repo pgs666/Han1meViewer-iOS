@@ -41,6 +41,14 @@ struct KSPlayerView: View {
     /// resume on the next entry. Once the player jumps to ≥ savedSeconds
     /// - 2s we flip this and resume normal persistence.
     @State private var hasReachedStartPlayTime = false
+    /// Whether we've already manually seeked to the saved resume position
+    /// once the real video duration is known. KSPlayer's built-in
+    /// `KSOptions.startPlayTime` mechanism sometimes runs BEFORE the
+    /// player has the actual `totalTime` (it briefly defaults to 1s),
+    /// so the seek silently no-ops and the video starts from 0. We
+    /// retry the seek ourselves the first time onPlay reports a real
+    /// totalTime (> 1.5s), guaranteeing resume even if startPlayTime fails.
+    @State private var hasAppliedResumeSeek = false
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -128,16 +136,29 @@ struct KSPlayerView: View {
         ZStack {
             GeometryReader { proxy in
                 KSVideoPlayer(coordinator: coordinator, url: url, options: options)
-                    .onPlay { current, _ in
-                        // Don't persist progress until KSPlayer has actually
-                        // applied KSOptions.startPlayTime. Until that
-                        // happens the player still reports `current`
-                        // climbing from 0; writing those small values would
-                        // clobber the saved resume position. We detect the
-                        // jump by waiting for current to come within 2s of
-                        // savedSeconds (i.e. the seek has just landed).
+                    .onPlay { current, total in
                         guard current.isFinite, current >= 0 else { return }
                         let savedSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
+
+                        // STEP 1: Manual resume-seek fallback. KSPlayer's
+                        // built-in KSOptions.startPlayTime can be applied
+                        // BEFORE the real video duration is known (totalTime
+                        // briefly defaults to 1s), causing the seek to
+                        // silently no-op. As soon as we see a real totalTime
+                        // here, retry the seek ourselves. Race-safe: gated
+                        // by hasAppliedResumeSeek so we only do this once.
+                        if savedSeconds > 1, !hasAppliedResumeSeek, total > 1.5 {
+                            coordinator.seek(time: savedSeconds)
+                            hasAppliedResumeSeek = true
+                            // Don't write progress this round — the seek is
+                            // in flight; current is still pre-seek.
+                            return
+                        }
+
+                        // STEP 2: Block onPlay writes until the seek has
+                        // actually landed (current near savedSeconds).
+                        // Prevents early-stage 0..few-second ticks from
+                        // clobbering the saved value in the watch-history db.
                         if savedSeconds > 5, !hasReachedStartPlayTime {
                             if current >= savedSeconds - 2 {
                                 hasReachedStartPlayTime = true
@@ -145,6 +166,7 @@ struct KSPlayerView: View {
                                 return
                             }
                         }
+
                         if current >= 2.0 {
                             onProgress(current)
                         }
@@ -226,16 +248,20 @@ struct KSPlayerView: View {
                     )
             }
 
-            if isBoosted {
-                boostHint.transition(.opacity)
+            // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
+            // The two HUDs sit ABOVE the controls so the centre play / skip
+            // buttons (which live inside controlsOverlay) don't visually
+            // cover the swipe HUD or the boost badge.
+            if showsControls {
+                controlsOverlay.transition(.opacity)
             }
 
             if dragState != .none {
                 swipeHUD.transition(.opacity)
             }
 
-            if showsControls {
-                controlsOverlay.transition(.opacity)
+            if isBoosted {
+                boostHint.transition(.opacity)
             }
         }
         .onAppear {
@@ -381,6 +407,15 @@ struct KSPlayerView: View {
                 }
             )
             .tint(.white)
+            .onAppear {
+                // Sync the slider to the player's current time as soon as
+                // bottomBar mounts, so when the user taps to reveal
+                // controls the thumb is already in the right place. Without
+                // this we'd wait up to 1s for the next timemodel publish.
+                if !isSliderEditing {
+                    sliderValue = TimeInterval(coordinator.timemodel.currentTime)
+                }
+            }
             .onReceive(coordinator.timemodel.$currentTime) { newTime in
                 guard !isSliderEditing else { return }
                 let asTime = TimeInterval(newTime)
@@ -427,6 +462,9 @@ struct KSPlayerView: View {
 
     private var boostHint: some View {
         VStack {
+            // Top-centre so the badge sits above the player content but
+            // doesn't collide with the three top-right control buttons
+            // (mute / aspect / fullscreen).
             HStack {
                 Spacer()
                 Label(Self.formatRate(effectiveBoostRate), systemImage: "forward.fill")
@@ -435,8 +473,9 @@ struct KSPlayerView: View {
                     .padding(.vertical, 5)
                     .background(.black.opacity(0.55), in: Capsule())
                     .foregroundStyle(.white)
-                    .padding(12)
+                Spacer()
             }
+            .padding(.top, 12)
             Spacer()
         }
     }
