@@ -110,7 +110,6 @@ struct KSPlayerView: View {
         ZStack {
             GeometryReader { proxy in
                 KSVideoPlayer(coordinator: coordinator, url: url, options: options)
-                    .frame(width: proxy.size.width, height: proxy.size.height)
                     .onPlay { current, _ in
                         // Skip the initial 0 → ~1s burst of onPlay ticks. KSPlayer fires
                         // these BEFORE applying KSOptions.startPlayTime, and writing them
@@ -124,6 +123,7 @@ struct KSPlayerView: View {
                     .onStateChanged { _, state in
                         isPlaying = state.isPlaying
                     }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
                     // Attach gestures to the video layer, NOT to the outer ZStack.
                     // Otherwise outer .onTapGesture(count: 1) raced with Buttons /
                     // Menu inside controlsOverlay — tapping the "1x" rate menu was
