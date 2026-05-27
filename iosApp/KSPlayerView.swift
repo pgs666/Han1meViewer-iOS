@@ -496,8 +496,13 @@ struct KSPlayerView: View {
     /// Unified down/move handler. Called from `DragGesture(minimumDistance: 0)`
     /// so we get an onChanged on every touch-down. First call starts a 0.4s
     /// long-press timer (=> startBoost); subsequent calls cancel that timer
-    /// and switch to swipe handling once the finger moves > 12pt.
+    /// and switch to swipe handling once the finger moves > the threshold.
     private func handlePressOrSwipe(_ value: DragGesture.Value, in size: CGSize) {
+        // Higher threshold so a slight finger tremor during the long-press
+        // boost doesn't accidentally classify as swipe and abort the boost.
+        // 36pt ≈ a deliberate finger movement; pixel jitter while holding
+        // still is normally far less.
+        let swipeThreshold: CGFloat = 36
         let distance = hypot(value.translation.width, value.translation.height)
 
         // First call (just touched down)? Schedule the long-press boost.
@@ -510,12 +515,24 @@ struct KSPlayerView: View {
             }
         }
 
-        // Already past the 12pt threshold OR already in swipe mode → swipe path.
-        if distance > 12 || hasMovedToSwipe {
-            // Cancel pending long-press; if boost already started, abort it.
+        // If we're already in a swipe, keep updating it.
+        if hasMovedToSwipe {
+            handleSwipeChanged(value, in: size)
+            return
+        }
+
+        // Once the boost is active the user committed to long-press mode;
+        // do NOT switch to swipe just because their finger drifted a bit.
+        // Boost ends naturally on finger up.
+        if isBoosted {
+            return
+        }
+
+        // Threshold crossed before boost started → it was a swipe gesture
+        // all along. Cancel the pending boost timer and start swipe.
+        if distance > swipeThreshold {
             longPressTask?.cancel()
             longPressTask = nil
-            if isBoosted { endBoost() }
             hasMovedToSwipe = true
             handleSwipeChanged(value, in: size)
         }
