@@ -66,6 +66,11 @@ struct KSPlayerView: View {
     @State private var longPressTask: Task<Void, Never>?
     /// 当前手势是否已经决定走 swipe 路径（以避免长按 timer 重复 schedule）。
     @State private var hasMovedToSwipe = false
+    /// 双指 pinch 进行中。SwiftUI 在多指环境下可能让 single-finger DragGesture(0)
+    /// 也 fire onChanged 但**不 fire onEnded**（被 MagnificationGesture 抢走），
+    /// 导致 longPress timer 触发 boost 后 endBoost() 永远不调 → boost 卡住。
+    /// 这个 flag 让 pinch 一开始就 cancel/退出 boost，并且 timer fire 前 double-check。
+    @State private var isPinching = false
 
     private enum DragKind: Equatable {
         case none
@@ -161,16 +166,39 @@ struct KSPlayerView: View {
                     // layer's gestures below.
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) {
+                        // Safety: any tap should clear stuck boost (covers
+                        // the rare race where DragGesture's onEnded was
+                        // swallowed by MagnificationGesture and boost is
+                        // still on). Cheap, side-effect-free if not boosted.
+                        if isBoosted { endBoost() }
                         togglePlayPause()
                         scheduleAutoHide()
                     }
                     .onTapGesture(count: 1) {
+                        if isBoosted { endBoost() }
                         withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
                         if showsControls { scheduleAutoHide() }
                     }
                     .simultaneousGesture(
                         MagnificationGesture()
+                            .onChanged { _ in
+                                // The user is pinching → cancel any pending
+                                // long-press timer and abort an active boost.
+                                // Without this the long-press timer would
+                                // still fire mid-pinch (DragGesture(0) had
+                                // already touched-down) and lock boost on,
+                                // because the corresponding DragGesture
+                                // .onEnded gets eaten by SwiftUI's multi-
+                                // touch arbitration with the pinch.
+                                isPinching = true
+                                longPressTask?.cancel()
+                                longPressTask = nil
+                                if isBoosted { endBoost() }
+                            }
                             .onEnded { value in
+                                isPinching = false
+                                // Final defensive cleanup in case state slipped through.
+                                if isBoosted { endBoost() }
                                 if !isFullscreen, value > 1.15 {
                                     withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
                                 } else if isFullscreen, value < 0.85 {
@@ -557,10 +585,13 @@ struct KSPlayerView: View {
         let distance = hypot(value.translation.width, value.translation.height)
 
         // First call (just touched down)? Schedule the long-press boost.
-        if longPressTask == nil && !hasMovedToSwipe && dragState == .none && !isBoosted {
+        // Skip if a pinch is already in progress: SwiftUI may have routed
+        // the touch-down to DragGesture(0) on a multi-finger gesture; we
+        // don't want long-press to fire under those conditions.
+        if longPressTask == nil && !hasMovedToSwipe && dragState == .none && !isBoosted && !isPinching {
             longPressTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 400_000_000)
-                if !Task.isCancelled, !hasMovedToSwipe {
+                if !Task.isCancelled, !hasMovedToSwipe, !isPinching {
                     startBoost()
                 }
             }
