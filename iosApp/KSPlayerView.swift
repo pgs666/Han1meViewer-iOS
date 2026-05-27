@@ -73,7 +73,14 @@ struct KSPlayerView: View {
         ZStack {
             KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                 .onPlay { current, _ in
-                    if current.isFinite { onProgress(current) }
+                    if current.isFinite { currentSeconds = current }
+                    // Skip the initial 0 → ~1s burst of onPlay ticks. KSPlayer fires
+                    // these BEFORE applying KSOptions.startPlayTime, and writing them
+                    // to the watch-history db would overwrite the user's saved
+                    // resume position with 0 every time the screen is opened.
+                    if current.isFinite, current >= 2.0 {
+                        onProgress(current)
+                    }
                 }
                 .onFinish { _, _ in onPlaybackEnded() }
                 .onStateChanged { _, state in
@@ -107,11 +114,18 @@ struct KSPlayerView: View {
             },
             perform: { startBoost() }
         )
-        // 双指 pinch 切换 fit/fill
+        // Pinch out (放大) → 进入全屏；pinch in (缩小) → 退出全屏。
+        // 这是中国式播放器的常见手势 —— 之前 pinch 是切 fit/fill，但 KSPlayer 没有
+        // 内置的 pinch-to-fullscreen 支持，全屏按钮也比较隐藏，用户期望直接 pinch。
+        // fit/fill 切换仍可通过控件层右上角的 contentMode 按钮触发。
         .simultaneousGesture(
             MagnificationGesture()
                 .onEnded { value in
-                    coordinator.isScaleAspectFill = value > 1.1
+                    if !isFullscreen, value > 1.15 {
+                        withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
+                    } else if isFullscreen, value < 0.85 {
+                        withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
+                    }
                 }
         )
         .onAppear { scheduleAutoHide() }
