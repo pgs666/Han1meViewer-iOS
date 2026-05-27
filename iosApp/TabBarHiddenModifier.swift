@@ -1,23 +1,84 @@
 import SwiftUI
 
-extension View {
-    /// Hide the surrounding TabView's tab bar for the current pushed view.
-    ///
-    /// Picks the API based on runtime iOS version:
-    /// - **iOS 18+**: `.toolbarVisibility(.hidden, for: .tabBar)`. The new
-    ///   modifier is the path the system honors with an implicit slide-out
-    ///   animation when NavigationStack pushes a child view that opts in
-    ///   to hiding the tab bar.
-    /// - **iOS 16–17**: falls back to `.toolbar(.hidden, for: .tabBar)`,
-    ///   which works correctly but generally without animation. Older
-    ///   deployment users still get the right visual; newer users get the
-    ///   animation.
-    @ViewBuilder
-    func hidesTabBar() -> some View {
-        if #available(iOS 18.0, *) {
-            self.toolbarVisibility(.hidden, for: .tabBar)
+/// Shared state for the global tab-bar visibility, driven by pushed sub-pages
+/// (e.g. video detail, settings) calling `acquireHidden(...)` / `release(...)`
+/// on appear / disappear.
+///
+/// Why an external observable instead of `.toolbar(.hidden, for: .tabBar)`
+/// directly on the sub-page:
+///
+/// SwiftUI's runtime does not reliably animate the tab-bar transition when a
+/// `.toolbar(_:for:)` modifier is applied to the destination view inside a
+/// NavigationStack push (verified bug-class on iOS 16–26 across versions).
+/// The well-known working pattern (Stack Overflow / community-vetted) is:
+///   • Hold `Visibility` as `@State` at a higher level.
+///   • Apply `.toolbar(visibility, for: .tabBar)` to the NavigationStack
+///     container, NOT the destination view.
+///   • Toggle the @State inside `withAnimation { … }` from the destination's
+///     `.onAppear` / `.onDisappear`.
+/// SwiftUI then animates the tab-bar slide because the change is bound to
+/// the NavigationStack's own layout pass.
+///
+/// Putting the state in an environment object lets every NavigationStack in
+/// the four tabs subscribe to the same visibility, and lets every sub-page
+/// (no matter how deep) toggle it without prop-drilling Bindings.
+@MainActor
+final class TabBarVisibilityController: ObservableObject {
+    @Published var visibility: Visibility = .visible
+
+    /// Reference count of pushed sub-pages currently asking the tab bar to
+    /// stay hidden. Multiple-level pushes (e.g. detail → another detail) keep
+    /// the tab bar hidden until the whole chain pops.
+    private var hiddenRequesters: Int = 0
+
+    func acquireHidden(animated: Bool = false) {
+        hiddenRequesters += 1
+        let target: Visibility = .hidden
+        if animated {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                visibility = target
+            }
         } else {
-            self.toolbar(.hidden, for: .tabBar)
+            visibility = target
         }
+    }
+
+    func release(animated: Bool = true) {
+        hiddenRequesters = max(0, hiddenRequesters - 1)
+        guard hiddenRequesters == 0 else { return }
+        let target: Visibility = .visible
+        if animated {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                visibility = target
+            }
+        } else {
+            visibility = target
+        }
+    }
+}
+
+extension View {
+    /// Sub-page convenience: bind `.onAppear` / `.onDisappear` to the shared
+    /// `TabBarVisibilityController` so the tab bar slides out on push and
+    /// slides back in on pop.
+    ///
+    /// onAppear sets hidden WITHOUT animation — SwiftUI's NavigationStack
+    /// push transition is already running, so the tab bar disappearance
+    /// rides along with it (perceived as a slide). onDisappear (pop) wraps
+    /// the visible flip in `withAnimation` so the bar slides back in
+    /// smoothly even though pop has already finished animating the view.
+    @MainActor
+    func hidesTabBarOnAppear() -> some View {
+        modifier(HidesTabBarOnAppearModifier())
+    }
+}
+
+private struct HidesTabBarOnAppearModifier: ViewModifier {
+    @EnvironmentObject private var controller: TabBarVisibilityController
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { controller.acquireHidden(animated: false) }
+            .onDisappear { controller.release(animated: true) }
     }
 }
