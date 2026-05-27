@@ -42,19 +42,7 @@ jobs:
           restore-keys: |
             konan-${{ runner.os }}-
 
-      - name: Install XcodeGen (cached)
-        # Avoid the 20-30s `brew install xcodegen` (downloads + links every
-        # time) by caching the resulting binary tap and just symlinking on hit.
-        uses: actions/cache@v4
-        id: xcodegen-cache
-        with:
-          path: |
-            /opt/homebrew/Cellar/xcodegen
-            /opt/homebrew/bin/xcodegen
-          key: xcodegen-${{ runner.os }}-${{ hashFiles('.github/workflows/ios-app-build.yml') }}
-
       - name: Install XcodeGen
-        if: steps.xcodegen-cache.outputs.cache-hit != 'true'
         run: brew install xcodegen
 
       - name: Run shared JVM tests
