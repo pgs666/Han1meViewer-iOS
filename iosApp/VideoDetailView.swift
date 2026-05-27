@@ -76,30 +76,54 @@ struct VideoDetailView: View {
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let snapshot):
-            // KEY: keep KSPlayerView at a stable SwiftUI tree position. The
-            // GeometryReader wraps the WHOLE loaded layout, but playerArea is
-            // ALWAYS the first child of the inner VStack — never inside the
-            // if/else that switches phone vs tablet bottom layout. So when
-            // size class flips (e.g. iPad rotates into landscape regular),
-            // only the bottom branch remounts; the player keeps its identity,
-            // its @StateObject Coordinator, and its KSPlayerLayer → no reload.
+            // Bilibili-style iPad layout: an outer HStack with two slots.
+            // - Slot 0: a VStack (the "left panel") that hosts player + scroll.
+            //   Player is ALWAYS the first child of this VStack at a stable tree
+            //   position, so size-class flips never reparent it (which would
+            //   rebuild @StateObject Coordinator + KSPlayerLayer → reload video).
+            // - Slot 1: the related-videos sidebar, only mounted on iPad regular
+            //   landscape. Mounting/unmounting it does NOT touch slot 0.
             //
-            // Using explicit .frame(width:height:) instead of .aspectRatio(_:.fit)
-            // because aspectRatio fit inside a VStack picks the height-limited
-            // dimension when the bottom subview also wants vertical space, which
-            // shrank the player to ~50% width on iPad and exposed the black
-            // systemGroupedBackground on both sides.
+            // Phone / iPad portrait collapses to a single full-width left panel
+            // (no sidebar), giving the same visual as before for those modes.
             GeometryReader { proxy in
-                VStack(spacing: 0) {
-                    playerArea(snapshot: snapshot)
-                        .frame(width: proxy.size.width, height: playerHeight(in: proxy.size))
+                let isWide = horizontalSizeClass == .regular
+                    && proxy.size.width >= 900
+                    && proxy.size.width > proxy.size.height
+                    && !isPlayerFullscreen
+                let leftWidth: CGFloat = isWide
+                    ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
+                    : proxy.size.width
 
-                    if !isPlayerFullscreen {
-                        if horizontalSizeClass == .regular && proxy.size.width >= 900 {
-                            tabletBottomContent(snapshot: snapshot, size: proxy.size)
-                        } else {
-                            phoneBottomContent(snapshot: snapshot)
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(spacing: 0) {
+                        playerArea(snapshot: snapshot)
+                            .frame(
+                                width: leftWidth,
+                                height: playerHeight(
+                                    panelWidth: leftWidth,
+                                    parentHeight: proxy.size.height
+                                )
+                            )
+
+                        if !isPlayerFullscreen {
+                            // showsRelated=false on iPad regular landscape because the
+                            // dedicated right sidebar already shows related videos —
+                            // duplicating them in the bottom scroll would be redundant.
+                            belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
                         }
+                    }
+                    .frame(width: leftWidth)
+
+                    if isWide {
+                        Divider()
+                        TabletRelatedSidebar(
+                            videos: snapshot.relatedVideos,
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemBackground))
                     }
                 }
             }
@@ -110,42 +134,11 @@ struct VideoDetailView: View {
     /// Player 高度：
     /// - 全屏：撑满整个父容器
     /// - 折叠：50pt 标题 strip
-    /// - iPad regular 横屏：取 min(16:9-by-width, 0.65 × parent height)；避免 16:9
-    ///   全宽吃光下方 split 内容空间
-    /// - 其他：16:9 by full width（手机 / iPad 竖屏）
-    private func playerHeight(in size: CGSize) -> CGFloat {
-        if isPlayerFullscreen { return size.height }
+    /// - inline：左 panel 宽度的 16:9（不再依赖父容器 height）
+    private func playerHeight(panelWidth: CGFloat, parentHeight: CGFloat) -> CGFloat {
+        if isPlayerFullscreen { return parentHeight }
         if isPlayerCollapsed { return 50 }
-        let isWideLayout = horizontalSizeClass == .regular && size.width >= 900
-        if isWideLayout {
-            return min(size.width * 9 / 16, size.height * 0.65)
-        }
-        return size.width * 9 / 16
-    }
-
-    /// Phone / iPad compact / iPad portrait: 单一 ScrollView 占据 player 下方全部空间。
-    private func phoneBottomContent(snapshot: VideoDetailScreenSnapshot) -> some View {
-        belowPlayerScroll(snapshot: snapshot, showsRelated: true)
-    }
-
-    /// iPad regular landscape (split layout below the top-pinned player):
-    /// 左主 scroll + 右相关视频 sidebar。
-    private func tabletBottomContent(snapshot: VideoDetailScreenSnapshot, size: CGSize) -> some View {
-        let leftWidth = min(max(size.width * 0.64, 620), size.width - 360)
-        return HStack(alignment: .top, spacing: 0) {
-            belowPlayerScroll(snapshot: snapshot, showsRelated: false)
-                .frame(width: leftWidth)
-
-            Divider()
-
-            TabletRelatedSidebar(
-                videos: snapshot.relatedVideos,
-                videoFeature: videoFeature,
-                commentFeature: commentFeature
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemBackground))
-        }
+        return panelWidth * 9 / 16
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
