@@ -85,6 +85,42 @@ struct KSPlayerView: View {
                 .onStateChanged { _, state in
                     isPlaying = state.isPlaying
                 }
+                // Attach gestures to the video layer, NOT to the outer ZStack.
+                // Otherwise outer .onTapGesture(count: 1) raced with Buttons /
+                // Menu inside controlsOverlay — tapping the "1x" rate menu was
+                // both opening the menu AND toggling showsControls, so the
+                // controls (and the menu) immediately disappeared together.
+                // Now Button / Menu inside controlsOverlay handle their taps
+                // first (they sit on top in z-order); taps on truly empty mask
+                // areas fall through (gradient is allowsHitTesting(false), the
+                // VStack has natural pass-through in gaps) and reach the video
+                // layer's gestures below.
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    togglePlayPause()
+                    scheduleAutoHide()
+                }
+                .onTapGesture(count: 1) {
+                    withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
+                    if showsControls { scheduleAutoHide() }
+                }
+                .onLongPressGesture(
+                    minimumDuration: 0.4,
+                    pressing: { isPressing in
+                        if !isPressing, isBoosted { endBoost() }
+                    },
+                    perform: { startBoost() }
+                )
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onEnded { value in
+                            if !isFullscreen, value > 1.15 {
+                                withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
+                            } else if isFullscreen, value < 0.85 {
+                                withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
+                            }
+                        }
+                )
 
             if isBoosted {
                 boostHint.transition(.opacity)
@@ -94,39 +130,6 @@ struct KSPlayerView: View {
                 controlsOverlay.transition(.opacity)
             }
         }
-        .contentShape(Rectangle())
-        // 双击：播放/暂停
-        .onTapGesture(count: 2) {
-            togglePlayPause()
-            scheduleAutoHide()
-        }
-        // 单击：toggle 控件可见
-        .onTapGesture(count: 1) {
-            withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
-            if showsControls { scheduleAutoHide() }
-        }
-        // 长按 0.4s+ 进入 2x；松开恢复
-        .onLongPressGesture(
-            minimumDuration: 0.4,
-            pressing: { isPressing in
-                if !isPressing, isBoosted { endBoost() }
-            },
-            perform: { startBoost() }
-        )
-        // Pinch out (放大) → 进入全屏；pinch in (缩小) → 退出全屏。
-        // 这是中国式播放器的常见手势 —— 之前 pinch 是切 fit/fill，但 KSPlayer 没有
-        // 内置的 pinch-to-fullscreen 支持，全屏按钮也比较隐藏，用户期望直接 pinch。
-        // fit/fill 切换仍可通过控件层右上角的 contentMode 按钮触发。
-        .simultaneousGesture(
-            MagnificationGesture()
-                .onEnded { value in
-                    if !isFullscreen, value > 1.15 {
-                        withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
-                    } else if isFullscreen, value < 0.85 {
-                        withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
-                    }
-                }
-        )
         .onAppear { scheduleAutoHide() }
         .onDisappear { hideControlsTask?.cancel() }
     }
