@@ -76,23 +76,25 @@ struct VideoDetailView: View {
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let snapshot):
-            // KEY: Keep KSPlayerView at a STABLE SwiftUI tree position across phone/tablet
-            // size-class changes. Previously it lived inside two different branches
-            // (phoneContent / tabletContent) so when iPad rotated to landscape and the
-            // GeometryReader switched branches, SwiftUI rebuilt KSPlayerView, the
-            // @StateObject KSVideoPlayer.Coordinator was recreated, KSPlayerLayer was
-            // re-initialized, and the video reloaded from 0. By placing playerArea ONCE
-            // here, the player view identity never changes when the bottom layout swaps.
-            VStack(spacing: 0) {
-                playerArea(snapshot: snapshot)
-                    .frame(maxWidth: .infinity)
-                    .modifier(PlayerSizeModifier(
-                        isFullscreen: isPlayerFullscreen,
-                        isCollapsed: isPlayerCollapsed
-                    ))
+            // KEY: keep KSPlayerView at a stable SwiftUI tree position. The
+            // GeometryReader wraps the WHOLE loaded layout, but playerArea is
+            // ALWAYS the first child of the inner VStack — never inside the
+            // if/else that switches phone vs tablet bottom layout. So when
+            // size class flips (e.g. iPad rotates into landscape regular),
+            // only the bottom branch remounts; the player keeps its identity,
+            // its @StateObject Coordinator, and its KSPlayerLayer → no reload.
+            //
+            // Using explicit .frame(width:height:) instead of .aspectRatio(_:.fit)
+            // because aspectRatio fit inside a VStack picks the height-limited
+            // dimension when the bottom subview also wants vertical space, which
+            // shrank the player to ~50% width on iPad and exposed the black
+            // systemGroupedBackground on both sides.
+            GeometryReader { proxy in
+                VStack(spacing: 0) {
+                    playerArea(snapshot: snapshot)
+                        .frame(width: proxy.size.width, height: playerHeight(in: proxy.size))
 
-                if !isPlayerFullscreen {
-                    GeometryReader { proxy in
+                    if !isPlayerFullscreen {
                         if horizontalSizeClass == .regular && proxy.size.width >= 900 {
                             tabletBottomContent(snapshot: snapshot, size: proxy.size)
                         } else {
@@ -103,6 +105,22 @@ struct VideoDetailView: View {
             }
             .background(Color(.systemGroupedBackground))
         }
+    }
+
+    /// Player 高度：
+    /// - 全屏：撑满整个父容器
+    /// - 折叠：50pt 标题 strip
+    /// - iPad regular 横屏：取 min(16:9-by-width, 0.65 × parent height)；避免 16:9
+    ///   全宽吃光下方 split 内容空间
+    /// - 其他：16:9 by full width（手机 / iPad 竖屏）
+    private func playerHeight(in size: CGSize) -> CGFloat {
+        if isPlayerFullscreen { return size.height }
+        if isPlayerCollapsed { return 50 }
+        let isWideLayout = horizontalSizeClass == .regular && size.width >= 900
+        if isWideLayout {
+            return min(size.width * 9 / 16, size.height * 0.65)
+        }
+        return size.width * 9 / 16
     }
 
     /// Phone / iPad compact / iPad portrait: 单一 ScrollView 占据 player 下方全部空间。
@@ -174,25 +192,6 @@ struct VideoDetailView: View {
                 }
             }
             .padding(.bottom, 24)
-        }
-    }
-}
-
-/// Drives the inline → fullscreen → collapsed sizing of the sticky-top KSPlayerView
-/// without changing its position in the SwiftUI view tree, so view identity (and the
-/// underlying KSVideoPlayer.Coordinator + KSPlayerLayer) is preserved across all
-/// transitions.
-private struct PlayerSizeModifier: ViewModifier {
-    let isFullscreen: Bool
-    let isCollapsed: Bool
-
-    func body(content: Content) -> some View {
-        if isFullscreen {
-            content.frame(maxHeight: .infinity)
-        } else if isCollapsed {
-            content.frame(height: 50)
-        } else {
-            content.aspectRatio(16.0 / 9.0, contentMode: .fit)
         }
     }
 }
