@@ -2,23 +2,19 @@ import SwiftUI
 import KSPlayer
 import Han1meShared
 
-/// SwiftUI 包装 KSPlayer 的底层 `KSVideoPlayer`（仅显示视频内容，无内置 UI），
-/// 控件层用上游公共 `KSVideoPlayerViewBuilder` 的 helper 按钮（subtitle / contentMode /
-/// playback control / playback rate）拼装，再叠加自己写的手势 / 进度条 / 全屏切换 / 收起。
+/// SwiftUI 包装 KSPlayer 的底层 `KSVideoPlayer`（仅显示视频内容，无内置 UI），控件层完全
+/// 自己拼装但都通过 `KSVideoPlayer.Coordinator` 的 **public API** 操作（`seek(time:)` /
+/// `skip(interval:)` / `playbackRate` / `isScaleAspectFill` / `state.isPlaying` /
+/// `timemodel.currentTime/totalTime`），所以播放/暂停/倍速/aspect mode/进度都跟 KSPlayer
+/// 内部完全同步。
 ///
-/// 之前用过完整的 `KSVideoPlayerView`，但它内部带 `.preferredColorScheme(.dark)`、
-/// `.toolbar(.hidden, for: .automatic)`、`.persistentSystemOverlays(.hidden)` 等
-/// "全屏向"修饰符。SwiftUI 的 `preferredColorScheme` 是 PreferenceKey 会一直 propagate
-/// 到 root window，**嵌套 `NavigationStack` 不能隔离**。这会让外层整个 app 进入 dark mode。
-/// 所以 inline 不能直接用 `KSVideoPlayerView`。
+/// 不用上游 `KSVideoPlayerView` 的原因：它内部带 `.preferredColorScheme(.dark)` 这是
+/// SwiftUI PreferenceKey，会一直 propagate 到 root window，**嵌套 NavigationStack 不能
+/// 隔离**，会让外层整个 app 进入 dark mode。`KSVideoPlayerViewBuilder` 是 internal enum
+/// 也用不了。
 ///
 /// 通过 `@Binding isFullscreen` / `@Binding isCollapsed` 让外部容器（VideoDetailView）
-/// 控制 player 形态：
-/// - **inline**：16:9 frame
-/// - **fullscreen**：撑满父容器（VideoDetailView 进入全屏 layout）
-/// - **collapsed**：暂停后用户点收起 → 50pt 折叠 strip
-///
-/// **关键**：KSPlayerView 始终在 SwiftUI view tree 同一位置，仅靠外层 frame 切换大小，
+/// 控制 player 形态。**关键**：始终在 SwiftUI view tree 同一位置，仅靠外层 frame 切换大小，
 /// view identity 不变 → KSPlayerLayer 复用 → 视频不重新加载，进度不丢失。
 @MainActor
 struct KSPlayerView: View {
@@ -32,10 +28,10 @@ struct KSPlayerView: View {
     @State private var showsControls = true
     @State private var hideControlsTask: Task<Void, Never>?
     @State private var isPlaying = false
-    @State private var currentSeconds: TimeInterval = 0
-    @State private var totalSeconds: TimeInterval = 0
-    @State private var savedPlaybackRate: Float = 1.0
     @State private var isBoosted = false
+    @State private var savedPlaybackRate: Float = 1.0
+    /// 拖动 slider 时本地暂存目标值；松手后调 coordinator.seek 并清空。
+    @State private var sliderSeekTarget: TimeInterval?
 
     init(
         snapshot: VideoDetailScreenSnapshot,
@@ -76,9 +72,8 @@ struct KSPlayerView: View {
 
         ZStack {
             KSVideoPlayer(coordinator: coordinator, url: url, options: options)
-                .onPlay { current, total in
-                    if current.isFinite { currentSeconds = current; onProgress(current) }
-                    if total.isFinite { totalSeconds = total }
+                .onPlay { current, _ in
+                    if current.isFinite { onProgress(current) }
                 }
                 .onFinish { _, _ in onPlaybackEnded() }
                 .onStateChanged { _, state in
@@ -104,7 +99,7 @@ struct KSPlayerView: View {
             withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
             if showsControls { scheduleAutoHide() }
         }
-        // 长按 0.4s+ 进入 2x 倍速；松开恢复
+        // 长按 0.4s+ 进入 2x；松开恢复
         .onLongPressGesture(
             minimumDuration: 0.4,
             pressing: { isPressing in
@@ -139,26 +134,38 @@ struct KSPlayerView: View {
                 Spacer()
                 bottomBar
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .foregroundStyle(.white)
         }
     }
 
     private var topBar: some View {
-        HStack(spacing: 10) {
-            // 暂停时显示收起按钮（仅非全屏时有意义）
+        HStack(spacing: 8) {
+            // 暂停时收起按钮（仅非全屏时有意义）
             if !isFullscreen, !isPlaying {
                 iconButton(systemImage: "chevron.up", label: "收起播放器") {
                     withAnimation(.easeInOut(duration: 0.25)) { isCollapsed = true }
                 }
             }
             Spacer()
-            KSVideoPlayerViewBuilder.subtitleButton(config: coordinator)
-                .font(.title3)
-                .foregroundStyle(.white)
-            KSVideoPlayerViewBuilder.contentModeButton(config: coordinator)
-                .font(.title3)
-                .foregroundStyle(.white)
+            // 静音 toggle
+            iconButton(
+                systemImage: coordinator.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                label: coordinator.isMuted ? "取消静音" : "静音"
+            ) {
+                coordinator.isMuted.toggle()
+            }
+            // 比例 fit/fill
+            iconButton(
+                systemImage: coordinator.isScaleAspectFill
+                    ? "rectangle.arrowtriangle.2.inward"
+                    : "rectangle.arrowtriangle.2.outward",
+                label: coordinator.isScaleAspectFill ? "适配" : "填充"
+            ) {
+                coordinator.isScaleAspectFill.toggle()
+            }
+            // 全屏 toggle
             iconButton(
                 systemImage: isFullscreen
                     ? "arrow.down.right.and.arrow.up.left"
@@ -171,25 +178,101 @@ struct KSPlayerView: View {
     }
 
     private var centerControls: some View {
-        // KSPlayer 上游公共 helper：上一集 / 播放暂停 / 下一集
-        KSVideoPlayerViewBuilder.playbackControlView(config: coordinator, spacing: 28)
-            .font(.system(size: 32))
-            .foregroundStyle(.white)
+        HStack(spacing: 36) {
+            Button {
+                coordinator.skip(interval: -15)
+                scheduleAutoHide()
+            } label: {
+                Image(systemName: "gobackward.15")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("后退 15 秒")
+
+            Button {
+                togglePlayPause()
+                scheduleAutoHide()
+            } label: {
+                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 52))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isPlaying ? "暂停" : "播放")
+
+            Button {
+                coordinator.skip(interval: 15)
+                scheduleAutoHide()
+            } label: {
+                Image(systemName: "goforward.15")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("快进 15 秒")
+        }
     }
 
     private var bottomBar: some View {
-        HStack(spacing: 10) {
-            Text(Self.formatTime(currentSeconds))
+        let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
+        let displayCurrent = sliderSeekTarget ?? TimeInterval(coordinator.timemodel.currentTime)
+        return HStack(spacing: 10) {
+            Text(Self.formatTime(displayCurrent))
                 .font(.caption2.monospacedDigit())
-            ProgressView(value: progressFraction)
-                .progressViewStyle(.linear)
-                .tint(.white)
-            Text(Self.formatTime(totalSeconds))
+                .foregroundStyle(.white)
+
+            Slider(
+                value: Binding(
+                    get: { displayCurrent },
+                    set: { sliderSeekTarget = $0 }
+                ),
+                in: 0...total,
+                onEditingChanged: { editing in
+                    if editing {
+                        hideControlsTask?.cancel()
+                    } else if let target = sliderSeekTarget {
+                        coordinator.seek(time: target)
+                        sliderSeekTarget = nil
+                        scheduleAutoHide()
+                    }
+                }
+            )
+            .tint(.white)
+
+            Text(Self.formatTime(TimeInterval(coordinator.timemodel.totalTime)))
                 .font(.caption2.monospacedDigit())
-            // 上游公共 helper：倍速选择
-            KSVideoPlayerViewBuilder.playbackRateButton(playbackRate: $coordinator.playbackRate)
+                .foregroundStyle(.white)
+
+            // 倍速 menu
+            playbackRateMenu
+        }
+    }
+
+    private var playbackRateMenu: some View {
+        Menu {
+            ForEach(Self.playbackRates, id: \.self) { rate in
+                Button {
+                    coordinator.playbackRate = rate
+                    savedPlaybackRate = rate
+                } label: {
+                    HStack {
+                        Text(Self.formatRate(rate))
+                        Spacer()
+                        if abs(coordinator.playbackRate - rate) < 0.01 {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Text(Self.formatRate(coordinator.playbackRate))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white)
+                .frame(minWidth: 38)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 4))
         }
     }
 
@@ -292,11 +375,6 @@ struct KSPlayerView: View {
         }
     }
 
-    private var progressFraction: Double {
-        guard totalSeconds > 0 else { return 0 }
-        return min(max(currentSeconds / totalSeconds, 0), 1)
-    }
-
     static func formatTime(_ seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "00:00" }
         let total = Int(seconds)
@@ -306,6 +384,15 @@ struct KSPlayerView: View {
         if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
         return String(format: "%02d:%02d", m, s)
     }
+
+    static func formatRate(_ rate: Float) -> String {
+        if abs(rate - rate.rounded()) < 0.01 {
+            return String(format: "%.0fx", rate)
+        }
+        return String(format: "%.2gx", rate)
+    }
+
+    private static let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     private func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
         let options = KSOptions()
