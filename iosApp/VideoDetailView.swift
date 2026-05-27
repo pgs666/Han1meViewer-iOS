@@ -28,7 +28,9 @@ struct VideoDetailView: View {
             // pushed sub-page that benefits from extra vertical space, not a
             // top-level tab. (Fullscreen state doesn't matter; both inline
             // and fullscreen want the tab bar gone.)
-            .toolbar(.hidden, for: .tabBar)
+            // hidesTabBar() picks .toolbarVisibility on iOS 18+ for the
+            // animated slide-out, falls back to .toolbar(.hidden, ...) on 16/17.
+            .hidesTabBar()
             .statusBarHidden(isPlayerFullscreen)
             .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
             .task {
