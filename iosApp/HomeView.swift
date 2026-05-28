@@ -115,6 +115,14 @@ private struct HomeBannerView: View {
         bannerFrame
             .aspectRatio(usesCompactBanner ? 3.2 : 16.0 / 9.0, contentMode: .fit)
             .frame(maxWidth: usesCompactBanner ? 440 : .infinity, alignment: usesCompactBanner ? .leading : .center)
+            // Stretch the OUTER frame to the full LazyVStack width so all
+            // sections report the same horizontal extent — having a single
+            // narrower child (440pt iPad banner) inside a LazyVStack of
+            // otherwise-full-width children seems to cause SwiftUI to
+            // re-measure rows during scroll on iPad, manifesting as a
+            // janky "non-finger-tracking" jump. Keeping the inner banner
+            // at 440 + leading-aligned visually matches the original.
+            .frame(maxWidth: .infinity, alignment: usesCompactBanner ? .leading : .center)
     }
 
     private var bannerFrame: some View {
