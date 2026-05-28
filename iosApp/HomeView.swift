@@ -7,6 +7,12 @@ struct HomeView: View {
     private let commentFeature: CommentFeature
     private let onOpenSearch: (HomeSectionRow) -> Void
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// First-render measurement of the banner's height. Once this is set,
+    /// HomeBannerView pins itself to this exact height instead of letting
+    /// `aspectRatio(_:.fit)` recompute on every LazyVStack layout pass —
+    /// which on iPad caused vertical scroll to jitter / not track the
+    /// finger.
+    @State private var measuredBannerHeight: CGFloat?
 
     init(environment: SharedAppEnvironment, onOpenSearch: @escaping (HomeSectionRow) -> Void = { _ in }) {
         self.videoFeature = environment.videoFeature()
@@ -67,7 +73,8 @@ struct HomeView: View {
                             banner: banner,
                             videoFeature: videoFeature,
                             commentFeature: commentFeature,
-                            usesCompactBanner: horizontalSizeClass == .regular
+                            usesCompactBanner: horizontalSizeClass == .regular,
+                            measuredHeight: measuredBannerHeight
                         )
                         .padding(.horizontal, 16)
                         .padding(.bottom, horizontalSizeClass == .regular ? 10 : 0)
@@ -85,6 +92,17 @@ struct HomeView: View {
                 .padding(.vertical, 12)
             }
             .background(Color(.systemGroupedBackground))
+            .onPreferenceChange(HomeBannerHeightPreferenceKey.self) { newHeight in
+                guard newHeight > 0 else { return }
+                if measuredBannerHeight == nil {
+                    measuredBannerHeight = newHeight
+                }
+            }
+            .onValueChange(of: horizontalSizeClass) { _ in
+                // iPad rotation / split-view changes the banner's aspect
+                // ratio (compact 3.2 vs full 16:9), re-measure once.
+                measuredBannerHeight = nil
+            }
         }
     }
 }
@@ -94,6 +112,7 @@ private struct HomeBannerView: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let usesCompactBanner: Bool
+    let measuredHeight: CGFloat?
 
     var body: some View {
         Group {
@@ -111,18 +130,31 @@ private struct HomeBannerView: View {
         .frame(maxWidth: .infinity, alignment: usesCompactBanner ? .leading : .center)
     }
 
+    @ViewBuilder
     private var bannerContent: some View {
-        bannerFrame
-            .aspectRatio(usesCompactBanner ? 3.2 : 16.0 / 9.0, contentMode: .fit)
-            .frame(maxWidth: usesCompactBanner ? 440 : .infinity, alignment: usesCompactBanner ? .leading : .center)
-            // Stretch the OUTER frame to the full LazyVStack width so all
-            // sections report the same horizontal extent — having a single
-            // narrower child (440pt iPad banner) inside a LazyVStack of
-            // otherwise-full-width children seems to cause SwiftUI to
-            // re-measure rows during scroll on iPad, manifesting as a
-            // janky "non-finger-tracking" jump. Keeping the inner banner
-            // at 440 + leading-aligned visually matches the original.
-            .frame(maxWidth: .infinity, alignment: usesCompactBanner ? .leading : .center)
+        if let measuredHeight {
+            // Already measured — pin to that exact height to keep the
+            // LazyVStack row size stable across scroll passes.
+            bannerFrame
+                .frame(maxWidth: usesCompactBanner ? 440 : .infinity, alignment: usesCompactBanner ? .leading : .center)
+                .frame(height: measuredHeight)
+                .frame(maxWidth: .infinity, alignment: usesCompactBanner ? .leading : .center)
+        } else {
+            // First render — let aspectRatio compute height naturally and
+            // upstream the resulting size via the preference key.
+            bannerFrame
+                .aspectRatio(usesCompactBanner ? 3.2 : 16.0 / 9.0, contentMode: .fit)
+                .frame(maxWidth: usesCompactBanner ? 440 : .infinity, alignment: usesCompactBanner ? .leading : .center)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: HomeBannerHeightPreferenceKey.self,
+                            value: proxy.size.height
+                        )
+                    }
+                )
+                .frame(maxWidth: .infinity, alignment: usesCompactBanner ? .leading : .center)
+        }
     }
 
     private var bannerFrame: some View {
@@ -262,6 +294,14 @@ private struct HomeVideoCard: View {
         .padding(8)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct HomeBannerHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 { value = next }
     }
 }
 
