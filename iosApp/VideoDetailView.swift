@@ -309,13 +309,16 @@ struct VideoDetailView: View {
                     }
                     .id(selectedTab)
                     // Horizontal swipe to switch between introduction /
-                    // comments. simultaneousGesture so the ScrollView's
-                    // own vertical scroll keeps working — SwiftUI routes
-                    // gestures by motion direction. We require horizontal
+                    // comments. Use plain .gesture (NOT simultaneous /
+                    // highPriority) so any nested horizontal-scroll
+                    // ScrollView (系列影片 / 相关影片 grids) gets to
+                    // claim the gesture first; SwiftUI only falls
+                    // through to this DragGesture for the area above
+                    // the horizontal strips. We require horizontal
                     // dominance + 60pt minimum, AND a 24pt left/right
                     // start-edge deadzone so the iOS swipe-back gesture
                     // (and any future right-edge system gesture) wins.
-                    .simultaneousGesture(
+                    .gesture(
                         DragGesture(minimumDistance: 30, coordinateSpace: .local)
                             .onEnded { value in
                                 let dx = value.translation.width
