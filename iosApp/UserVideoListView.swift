@@ -38,16 +38,8 @@ struct UserVideoListView: View {
         content
             .navigationTitle(title)
             .hidesTabBarOnAppear()
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        viewModel.load()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(.primary)
-                    }
-                    .disabled(isLoading)
-                }
+            .refreshable {
+                await viewModel.refresh()
             }
             .task {
                 viewModel.loadIfNeeded()

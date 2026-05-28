@@ -14,16 +14,8 @@ struct UserPlaylistView: View {
         content
             .navigationTitle("播放清单")
             .hidesTabBarOnAppear()
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        viewModel.load()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(.primary)
-                    }
-                    .disabled(isLoading)
-                }
+            .refreshable {
+                await viewModel.refresh()
             }
             .task {
                 viewModel.loadIfNeeded()
