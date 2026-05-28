@@ -25,6 +25,10 @@ struct KSPlayerView: View {
     @Binding var isCollapsed: Bool
     let onProgress: (TimeInterval) -> Void
     let onPlaybackEnded: () -> Void
+    /// Optional: invoked whenever the player's playing/paused state flips.
+    /// Used by the parent to decide whether to allow scroll-driven shrink
+    /// of the player area (only paused state shrinks).
+    let onPlayingChanged: (Bool) -> Void
 
     @StateObject private var coordinator = KSVideoPlayer.Coordinator()
     @State private var showsControls = true
@@ -95,13 +99,15 @@ struct KSPlayerView: View {
         isFullscreen: Binding<Bool>,
         isCollapsed: Binding<Bool>,
         onProgress: @escaping (TimeInterval) -> Void = { _ in },
-        onPlaybackEnded: @escaping () -> Void = {}
+        onPlaybackEnded: @escaping () -> Void = {},
+        onPlayingChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self._isFullscreen = isFullscreen
         self._isCollapsed = isCollapsed
         self.onProgress = onProgress
         self.onPlaybackEnded = onPlaybackEnded
+        self.onPlayingChanged = onPlayingChanged
     }
 
     var body: some View {
@@ -173,7 +179,11 @@ struct KSPlayerView: View {
                     }
                     .onFinish { _, _ in onPlaybackEnded() }
                     .onStateChanged { _, state in
-                        isPlaying = state.isPlaying
+                        let nowPlaying = state.isPlaying
+                        if nowPlaying != isPlaying {
+                            isPlaying = nowPlaying
+                            onPlayingChanged(nowPlaying)
+                        }
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     // Attach gestures to the video layer, NOT to the outer ZStack.
