@@ -37,15 +37,15 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        // Black backdrop only kicks in once the video has loaded — that's
-        // when the player is on screen and a black status-bar strip looks
-        // intentional. During idle/loading/failed states the underlying
-        // system theme background shows through (white in light mode,
-        // dark in dark mode), matching the rest of the app's chrome.
+        // The status-bar strip on iOS is actually the area behind the
+        // navigation bar's background. Hiding the nav bar
+        // (.toolbar(.hidden, ...)) doesn't remove that background — it
+        // just makes the bar's content invisible — so we explicitly
+        // colour the navigation toolbar's background black AND keep it
+        // visible so it shows through on top of the status icons. We
+        // do this only once content has loaded; loading / failed /
+        // idle states keep the system theme background.
         ZStack {
-            Color.black
-                .ignoresSafeArea()
-                .opacity(isContentLoaded ? 1 : 0)
             content
         }
             // Navigation bar (and its system back button) is hidden the
@@ -54,6 +54,8 @@ struct VideoDetailView: View {
             // back button is purely an overlay-layer change and doesn't
             // resize / shift the rest of the view tree.
             .toolbar(.hidden, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(isContentLoaded ? Color.black : Color.clear, for: .navigationBar)
             // SwiftUI's `.toolbar(.hidden, for: .navigationBar)` also turns
             // off the edge-swipe-to-go-back gesture on the underlying
             // UINavigationController. Re-enable it explicitly so the user
