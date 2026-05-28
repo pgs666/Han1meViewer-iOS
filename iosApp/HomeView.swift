@@ -5,7 +5,6 @@ struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
-    private let onOpenSearch: (HomeSectionRow) -> Void
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// First-render measurement of the banner image's natural aspect ratio
     /// (width / height). Once captured, HomeBannerView passes it through
@@ -23,10 +22,9 @@ struct HomeView: View {
     /// added server sections still surface).
     @AppStorage("home_section_order") private var homeSectionOrderRaw: String = ""
 
-    init(environment: SharedAppEnvironment, onOpenSearch: @escaping (HomeSectionRow) -> Void = { _ in }) {
+    init(environment: SharedAppEnvironment) {
         self.videoFeature = environment.videoFeature()
         self.commentFeature = environment.commentFeature()
-        self.onOpenSearch = onOpenSearch
         _viewModel = StateObject(wrappedValue: HomeViewModel(homeFeature: environment.homeFeature()))
     }
 
@@ -99,8 +97,7 @@ struct HomeView: View {
                         HomeCategorySection(
                             section: section,
                             videoFeature: videoFeature,
-                            commentFeature: commentFeature,
-                            onMore: onOpenSearch
+                            commentFeature: commentFeature
                         )
                     }
                 }
@@ -229,7 +226,7 @@ private struct HomeCategorySection: View {
     let section: HomeSectionRow
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
-    let onMore: (HomeSectionRow) -> Void
+    @Environment(\.searchFeature) private var searchFeature
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -240,11 +237,23 @@ private struct HomeCategorySection: View {
 
                 Spacer()
 
-                Button("更多") {
-                    onMore(section)
+                if let searchFeature {
+                    NavigationLink {
+                        ArtistVideosView(
+                            title: section.title,
+                            mode: .homeSection(SearchLaunchRequest(
+                                sectionKey: section.key,
+                                sectionTitle: section.title
+                            )),
+                            searchFeature: searchFeature,
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature
+                        )
+                    } label: {
+                        Text("更多")
+                            .font(.caption.weight(.semibold))
+                    }
                 }
-                .font(.caption.weight(.semibold))
-                .buttonStyle(.borderless)
             }
             .padding(.horizontal, 16)
 
