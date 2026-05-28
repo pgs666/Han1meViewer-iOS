@@ -308,6 +308,29 @@ struct VideoDetailView: View {
                         }
                     }
                     .id(selectedTab)
+                    // Horizontal swipe to switch between introduction /
+                    // comments. simultaneousGesture so the ScrollView's
+                    // own vertical scroll keeps working — SwiftUI routes
+                    // gestures by motion direction. We require horizontal
+                    // dominance + 60pt minimum, AND a 24pt left/right
+                    // start-edge deadzone so the iOS swipe-back gesture
+                    // (and any future right-edge system gesture) wins.
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                            .onEnded { value in
+                                let dx = value.translation.width
+                                let dy = value.translation.height
+                                guard abs(dx) > abs(dy) * 1.5, abs(dx) > 60 else { return }
+                                guard value.startLocation.x > 24 else { return }
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if dx < 0, selectedTab == .introduction {
+                                        selectedTab = .comments
+                                    } else if dx > 0, selectedTab == .comments {
+                                        selectedTab = .introduction
+                                    }
+                                }
+                            }
+                    )
                 } header: {
                     Picker("Content", selection: $selectedTab) {
                         ForEach(VideoPageTab.allCases) { tab in

@@ -26,6 +26,11 @@ class PreferencesStore(
     val forcePortraitFullscreenForVerticalVideos =
         booleanPref("force_portrait_fullscreen_for_vertical_videos", true)
 
+    /// When the user opens a video detail page, should the player begin
+    /// playing immediately (true) or wait for the user to tap the play
+    /// button (false)? Default true (auto-play, current behaviour).
+    val autoPlayOnEnter = booleanPref("auto_play_on_enter", true)
+
     // Domain
     val domainName = stringPref("domain_name", "https://hanime1.me")
 

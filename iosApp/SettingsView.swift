@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var longPressSpeed: Float = 2.0
     @State private var allowResumePlayback: Bool = true
     @State private var forcePortraitFullscreenForVerticalVideos: Bool = true
+    @State private var autoPlayOnEnter: Bool = true
     @State private var showPlayedIndicator: Bool = true
     @State private var showBottomProgress: Bool = true
 
@@ -121,6 +122,14 @@ struct SettingsView: View {
             Text("打开后，竖屏视频进入全屏时保持竖屏，不旋转设备；横屏视频不受影响。关闭则始终强制横屏。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Toggle("打开视频时自动播放", isOn: $autoPlayOnEnter)
+                .onValueChange(of: autoPlayOnEnter) { newValue in
+                    environment.preferences().autoPlayOnEnter.set(value: newValue)
+                }
+            Text("关闭后，进入视频详情页不会自动开始播放，需要手动点击播放按钮。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -207,6 +216,7 @@ struct SettingsView: View {
         longPressSpeed = prefs.longPressSpeedTimes.get()
         allowResumePlayback = prefs.allowResumePlayback.get()
         forcePortraitFullscreenForVerticalVideos = prefs.forcePortraitFullscreenForVerticalVideos.get()
+        autoPlayOnEnter = prefs.autoPlayOnEnter.get()
         showPlayedIndicator = prefs.showPlayedIndicator.get()
         showBottomProgress = prefs.showBottomProgress.get()
     }

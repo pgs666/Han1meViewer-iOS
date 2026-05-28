@@ -87,6 +87,10 @@ struct KSPlayerView: View {
     /// quality menu in bottomBar; switching value re-evaluates `body` and
     /// rebuilds KSVideoPlayer with the new url.
     @State private var selectedSourceID: String?
+    /// Whether the player should auto-play on entering the detail page,
+    /// or wait paused for the user to tap play. Mirrors PreferencesStore's
+    /// auto_play_on_enter key (default ON).
+    @AppStorage("auto_play_on_enter") private var autoPlayOnEnter: Bool = true
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -967,6 +971,12 @@ struct KSPlayerView: View {
     private static let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     private func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
+        // KSOptions.isAutoPlay is a class-level static. Re-set it on every
+        // option build so the user's auto_play_on_enter preference takes
+        // effect for the very next video they open (without restarting
+        // the app). When OFF, the player loads the source but stays
+        // paused at frame 0 until the user taps the play/pause button.
+        KSOptions.isAutoPlay = autoPlayOnEnter
         let options = KSOptions()
         options.appendHeader([
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
