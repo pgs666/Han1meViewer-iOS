@@ -9,6 +9,43 @@ struct Han1meViewerApp: App {
     @State private var selectedTab: MainTab = .home
     @State private var searchLaunchRequest: SearchLaunchRequest?
     @State private var deepLinkedVideo: DeepLinkedVideo?
+    /// Each root tab tracks an ever-changing identity. Tapping any tab
+    /// — including the currently selected one — bumps that tab's id,
+    /// which forces SwiftUI to teardown the entire NavigationStack
+    /// inside it (root view + every pushed sub-page like
+    /// VideoDetailView), then rebuild a fresh root. Two effects:
+    /// 1. Tab-bar tap always returns to the tab's root, never lands on
+    ///    a leftover pushed page.
+    /// 2. Pushed sub-pages are released, freeing their resources
+    ///    (e.g. KSPlayerLayer, scroll caches), so the app doesn't
+    ///    accumulate memory across tab visits.
+    @State private var homeTabResetID = UUID()
+    @State private var followingTabResetID = UUID()
+    @State private var mineTabResetID = UUID()
+    @State private var searchTabResetID = UUID()
+
+    /// Binding wrapper around `selectedTab`. SwiftUI calls `.set` even
+    /// when the user taps the already-selected tab, so we use this to
+    /// detect every tab-tap and bump that tab's `.id` regardless of
+    /// whether selection actually changed.
+    private var tabSelection: Binding<MainTab> {
+        Binding(
+            get: { selectedTab },
+            set: { newValue in
+                bumpResetID(for: newValue)
+                selectedTab = newValue
+            }
+        )
+    }
+
+    private func bumpResetID(for tab: MainTab) {
+        switch tab {
+        case .home:      homeTabResetID = UUID()
+        case .following: followingTabResetID = UUID()
+        case .mine:      mineTabResetID = UUID()
+        case .search:    searchTabResetID = UUID()
+        }
+    }
 
     init() {
         CrashReporter.install()
@@ -55,24 +92,28 @@ struct Han1meViewerApp: App {
 
     @available(iOS 26.0, *)
     private var modernTabView: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabSelection) {
             Tab("首页", systemImage: "house.fill", value: MainTab.home) {
                 HomeView(environment: sharedEnvironment) { section in
                     searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
                     selectedTab = .search
                 }
+                .id(homeTabResetID)
             }
 
             Tab("关注", systemImage: "heart.fill", value: MainTab.following) {
                 FollowingView(environment: sharedEnvironment)
+                    .id(followingTabResetID)
             }
 
             Tab("我的", systemImage: "person.crop.circle.fill", value: MainTab.mine) {
                 MineView(environment: sharedEnvironment)
+                    .id(mineTabResetID)
             }
 
             Tab("搜索", systemImage: "magnifyingglass", value: MainTab.search, role: .search) {
                 SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
+                    .id(searchTabResetID)
             }
         }
         .tint(.red)
@@ -80,29 +121,33 @@ struct Han1meViewerApp: App {
     }
 
     private var legacyTabView: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabSelection) {
             HomeView(environment: sharedEnvironment) { section in
                 searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
                 selectedTab = .search
             }
+                .id(homeTabResetID)
                 .tabItem {
                     Label("首页", systemImage: "house")
                 }
                 .tag(MainTab.home)
 
             FollowingView(environment: sharedEnvironment)
+                .id(followingTabResetID)
                 .tabItem {
                     Label("关注", systemImage: "heart")
                 }
                 .tag(MainTab.following)
 
             MineView(environment: sharedEnvironment)
+                .id(mineTabResetID)
                 .tabItem {
                     Label("我的", systemImage: "person.crop.circle")
                 }
                 .tag(MainTab.mine)
 
             SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
+                .id(searchTabResetID)
                 .tabItem {
                     Label("搜索", systemImage: "magnifyingglass")
                 }
