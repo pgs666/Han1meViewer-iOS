@@ -37,15 +37,15 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        // ZStack so a Color.black layer always sits below `content`. With
-        // `.ignoresSafeArea()` it extends into the top safe area too,
-        // painting the area behind the status bar black. content itself
-        // is laid out within the safe area on top of this; its inner
-        // backgrounds (e.g. systemGroupedBackground inside .loaded) only
-        // cover content's own frame and never reach into the status bar
-        // strip.
+        // Black backdrop only kicks in once the video has loaded — that's
+        // when the player is on screen and a black status-bar strip looks
+        // intentional. During idle/loading/failed states the underlying
+        // system theme background shows through (white in light mode,
+        // dark in dark mode), matching the rest of the app's chrome.
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black
+                .ignoresSafeArea()
+                .opacity(isContentLoaded ? 1 : 0)
             content
         }
             // Navigation bar (and its system back button) is hidden the
@@ -92,6 +92,13 @@ struct VideoDetailView: View {
                     AppOrientationController.shared.unlockAfterFullscreen()
                 }
             }
+    }
+
+    /// True only when the video detail snapshot has finished loading.
+    /// Drives whether the black status-bar backdrop is applied.
+    private var isContentLoaded: Bool {
+        if case .loaded = viewModel.state { return true }
+        return false
     }
 
     @ViewBuilder
