@@ -5,10 +5,12 @@ struct FollowingView: View {
     @StateObject private var viewModel: FollowingViewModel
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
+    private let searchFeature: SearchFeature
 
     init(environment: SharedAppEnvironment) {
         self.videoFeature = environment.videoFeature()
         self.commentFeature = environment.commentFeature()
+        self.searchFeature = environment.searchFeature()
         _viewModel = StateObject(wrappedValue: FollowingViewModel(followingFeature: environment.followingFeature()))
     }
 
@@ -73,7 +75,17 @@ struct FollowingView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 14) {
                                 ForEach(snapshot.artists) { artist in
-                                    FollowingArtistCell(artist: artist)
+                                    NavigationLink {
+                                        ArtistVideosView(
+                                            artistName: artist.name,
+                                            searchFeature: searchFeature,
+                                            videoFeature: videoFeature,
+                                            commentFeature: commentFeature
+                                        )
+                                    } label: {
+                                        FollowingArtistCell(artist: artist)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.vertical, 4)
