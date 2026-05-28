@@ -619,4 +619,9 @@ class KsoupHtmlParser : HtmlParser {
             14 to "newAnimeTrailer",
         )
     }
+
+    override fun extractCsrfToken(html: String): String? {
+        val body = Ksoup.parse(html).body()
+        return body.selectFirst("input[name=_token]")?.attr("value")?.takeIf { it.isNotBlank() }
+    }
 }

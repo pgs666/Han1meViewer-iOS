@@ -49,6 +49,12 @@ struct KSPlayerView: View {
     /// Tap handler invoked when the user taps a shrunken player; parent is
     /// expected to expand the player back to its full size.
     let onRequestExpand: () -> Void
+    /// Optional: invoked the first time the underlying media reports a
+    /// non-zero natural size. Lets the parent decide whether the video is
+    /// landscape or portrait so it can pick the right fullscreen
+    /// orientation lock (a portrait video locked to landscape would render
+    /// as a tall letterbox between black bars).
+    let onNaturalSize: (CGSize) -> Void
 
     @StateObject private var coordinator = KSVideoPlayer.Coordinator()
     @State private var showsControls = true
@@ -73,6 +79,9 @@ struct KSPlayerView: View {
     /// retry the seek ourselves the first time onPlay reports a real
     /// totalTime (> 1.5s), guaranteeing resume even if startPlayTime fails.
     @State private var hasAppliedResumeSeek = false
+    /// Whether `onNaturalSize` has been fired already. We only want to
+    /// notify the parent once — the natural size won't change mid-playback.
+    @State private var naturalSizeReported = false
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -206,11 +215,18 @@ struct KSPlayerView: View {
                         }
                     }
                     .onFinish { _, _ in onPlaybackEnded() }
-                    .onStateChanged { _, state in
+                    .onStateChanged { layer, state in
                         let nowPlaying = state.isPlaying
                         if nowPlaying != isPlaying {
                             isPlaying = nowPlaying
                             onPlayingChanged(nowPlaying)
+                        }
+                        if !naturalSizeReported {
+                            let size = layer.player.naturalSize
+                            if size.width > 0 && size.height > 0 {
+                                naturalSizeReported = true
+                                onNaturalSize(size)
+                            }
                         }
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height)

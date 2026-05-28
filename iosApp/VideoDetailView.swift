@@ -26,6 +26,17 @@ struct VideoDetailView: View {
     /// the offset grows), and the player is paused, the player shrinks
     /// proportionally — Bilibili-style "follow finger" collapse.
     @State private var bottomScrollOffset: CGFloat = 0
+    /// Natural size of the loaded video (reported by KSPlayer the first time
+    /// the underlying player gets a non-zero presentation size). Used to
+    /// decide whether fullscreen should lock the device to portrait or
+    /// landscape: a video taller than wide on a phone shouldn't force a
+    /// 90° rotation that produces black side-bars.
+    @State private var videoNaturalSize: CGSize?
+    /// Mirrors the KMP-shared `forcePortraitFullscreenForVerticalVideos`
+    /// preference (default ON). When ON, fullscreen on a portrait-aspect
+    /// video keeps the device in portrait instead of forcing landscape.
+    @AppStorage("force_portrait_fullscreen_for_vertical_videos")
+    private var forcePortraitForVerticalVideos: Bool = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dismiss) private var dismiss
 
@@ -92,12 +103,29 @@ struct VideoDetailView: View {
                 // and doesn't fight with SwiftUI.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
                     if newValue {
-                        AppOrientationController.shared.lockForFullscreen(to: .landscape)
+                        AppOrientationController.shared.lockForFullscreen(to: fullscreenOrientation)
                     } else {
                         AppOrientationController.shared.unlockAfterFullscreen()
                     }
                 }
             }
+    }
+
+    /// Decides whether the player should rotate to landscape or stay in
+    /// portrait when entering fullscreen. Defaults to landscape (existing
+    /// behaviour); switches to portrait only when both:
+    /// 1. The video's reported natural size is taller than wide.
+    /// 2. The user has the "force portrait fullscreen for vertical
+    ///    videos" preference enabled (default ON).
+    private var fullscreenOrientation: VideoFullscreenOrientation {
+        let isPortraitVideo: Bool = {
+            guard let size = videoNaturalSize else { return false }
+            return size.height > size.width
+        }()
+        if isPortraitVideo && forcePortraitForVerticalVideos {
+            return .portrait
+        }
+        return .landscape
     }
 
     @ViewBuilder
@@ -227,6 +255,9 @@ struct VideoDetailView: View {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     bottomScrollOffset = 0
                 }
+            },
+            onNaturalSize: { size in
+                videoNaturalSize = size
             }
         )
     }

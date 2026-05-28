@@ -18,6 +18,14 @@ class PreferencesStore(
     val allowResumePlayback = booleanPref("allow_resume_playback", true)
     val longPressSpeedTimes = floatPref("long_press_speed_times", 2.0f)
 
+    // When entering fullscreen on a video whose natural aspect ratio is
+    // portrait (height > width), keep the device locked in portrait
+    // instead of forcing landscape. Avoids ugly black side-bars and
+    // matches the bilibili-style behaviour for vertical content.
+    // Default ON; user can disable in settings.
+    val forcePortraitFullscreenForVerticalVideos =
+        booleanPref("force_portrait_fullscreen_for_vertical_videos", true)
+
     // Domain
     val domainName = stringPref("domain_name", "https://hanime1.me")
 

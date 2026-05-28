@@ -19,4 +19,11 @@ interface HtmlParser {
     fun parseUserPlaylists(html: String, page: Int): UserPlaylistPage
     fun parseComments(json: String): VideoComments
     fun parseCommentReplies(json: String): VideoComments
+
+    /// Extracts the page-level CSRF `_token` value rendered in the HTML
+    /// without parsing the full document model. Used to refresh the
+    /// token after a mutation request fails with HTTP 419 (Laravel's
+    /// "Page Expired" — server-side session csrf rotated since the
+    /// page was first loaded). Returns null when the token is absent.
+    fun extractCsrfToken(html: String): String?
 }
