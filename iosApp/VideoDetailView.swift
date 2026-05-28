@@ -119,15 +119,6 @@ struct VideoDetailView: View {
             //
             // Phone / iPad portrait collapses to a single full-width left panel
             // (no sidebar), giving the same visual as before for those modes.
-            //
-            // Status-bar strip: layered as a `.background(alignment: .top)` of
-            // the GR. The background view is a 0-height Color.black with
-            // .ignoresSafeArea(edges: .top), so it has no layout footprint
-            // (the GR and its inner HStack stay safely within the safe area,
-            // i.e. player never sits under the dynamic island) but it
-            // visually paints into the top safe-area, painting the status bar
-            // strip black. Suppressed in fullscreen because the status bar is
-            // already hidden then.
             GeometryReader { proxy in
                 let isWide = horizontalSizeClass == .regular
                     && proxy.size.width >= 900
@@ -167,14 +158,6 @@ struct VideoDetailView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color(.systemBackground))
                     }
-                }
-            }
-            .background(alignment: .top) {
-                if !isPlayerFullscreen {
-                    Color.black
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 0)
-                        .ignoresSafeArea(edges: .top)
                 }
             }
             .background(Color(.systemGroupedBackground))
