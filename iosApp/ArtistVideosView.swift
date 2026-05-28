@@ -173,17 +173,41 @@ struct SearchVideoCard: View {
                 .aspectRatio(16.0 / 9.0, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            Text(video.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-
-            if !video.metadata.isEmpty {
-                Text(video.metadata)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+            // Reserve a fixed two-line slot for the title so cards with
+            // a single-line title still occupy the same vertical space
+            // as cards with a wrapped title — without this the grid
+            // ended up with mismatched cell heights and looked uneven.
+            // .lineLimit(_:reservesSpace:) is iOS 17+; on iOS 16 we
+            // fall back to plain .lineLimit(2) (cells will be slightly
+            // uneven there but the deployment target is mostly future
+            // OS so this matters less).
+            Group {
+                if #available(iOS 17.0, *) {
+                    Text(video.title)
+                        .lineLimit(2, reservesSpace: true)
+                } else {
+                    Text(video.title)
+                        .lineLimit(2)
+                }
             }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Same trick for the metadata line so cards with empty /
+            // single-line metadata don't shrink relative to neighbours.
+            Group {
+                if #available(iOS 17.0, *) {
+                    Text(video.metadata.isEmpty ? " " : video.metadata)
+                        .lineLimit(2, reservesSpace: true)
+                } else {
+                    Text(video.metadata.isEmpty ? " " : video.metadata)
+                        .lineLimit(2)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
