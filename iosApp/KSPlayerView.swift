@@ -372,8 +372,6 @@ struct KSPlayerView: View {
             VStack(spacing: 0) {
                 topBar
                 Spacer()
-                centerControls
-                Spacer()
                 bottomBar
             }
             .padding(.horizontal, 12)
@@ -433,52 +431,9 @@ struct KSPlayerView: View {
             ) {
                 coordinator.isScaleAspectFill.toggle()
             }
-            // 全屏 toggle
-            iconButton(
-                systemImage: isFullscreen
-                    ? "arrow.down.right.and.arrow.up.left"
-                    : "arrow.up.left.and.arrow.down.right",
-                label: isFullscreen ? "退出全屏" : "全屏"
-            ) {
-                withAnimation(.easeInOut(duration: 0.25)) { isFullscreen.toggle() }
-            }
-        }
-    }
-
-    private var centerControls: some View {
-        HStack(spacing: 36) {
-            Button {
-                coordinator.skip(interval: -15)
-                scheduleAutoHide()
-            } label: {
-                Image(systemName: "gobackward.15")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("后退 15 秒")
-
-            Button {
-                togglePlayPause()
-                scheduleAutoHide()
-            } label: {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 52))
-                    .foregroundStyle(.white)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isPlaying ? "暂停" : "播放")
-
-            Button {
-                coordinator.skip(interval: 15)
-                scheduleAutoHide()
-            } label: {
-                Image(systemName: "goforward.15")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("快进 15 秒")
+            // Fullscreen toggle has been moved into bottomBar (right of the
+            // playback-rate menu) — see `bottomBar`. Keeping the cluster
+            // {mute, collapse, aspect} on the right of topBar.
         }
     }
 
@@ -491,6 +446,18 @@ struct KSPlayerView: View {
         // user isn't actively dragging — otherwise the +1s/s update would
         // immediately snap the thumb back from where the finger is.
         return HStack(spacing: 10) {
+            // Play / pause moved here from the (now-removed) centre controls
+            // — sits at the left of the progress strip, matching the user's
+            // requested layout. Uses iconButton so it inherits the 44pt
+            // hit-target rule.
+            iconButton(
+                systemImage: isPlaying ? "pause.fill" : "play.fill",
+                label: isPlaying ? "暂停" : "播放"
+            ) {
+                togglePlayPause()
+                scheduleAutoHide()
+            }
+
             Text(Self.formatTime(sliderValue))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.white)
@@ -533,6 +500,18 @@ struct KSPlayerView: View {
 
             // 倍速 menu
             playbackRateMenu
+
+            // 全屏 toggle — placed immediately to the right of the playback
+            // rate menu per user request. Uses iconButton for the same 44pt
+            // hit-target as the other chrome buttons.
+            iconButton(
+                systemImage: isFullscreen
+                    ? "arrow.down.right.and.arrow.up.left"
+                    : "arrow.up.left.and.arrow.down.right",
+                label: isFullscreen ? "退出全屏" : "全屏"
+            ) {
+                withAnimation(.easeInOut(duration: 0.25)) { isFullscreen.toggle() }
+            }
         }
     }
 
@@ -652,6 +631,13 @@ struct KSPlayerView: View {
                 .foregroundStyle(.white)
                 .frame(width: 36, height: 36)
                 .background(.black.opacity(0.45), in: Circle())
+                // Outer 44×44 frame is the actual hit-test area — meets
+                // Apple's HIG minimum touch-target size while keeping the
+                // 36×36 black circle as the visual chrome (the surrounding
+                // 4pt ring is transparent). contentShape ensures taps in
+                // the transparent ring still register on the button.
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
                 .accessibilityLabel(label)
         }
         .buttonStyle(.plain)
