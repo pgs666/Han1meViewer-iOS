@@ -140,6 +140,11 @@ class KsoupHtmlParser : HtmlParser {
         val tags = body.select(".single-video-tag a")
             .map { it.text().substringBefore(" (").removePrefix("#").trim() }
             .filter { it.isNotEmpty() }
+            // The .single-video-tag container also includes "add" / "remove"
+            // anchors that the site uses as quick-action buttons (add tag /
+            // remove tag from the user's filters). They show up as anchor
+            // text but aren't real tag values, so drop them.
+            .filterNot { it.equals("add", ignoreCase = true) || it.equals("remove", ignoreCase = true) }
 
         val myListItems = body.select("div[class~=playlist-checkbox-wrapper]").mapNotNull { wrapper ->
             val input = wrapper.selectFirst("input") ?: return@mapNotNull null
