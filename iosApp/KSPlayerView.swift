@@ -330,6 +330,18 @@ struct KSPlayerView: View {
             // would keep playing audio simultaneously.
             coordinator.playerLayer?.pause()
         }
+        .onValueChange(of: isShrunken) { newValue in
+            // The moment the parent reports the player has begun shrinking
+            // (paused user starts scrolling content up), hide the controls
+            // overlay. Otherwise the HUD would persist over a steadily
+            // shrinking player and look stuck / out-of-sync.
+            guard newValue, showsControls else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showsControls = false
+            }
+            onControlsVisibilityChanged(false)
+            hideControlsTask?.cancel()
+        }
     }
 
     private var controlsOverlay: some View {

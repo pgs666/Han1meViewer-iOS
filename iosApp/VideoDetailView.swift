@@ -44,6 +44,12 @@ struct VideoDetailView: View {
             // back button is purely an overlay-layer change and doesn't
             // resize / shift the rest of the view tree.
             .toolbar(.hidden, for: .navigationBar)
+            // SwiftUI's `.toolbar(.hidden, for: .navigationBar)` also turns
+            // off the edge-swipe-to-go-back gesture on the underlying
+            // UINavigationController. Re-enable it explicitly so the user
+            // still has the standard iOS gesture to navigate back even
+            // though we hide the nav bar.
+            .enableInteractivePopOnHiddenNavBar()
             // The video detail page always hides the tab bar — it's a
             // pushed sub-page that benefits from extra vertical space, not a
             // top-level tab. (Fullscreen state doesn't matter; both inline
