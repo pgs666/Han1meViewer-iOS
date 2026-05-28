@@ -8,39 +8,44 @@ import UIKit
 /// UINavigationController. Re-enabling it manually keeps the iOS-standard
 /// edge-swipe to pop while the nav bar stays visually invisible.
 private struct InteractivePopEnabler: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> Coordinator { Coordinator() }
-    func updateUIViewController(_ uiViewController: Coordinator, context: Context) {}
+    typealias UIViewControllerType = PopEnablerViewController
 
-    final class Coordinator: UIViewController {
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            applyOnce()
-        }
+    func makeUIViewController(context: Context) -> PopEnablerViewController {
+        PopEnablerViewController()
+    }
 
-        override func viewDidLayoutSubviews() {
-            super.viewDidLayoutSubviews()
-            applyOnce()
-        }
+    func updateUIViewController(_ uiViewController: PopEnablerViewController, context: Context) {}
+}
 
-        private func applyOnce() {
-            guard let nav = navigationControllerInChain else { return }
-            // Re-enable. We intentionally null out the delegate so UIKit
-            // falls back to its default permissive policy (allow pop
-            // whenever the stack has > 1 vc), instead of whatever
-            // delegate SwiftUI installed that's currently refusing.
-            nav.interactivePopGestureRecognizer?.isEnabled = true
-            nav.interactivePopGestureRecognizer?.delegate = nil
-        }
+final class PopEnablerViewController: UIViewController {
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyOnce()
+    }
 
-        private var navigationControllerInChain: UINavigationController? {
-            var node: UIViewController? = parent ?? self
-            while let v = node {
-                if let nav = v as? UINavigationController { return nav }
-                if let nav = v.navigationController { return nav }
-                node = v.parent
-            }
-            return nil
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        applyOnce()
+    }
+
+    private func applyOnce() {
+        guard let nav = navigationControllerInChain else { return }
+        // Re-enable. We intentionally null out the delegate so UIKit
+        // falls back to its default permissive policy (allow pop
+        // whenever the stack has > 1 vc), instead of whatever
+        // delegate SwiftUI installed that's currently refusing.
+        nav.interactivePopGestureRecognizer?.isEnabled = true
+        nav.interactivePopGestureRecognizer?.delegate = nil
+    }
+
+    private var navigationControllerInChain: UINavigationController? {
+        var node: UIViewController? = parent ?? self
+        while let v = node {
+            if let nav = v as? UINavigationController { return nav }
+            if let nav = v.navigationController { return nav }
+            node = v.parent
         }
+        return nil
     }
 }
 
