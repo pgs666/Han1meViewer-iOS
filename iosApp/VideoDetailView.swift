@@ -26,6 +26,11 @@ struct VideoDetailView: View {
     /// the offset grows), and the player is paused, the player shrinks
     /// proportionally — Bilibili-style "follow finger" collapse.
     @State private var bottomScrollOffset: CGFloat = 0
+    /// Mirror of the player's controls-overlay visibility. Driven via the
+    /// `onControlsVisibilityChanged` callback on KSPlayerView. Used to fade
+    /// the navigation bar in / out together with the player's HUD so they
+    /// behave as one unit when the user taps to reveal / hide chrome.
+    @State private var playerControlsVisible = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(videoCode: String, videoFeature: VideoFeature, commentFeature: CommentFeature) {
@@ -37,9 +42,12 @@ struct VideoDetailView: View {
 
     var body: some View {
         content
-            .navigationTitle("详情")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(isPlayerFullscreen ? .hidden : .visible, for: .navigationBar)
+            // Navigation bar (with the back button) follows the player
+            // controls overlay: hidden in fullscreen, otherwise shown only
+            // while the player's HUD is visible. Tapping the player to
+            // bring the HUD back also brings the back button back.
+            .toolbar(navigationBarVisibility, for: .navigationBar)
             // The video detail page always hides the tab bar — it's a
             // pushed sub-page that benefits from extra vertical space, not a
             // top-level tab. (Fullscreen state doesn't matter; both inline
@@ -72,6 +80,16 @@ struct VideoDetailView: View {
                     AppOrientationController.shared.unlockAfterFullscreen()
                 }
             }
+    }
+
+    /// Resolved navigation bar visibility:
+    /// - fullscreen → always hidden (player covers the whole screen).
+    /// - inline → tracks the player controls overlay (HUD): visible while
+    ///   the HUD is up, hidden once the HUD auto-hides. Provides a unified
+    ///   "tap to show/hide all chrome" UX.
+    private var navigationBarVisibility: Visibility {
+        if isPlayerFullscreen { return .hidden }
+        return playerControlsVisible ? .visible : .hidden
     }
 
     @ViewBuilder
@@ -137,21 +155,6 @@ struct VideoDetailView: View {
                             // perceives as layout shifting.
                             .animation(nil, value: bottomScrollOffset)
                             .animation(nil, value: isPlayerPlaying)
-                            // ⚠️ TEMP DEBUG — remove once root cause identified.
-                            .overlay(alignment: .topLeading) {
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text("h=\(Int(playerHeight(panelWidth: leftWidth, parentHeight: proxy.size.height)))")
-                                    Text("offset=\(Int(bottomScrollOffset))")
-                                    Text("playing=\(isPlayerPlaying ? "Y" : "N")")
-                                    Text("scrolling=\(isUserScrollingBottom ? "Y" : "N")")
-                                    Text("w=\(Int(leftWidth)) ph=\(Int(proxy.size.height))")
-                                }
-                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                                .padding(4)
-                                .background(.black.opacity(0.55))
-                                .foregroundStyle(.green)
-                                .padding(8)
-                            }
 
                         if !isPlayerFullscreen {
                             // showsRelated=false on iPad regular landscape because the
@@ -207,6 +210,15 @@ struct VideoDetailView: View {
             onPlayingChanged: { newValue in
                 if isPlayerPlaying != newValue {
                     isPlayerPlaying = newValue
+                }
+            },
+            onControlsVisibilityChanged: { newValue in
+                guard playerControlsVisible != newValue else { return }
+                // Animate the navigation bar in/out together with the
+                // player HUD so they slide as one. Inline only — fullscreen
+                // forces nav bar hidden regardless.
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    playerControlsVisible = newValue
                 }
             }
         )
