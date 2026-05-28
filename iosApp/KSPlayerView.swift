@@ -320,7 +320,12 @@ struct KSPlayerView: View {
             .padding(.vertical, 10)
             .foregroundStyle(.white)
         }
-    }
+        // Pin to the player ZStack's full extent. Without this, the
+        // controls overlay's intrinsic size is indeterminate (LinearGradient
+        // + Spacer-padded VStack), and SwiftUI's first layout pass when
+        // it appears can briefly inflate the parent ZStack — which the
+        // user perceives as "the whole video and controls grow on tap".
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
     private var topBar: some View {
         HStack(spacing: 8) {
