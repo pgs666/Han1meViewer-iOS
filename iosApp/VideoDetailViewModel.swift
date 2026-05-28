@@ -132,23 +132,21 @@ final class VideoDetailViewModel: ObservableObject {
 
     /// 由外部播放器（如 KSPlayer）回调当前播放时间时使用，
     /// 与 `persistPlaybackPosition()` 等价但不依赖 `self.player`。
+    ///
+    /// **No regression guard here on purpose.** Earlier we kept a 30s
+    /// regression cap to defend against KSPlayer firing early-stage onPlay
+    /// ticks (current=0..few seconds) before its startPlayTime seek had
+    /// landed. That cap also blocked legitimate user-seek-backwards (e.g.
+    /// jumping from 2:00 back to 1:00), so the saved resume position
+    /// behaved like "highest point reached" instead of "last known
+    /// position". The startup-phantom problem is now solved upstream in
+    /// `KSPlayerView.onPlay` (hasReachedStartPlayTime gate), so this layer
+    /// can faithfully mirror the player's current time and the user's
+    /// rewind seeks survive across re-entry.
     func recordPlaybackPosition(seconds: TimeInterval) {
         guard case .loaded(let snapshot) = state else { return }
         let clampedSeconds = max(0, seconds)
         let millis = Int64(clampedSeconds * 1000)
-        // Defensive: KSPlayer fires onPlay during initial buffering BEFORE
-        // applying KSOptions.startPlayTime, sometimes with current=0..few seconds.
-        // If we wrote those to the watch-history db they'd clobber a real saved
-        // resume position (e.g. 30000 → 2000), and the next time the user opened
-        // the video they'd lose 28s of progress. Block writes that would
-        // regress the saved value by more than 30s. Small backward seeks (under
-        // 30s, typical user "rewind a bit") are still allowed; large seeks back
-        // (e.g. starting over from minute 5 to minute 0) — we lose that one
-        // edge case but gain robust resume.
-        let baseline = lastSavedPlaybackMillis ?? snapshot.playbackPositionMillis
-        if millis < baseline - 30_000 {
-            return
-        }
         lastSavedPlaybackMillis = millis
         videoFeature.recordPlaybackPosition(
             videoCode: snapshot.videoCode,
