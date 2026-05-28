@@ -15,6 +15,12 @@ struct VideoDetailView: View {
     /// player at full 16:9 height while playing — only paused state lets the
     /// scroll-driven shrink behaviour engage.
     @State private var isPlayerPlaying = false
+    /// True iff the user is currently driving the bottom ScrollView with
+    /// a finger (or inertial scroll is still running). Used to gate
+    /// `onScrollGeometryChange` so that phantom contentOffset reports
+    /// caused by unrelated layout passes (e.g. tapping to show
+    /// controls inside the player) don't shrink/grow the player area.
+    @State private var isUserScrollingBottom = false
     /// Vertical scroll offset of the inline content area below the player,
     /// measured from the natural top (>= 0). When the user scrolls UP (so
     /// the offset grows), and the player is paused, the player shrinks
@@ -252,11 +258,26 @@ struct VideoDetailView: View {
         // sometimes skip preference updates during inertial scrolling.
         if #available(iOS 18.0, *) {
             return AnyView(
-                scrollContent.onScrollGeometryChange(for: CGFloat.self) { geom in
-                    geom.contentOffset.y
-                } action: { _, newOffset in
-                    bottomScrollOffset = max(0, newOffset)
-                }
+                scrollContent
+                    .onScrollPhaseChange { _, newPhase in
+                        // .idle and .animating are "not currently being
+                        // driven by the user". We only treat .tracking
+                        // (finger down + moving) and .decelerating
+                        // (inertial after release) and .interacting as
+                        // legitimate scroll signals. This prevents tap-
+                        // -to-show-controls inside the player from
+                        // accidentally pulsing bottomScrollOffset and
+                        // resizing the player area.
+                        isUserScrollingBottom = (newPhase == .tracking
+                            || newPhase == .decelerating
+                            || newPhase == .interacting)
+                    }
+                    .onScrollGeometryChange(for: CGFloat.self) { geom in
+                        geom.contentOffset.y
+                    } action: { _, newOffset in
+                        guard isUserScrollingBottom else { return }
+                        bottomScrollOffset = max(0, newOffset)
+                    }
             )
         } else {
             return AnyView(scrollContent)
