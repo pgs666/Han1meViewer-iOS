@@ -76,10 +76,26 @@ struct VideoDetailView: View {
                 Alert(title: Text(message.message))
             }
             .onValueChange(of: isPlayerFullscreen) { newValue in
-                if newValue {
-                    AppOrientationController.shared.lockForFullscreen(to: .landscape)
-                } else {
-                    AppOrientationController.shared.unlockAfterFullscreen()
+                // The fullscreen toggle button wraps `isPlayerFullscreen.toggle()`
+                // in `withAnimation(.easeInOut(duration: 0.25))` so the
+                // player frame can animate from inline 16:9 to fill-screen.
+                // If we synchronously trigger AppOrientationController here,
+                // UIKit fires a size-class / size change in the middle of
+                // SwiftUI's animation transaction, and SwiftUI cancels the
+                // running frame animation in favour of laying out for the
+                // new orientation — the user perceives this as the animation
+                // "going missing". Defer the orientation change until just
+                // after the SwiftUI animation has completed (~0.30s, slightly
+                // longer than the 0.25s curve to be safe). The player has
+                // already animated to its new size by then; the subsequent
+                // orientation rotation is its own UIKit-driven animation
+                // and doesn't fight with SwiftUI.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+                    if newValue {
+                        AppOrientationController.shared.lockForFullscreen(to: .landscape)
+                    } else {
+                        AppOrientationController.shared.unlockAfterFullscreen()
+                    }
                 }
             }
     }
