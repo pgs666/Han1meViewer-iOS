@@ -252,7 +252,7 @@ struct VideoDetailView: View {
         // sometimes skip preference updates during inertial scrolling.
         if #available(iOS 18.0, *) {
             return AnyView(
-                scrollContent.onScrollGeometryChange(of: CGFloat.self) { geom in
+                scrollContent.onScrollGeometryChange(for: CGFloat.self) { geom in
                     geom.contentOffset.y
                 } action: { _, newOffset in
                     bottomScrollOffset = max(0, newOffset)
