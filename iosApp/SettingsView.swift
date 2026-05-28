@@ -114,7 +114,7 @@ struct SettingsView: View {
                     environment.preferences().allowResumePlayback.set(value: newValue)
                 }
 
-            Toggle("竖屏视频强制竖屏全屏", isOn: $forcePortraitFullscreenForVerticalVideos)
+            Toggle("竖屏视频不强制横屏", isOn: $forcePortraitFullscreenForVerticalVideos)
                 .onValueChange(of: forcePortraitFullscreenForVerticalVideos) { newValue in
                     environment.preferences().forcePortraitFullscreenForVerticalVideos.set(value: newValue)
                 }

@@ -768,8 +768,19 @@ struct KSPlayerView: View {
         // areas), but harmless in inline.
         let topInset: CGFloat = 50
         let bottomInset: CGFloat = 34
+        // Also reserve the left and right edges so a user starting a
+        // swipe-to-go-back gesture (iOS UINavigationController interactive
+        // pop) along the left edge doesn't get hijacked into a horizontal
+        // seek. The right inset mirrors this for symmetry and to leave
+        // room for any future system right-edge gesture.
+        let leftInset: CGFloat = 24
+        let rightInset: CGFloat = 24
         let startY = value.startLocation.y
+        let startX = value.startLocation.x
         if startY < topInset || startY > size.height - bottomInset {
+            return
+        }
+        if startX < leftInset || startX > size.width - rightInset {
             return
         }
 
