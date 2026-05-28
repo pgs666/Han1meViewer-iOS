@@ -83,6 +83,7 @@ struct RelatedVideoListView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .hidesTabBarOnAppear()
     }
 }
 

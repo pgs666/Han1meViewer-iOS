@@ -15,6 +15,7 @@ struct WatchHistoryView: View {
     var body: some View {
         content
             .navigationTitle("观看历史")
+            .hidesTabBarOnAppear()
             .refreshable {
                 await viewModel.refresh()
             }
