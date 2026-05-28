@@ -29,6 +29,10 @@ struct KSPlayerView: View {
     /// Used by the parent to decide whether to allow scroll-driven shrink
     /// of the player area (only paused state shrinks).
     let onPlayingChanged: (Bool) -> Void
+    /// Optional: invoked whenever the controls overlay shows / hides. Lets
+    /// the parent slide the navigation bar in / out together with the
+    /// player's HUD so they always animate as one.
+    let onControlsVisibilityChanged: (Bool) -> Void
 
     @StateObject private var coordinator = KSVideoPlayer.Coordinator()
     @State private var showsControls = true
@@ -100,7 +104,8 @@ struct KSPlayerView: View {
         isCollapsed: Binding<Bool>,
         onProgress: @escaping (TimeInterval) -> Void = { _ in },
         onPlaybackEnded: @escaping () -> Void = {},
-        onPlayingChanged: @escaping (Bool) -> Void = { _ in }
+        onPlayingChanged: @escaping (Bool) -> Void = { _ in },
+        onControlsVisibilityChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self._isFullscreen = isFullscreen
@@ -108,6 +113,7 @@ struct KSPlayerView: View {
         self.onProgress = onProgress
         self.onPlaybackEnded = onPlaybackEnded
         self.onPlayingChanged = onPlayingChanged
+        self.onControlsVisibilityChanged = onControlsVisibilityChanged
     }
 
     var body: some View {
@@ -209,6 +215,7 @@ struct KSPlayerView: View {
                     .onTapGesture(count: 1) {
                         if isBoosted { endBoost() }
                         withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
+                        onControlsVisibilityChanged(showsControls)
                         if showsControls { scheduleAutoHide() }
                     }
                     .simultaneousGesture(
@@ -317,19 +324,32 @@ struct KSPlayerView: View {
 
     private var topBar: some View {
         HStack(spacing: 8) {
-            // 暂停时收起按钮（仅非全屏时有意义）
-            if !isFullscreen, !isPlaying {
-                iconButton(systemImage: "chevron.up", label: "收起播放器") {
-                    withAnimation(.easeInOut(duration: 0.25)) { isCollapsed = true }
-                }
+            // Fullscreen: surface video title where the navigation back-button
+            // sat. Never shown inline (nav bar still has the back-button +
+            // (after caller's change) no inline title).
+            if isFullscreen {
+                Text(snapshot.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    // Limit so a long title can't grow into the right-side
+                    // button cluster.
+                    .padding(.leading, 4)
             }
-            Spacer()
+            Spacer(minLength: 8)
             // 静音 toggle
             iconButton(
                 systemImage: coordinator.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
                 label: coordinator.isMuted ? "取消静音" : "静音"
             ) {
                 coordinator.isMuted.toggle()
+            }
+            // 收起按钮（暂停 + 非全屏时显示，跟 mute 等并排）
+            if !isFullscreen, !isPlaying {
+                iconButton(systemImage: "chevron.up", label: "收起播放器") {
+                    withAnimation(.easeInOut(duration: 0.25)) { isCollapsed = true }
+                }
             }
             // 比例 fit/fill
             iconButton(
@@ -785,6 +805,7 @@ struct KSPlayerView: View {
             withAnimation(.easeInOut(duration: 0.2)) {
                 showsControls = false
             }
+            onControlsVisibilityChanged(false)
         }
     }
 
