@@ -91,11 +91,8 @@ struct Han1meViewerApp: App {
     private var modernTabView: some View {
         TabView(selection: tabSelection) {
             Tab("首页", systemImage: "house.fill", value: MainTab.home) {
-                HomeView(environment: sharedEnvironment) { section in
-                    searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
-                    selectedTab = .search
-                }
-                .popsToRootWhen(signal: homeTabPopSignal)
+                HomeView(environment: sharedEnvironment)
+                    .popsToRootWhen(signal: homeTabPopSignal)
             }
 
             Tab("关注", systemImage: "heart.fill", value: MainTab.following) {
@@ -119,10 +116,7 @@ struct Han1meViewerApp: App {
 
     private var legacyTabView: some View {
         TabView(selection: tabSelection) {
-            HomeView(environment: sharedEnvironment) { section in
-                searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
-                selectedTab = .search
-            }
+            HomeView(environment: sharedEnvironment)
                 .popsToRootWhen(signal: homeTabPopSignal)
                 .tabItem {
                     Label("首页", systemImage: "house")

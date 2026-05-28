@@ -449,7 +449,11 @@ private struct AndroidStyleIntroduction: View {
             )
 
             if !snapshot.tags.isEmpty {
-                TagFlow(tags: snapshot.tags)
+                TagFlow(
+                    tags: snapshot.tags,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
             }
 
             if !snapshot.playlistVideos.isEmpty {
@@ -791,6 +795,9 @@ private struct LabelButtonContent: View {
 
 private struct TagFlow: View {
     let tags: [String]
+    let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
+    @Environment(\.searchFeature) private var searchFeature
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -802,11 +809,29 @@ private struct TagFlow: View {
             // same column width.
             FlowLayout(spacing: 8, lineSpacing: 8) {
                 ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
-                    Button(tag) {
-                        SearchNavigationCenter.open(keyword: tag)
+                    if let searchFeature {
+                        NavigationLink {
+                            ArtistVideosView(
+                                title: "#\(tag)",
+                                mode: .keyword(tag),
+                                searchFeature: searchFeature,
+                                videoFeature: videoFeature,
+                                commentFeature: commentFeature
+                            )
+                        } label: {
+                            Text(tag).font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                    } else {
+                        // Defensive: if the search feature isn't injected (
+                        // which shouldn't happen in production) the tag still
+                        // renders as a disabled bordered chip rather than
+                        // disappearing entirely.
+                        Button(tag) { /* no-op */ }
+                            .font(.caption)
+                            .buttonStyle(.bordered)
+                            .disabled(true)
                     }
-                    .font(.caption)
-                    .buttonStyle(.bordered)
                 }
             }
         }
