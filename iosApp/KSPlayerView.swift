@@ -326,6 +326,7 @@ struct KSPlayerView: View {
         // it appears can briefly inflate the parent ZStack — which the
         // user perceives as "the whole video and controls grow on tap".
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
     private var topBar: some View {
         HStack(spacing: 8) {
