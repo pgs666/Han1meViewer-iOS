@@ -17,6 +17,7 @@ struct OnlineWatchHistoryView: View {
     var body: some View {
         content
             .navigationTitle("在线历史")
+            .hidesTabBarOnAppear()
             .refreshable {
                 await viewModel.refresh()
             }

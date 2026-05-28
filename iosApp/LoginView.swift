@@ -26,6 +26,7 @@ struct LoginView: View {
         }
         .navigationTitle("账号登录")
         .navigationBarTitleDisplayMode(.inline)
+        .hidesTabBarOnAppear()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Image(systemName: "arrow.clockwise")

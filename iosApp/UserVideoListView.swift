@@ -37,6 +37,7 @@ struct UserVideoListView: View {
     var body: some View {
         content
             .navigationTitle(title)
+            .hidesTabBarOnAppear()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

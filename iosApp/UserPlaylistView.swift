@@ -13,6 +13,7 @@ struct UserPlaylistView: View {
     var body: some View {
         content
             .navigationTitle("播放清单")
+            .hidesTabBarOnAppear()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
