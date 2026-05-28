@@ -596,7 +596,7 @@ class KsoupHtmlParser : HtmlParser {
 
     private companion object {
         val VIDEO_CODE_REGEX = Regex("""(?:watch\?v=|/videos/|/watch/)(\d+)""")
-        val PAGE_REGEX = Regex("""\?page=(\d+)""")
+        val PAGE_REGEX = Regex("""[?&]page=(\d+)""")
         val ISO_DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
         val VIDEO_SOURCE_REGEX = Regex("""const source = ["'`](.+?)["'`]""")
