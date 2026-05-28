@@ -66,7 +66,7 @@ class KtorVideoRepository(
 
         val response = submitMutationWithCsrfRetry(
             initialToken = initialToken,
-            refreshToken = ::fetchFreshCsrfToken,
+            refreshToken = { fetchFreshCsrfTokenAt("$baseUrl/watch?v=$videoCode") },
             submit = ::submitFavorite,
         )
         cookieBridge.saveResponseCookies(response)
@@ -101,7 +101,7 @@ class KtorVideoRepository(
 
         val response = submitMutationWithCsrfRetry(
             initialToken = initialToken,
-            refreshToken = ::fetchFreshCsrfToken,
+            refreshToken = { fetchFreshCsrfTokenAt("$baseUrl/watch?v=$videoCode") },
             submit = ::submitListItem,
         )
         cookieBridge.saveResponseCookies(response)
@@ -135,21 +135,26 @@ class KtorVideoRepository(
 
         val response = submitMutationWithCsrfRetry(
             initialToken = initialToken,
-            refreshToken = ::fetchFreshCsrfToken,
+            refreshToken = { fetchFreshCsrfTokenAt(baseUrl) },
             submit = ::submitSubscription,
         )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to update artist subscription.")
     }
 
-    /// Fetches the home page solely to (a) refresh cookies (server may
-    /// rotate `XSRF-TOKEN` / session cookies) and (b) extract a fresh
-    /// `_token` for retrying a mutation that just returned 419. Returns
-    /// null if the page itself fails to load — caller will then surface
-    /// the original 419 to the user.
-    private suspend fun fetchFreshCsrfToken(): String? {
+    /// Fetches `pageUrl` solely to (a) refresh cookies (the server rotates
+    /// XSRF-TOKEN / laravel_session as part of its security model) and
+    /// (b) extract a fresh `_token` for retrying a mutation that just
+    /// returned 419. Per-mutation choice of pageUrl is important — for
+    /// per-video mutations (favorite, save-to-list) we hit the actual
+    /// /watch?v=<code> page so the new token belongs to the same logical
+    /// session the user is currently looking at; for cross-page mutations
+    /// (artist subscribe) we fall back to the home page. Returns null if
+    /// the page itself fails to load — caller surfaces the original 419
+    /// to the user.
+    private suspend fun fetchFreshCsrfTokenAt(pageUrl: String): String? {
         return try {
-            val response = client.get(baseUrl) {
+            val response = client.get(pageUrl) {
                 header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
                 header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                 cookieBridge.applyStoredCookies(this)

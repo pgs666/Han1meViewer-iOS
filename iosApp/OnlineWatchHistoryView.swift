@@ -21,17 +21,6 @@ struct OnlineWatchHistoryView: View {
             .refreshable {
                 await viewModel.refresh()
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        viewModel.load()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(.primary)
-                    }
-                    .disabled(isLoading)
-                }
-            }
             .task {
                 viewModel.loadIfNeeded()
             }
