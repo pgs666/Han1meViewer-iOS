@@ -60,6 +60,12 @@ struct VideoDetailView: View {
             .hidesTabBarOnAppear()
             .statusBarHidden(isPlayerFullscreen)
             .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
+            // Paint the area behind the status bar black so it visually
+            // joins the player (which is the topmost visible content
+            // inside the safe area). Without this, system status icons
+            // sit on top of whatever neutral background SwiftUI's root
+            // view chose, which clashed with the dark player.
+            .background(Color.black.ignoresSafeArea(edges: .top))
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
