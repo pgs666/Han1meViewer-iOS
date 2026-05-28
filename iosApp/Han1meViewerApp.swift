@@ -9,13 +9,6 @@ struct Han1meViewerApp: App {
     @State private var selectedTab: MainTab = .home
     @State private var searchLaunchRequest: SearchLaunchRequest?
     @State private var deepLinkedVideo: DeepLinkedVideo?
-    /// Drives the iOS 26+ TabView-level .searchable. The TabView's
-    /// search-role tab (the magnifying-glass tab item) collapses the tab
-    /// bar into an inline search field when tapped; this state holds
-    /// the in-progress keyword. On submit we forward it into
-    /// SearchView via searchLaunchRequest so SearchView's existing
-    /// search pipeline drives the result list.
-    @State private var tabBarSearchKeyword: String = ""
     /// Per-tab "pop to root" signal. Tapping ANY tab — including the
     /// currently selected one — bumps that tab's signal, which a hidden
     /// helper (PopToRootOnSignal) inside that tab observes and uses to
@@ -113,41 +106,12 @@ struct Han1meViewerApp: App {
             }
 
             Tab("搜索", systemImage: "magnifyingglass", value: MainTab.search, role: .search) {
-                // SearchView here intentionally does NOT attach its own
-                // .searchable — iOS 26 wires the TabView-level .searchable
-                // below to the search-role tab (tap the search tab → tab
-                // bar collapses and an inline search field opens). On
-                // submit we hand the keyword through searchLaunchRequest
-                // so SearchView can drive its existing search pipeline.
-                SearchView(
-                    environment: sharedEnvironment,
-                    launchRequest: $searchLaunchRequest,
-                    attachesSearchable: false
-                )
-                .popsToRootWhen(signal: searchTabPopSignal)
+                SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
+                    .popsToRootWhen(signal: searchTabPopSignal)
             }
         }
         .tint(.red)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .searchable(text: $tabBarSearchKeyword, prompt: "搜索影片、标签或作者")
-        .onSubmit(of: .search) {
-            let trimmed = tabBarSearchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            // Re-use the existing launchRequest plumbing so SearchView's
-            // consumeLaunchRequestIfNeeded picks the keyword up and runs
-            // its own viewModel.search — no duplicate code path.
-            searchLaunchRequest = SearchLaunchRequest(
-                sectionKey: "keyword",
-                sectionTitle: trimmed,
-                keyword: trimmed
-            )
-            // Also ensure the search tab is visible. If the user typed
-            // into the inline search field while on a different tab we
-            // want to land them on the result list.
-            if selectedTab != .search {
-                selectedTab = .search
-            }
-        }
     }
 
     private var legacyTabView: some View {

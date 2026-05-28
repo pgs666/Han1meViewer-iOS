@@ -10,27 +10,23 @@ struct SearchView: View {
     @Binding private var launchRequest: SearchLaunchRequest?
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
-    /// Whether SearchView should attach its own .searchable modifier
-    /// inside its NavigationStack. Default true (the iOS 16-25 layout —
-    /// search field inside the navigation bar). On iOS 26+ Han1meViewerApp
-    /// puts the .searchable on the TabView itself so the search tab can
-    /// drive the system tab-bar search experience; in that case it
-    /// passes attachesSearchable: false so we don't end up with two
-    /// competing search fields.
-    private let attachesSearchable: Bool
 
-    init(environment: SharedAppEnvironment, launchRequest: Binding<SearchLaunchRequest?> = .constant(nil), attachesSearchable: Bool = true) {
+    init(environment: SharedAppEnvironment, launchRequest: Binding<SearchLaunchRequest?> = .constant(nil)) {
         self.videoFeature = environment.videoFeature()
         self.commentFeature = environment.commentFeature()
-        self.attachesSearchable = attachesSearchable
         _launchRequest = launchRequest
         _viewModel = StateObject(wrappedValue: SearchViewModel(searchFeature: environment.searchFeature()))
     }
 
     var body: some View {
         CompatibleNavigationStack {
-            searchableContent
+            content
             .navigationTitle("搜索")
+            .searchable(
+                text: $keyword,
+                placement: .automatic,
+                prompt: "搜索影片、标签或作者"
+            )
             .onSubmit(of: .search) {
                 let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty || viewModel.filters.activeCount > 0 else { return }
@@ -75,24 +71,6 @@ struct SearchView: View {
                     }
                 )
             }
-        }
-    }
-
-    @ViewBuilder
-    private var searchableContent: some View {
-        if attachesSearchable {
-            content.searchable(
-                text: $keyword,
-                placement: .automatic,
-                prompt: "搜索影片、标签或作者"
-            )
-        } else {
-            // iOS 26+ branch: the .searchable lives one level up on the
-            // TabView so the system search-tab role can drive it. The
-            // `keyword` state is still the source of truth — the outer
-            // searchable's text binding is forwarded into us via
-            // launchRequest, and our onSubmit pulls from it.
-            content
         }
     }
 
