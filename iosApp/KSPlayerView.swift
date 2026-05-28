@@ -133,7 +133,8 @@ struct KSPlayerView: View {
         onControlsVisibilityChanged: @escaping (Bool) -> Void = { _ in },
         onBack: @escaping () -> Void = {},
         isShrunken: Bool = false,
-        onRequestExpand: @escaping () -> Void = {}
+        onRequestExpand: @escaping () -> Void = {},
+        onNaturalSize: @escaping (CGSize) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self._isFullscreen = isFullscreen
@@ -145,6 +146,7 @@ struct KSPlayerView: View {
         self.onBack = onBack
         self.isShrunken = isShrunken
         self.onRequestExpand = onRequestExpand
+        self.onNaturalSize = onNaturalSize
     }
 
     var body: some View {
