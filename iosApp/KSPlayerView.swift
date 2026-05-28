@@ -394,8 +394,14 @@ struct KSPlayerView: View {
             // hides together with the rest of the HUD without affecting
             // any system layout. Parent (VideoDetailView) hides the nav
             // bar entirely.
-            iconButton(systemImage: "chevron.left", label: "返回") {
-                onBack()
+            // Fullscreen: tap exits fullscreen back to inline (does NOT
+            // pop the detail page). Inline: tap pops the detail page.
+            iconButton(systemImage: "chevron.left", label: isFullscreen ? "退出全屏" : "返回") {
+                if isFullscreen {
+                    withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
+                } else {
+                    onBack()
+                }
             }
             // Fullscreen: surface video title where the navigation back-button
             // sat. Never shown inline (nav bar still has the back-button +
