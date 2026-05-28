@@ -609,15 +609,81 @@ private struct TagFlow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("标签")
                 .font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], alignment: .leading, spacing: 8) {
+            // Custom Layout that flows tags onto each row according to their
+            // measured width, wrapping when the next tag wouldn't fit. Avoids
+            // the rigid grid look of LazyVGrid where every tag occupies the
+            // same column width.
+            FlowLayout(spacing: 8, lineSpacing: 8) {
                 ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
                     Button(tag) {
                         SearchNavigationCenter.open(keyword: tag)
                     }
-                        .font(.caption)
-                        .buttonStyle(.bordered)
+                    .font(.caption)
+                    .buttonStyle(.bordered)
                 }
             }
         }
+    }
+}
+
+/// Lightweight flow layout: lays out subviews left-to-right, wrapping to a
+/// new line when a child wouldn't fit on the current one. Each child takes
+/// its natural intrinsic width, so different-length labels pack tightly.
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        let result = arrange(in: maxWidth, subviews: subviews)
+        // Report content size based on actually used width when proposal is
+        // unbounded, otherwise fill the proposal so the parent can size us
+        // consistently.
+        let width: CGFloat
+        if maxWidth.isFinite {
+            width = maxWidth
+        } else {
+            width = result.usedWidth
+        }
+        return CGSize(width: width, height: result.totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(in: bounds.width, subviews: subviews)
+        for (index, frame) in result.frames.enumerated() {
+            let origin = CGPoint(x: bounds.minX + frame.origin.x, y: bounds.minY + frame.origin.y)
+            subviews[index].place(at: origin, anchor: .topLeading, proposal: ProposedViewSize(width: frame.width, height: frame.height))
+        }
+    }
+
+    private struct Arranged {
+        let frames: [CGRect]
+        let totalHeight: CGFloat
+        let usedWidth: CGFloat
+    }
+
+    private func arrange(in maxWidth: CGFloat, subviews: Subviews) -> Arranged {
+        var frames: [CGRect] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var currentRowHeight: CGFloat = 0
+        var maxRowEnd: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            // If this subview wouldn't fit on the current row, wrap.
+            if x > 0 && x + size.width > maxWidth {
+                y += currentRowHeight + lineSpacing
+                x = 0
+                currentRowHeight = 0
+            }
+            frames.append(CGRect(x: x, y: y, width: size.width, height: size.height))
+            x += size.width + spacing
+            currentRowHeight = max(currentRowHeight, size.height)
+            maxRowEnd = max(maxRowEnd, x - spacing)
+        }
+
+        let totalHeight = y + currentRowHeight
+        return Arranged(frames: frames, totalHeight: totalHeight, usedWidth: maxRowEnd)
     }
 }
