@@ -82,6 +82,11 @@ struct KSPlayerView: View {
     /// Whether `onNaturalSize` has been fired already. We only want to
     /// notify the parent once — the natural size won't change mid-playback.
     @State private var naturalSizeReported = false
+    /// User-picked playback source (quality). Nil = use the snapshot's
+    /// default-marked source via primarySource(). Wired up from the
+    /// quality menu in bottomBar; switching value re-evaluates `body` and
+    /// rebuilds KSVideoPlayer with the new url.
+    @State private var selectedSourceID: String?
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -154,8 +159,8 @@ struct KSPlayerView: View {
         Group {
             if isCollapsed {
                 collapsedStrip
-            } else if let primarySource = primarySource(),
-                      let url = URL(string: primarySource.url) {
+            } else if let activeSource = activeSource,
+                      let url = URL(string: activeSource.url) {
                 playerWithControls(url: url)
             } else {
                 emptyPlaceholder
@@ -517,6 +522,15 @@ struct KSPlayerView: View {
             // 倍速 menu
             playbackRateMenu
 
+            // 画质 menu — only shown if the snapshot exposes more than one
+            // source (typical: the page only ships a single 'auto' source
+            // because the script extraction returns one URL). When more
+            // qualities exist they sit between the rate menu and the
+            // fullscreen toggle as the user requested.
+            if snapshot.playbackSources.count > 1 {
+                qualityMenu
+            }
+
             // 全屏 toggle — placed immediately to the right of the playback
             // rate menu per user request. Uses iconButton for the same 44pt
             // hit-target as the other chrome buttons.
@@ -549,6 +563,32 @@ struct KSPlayerView: View {
             }
         } label: {
             Text(Self.formatRate(coordinator.playbackRate))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(minWidth: 38)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 4))
+        }
+    }
+
+    private var qualityMenu: some View {
+        Menu {
+            ForEach(snapshot.playbackSources) { source in
+                Button {
+                    selectedSourceID = source.id
+                } label: {
+                    HStack {
+                        Text(source.label)
+                        Spacer()
+                        if activeSource?.id == source.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Text(activeSource?.label ?? "画质")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(minWidth: 38)
@@ -699,6 +739,18 @@ struct KSPlayerView: View {
 
     private func primarySource() -> VideoPlaybackSourceRow? {
         snapshot.playbackSources.first(where: { $0.isDefault }) ?? snapshot.playbackSources.first
+    }
+
+    /// The source currently being played: user-picked one if set, else
+    /// the snapshot's default source. Used both as the URL provider for
+    /// KSVideoPlayer and as the indicator-checkmark target in the
+    /// quality menu.
+    private var activeSource: VideoPlaybackSourceRow? {
+        if let id = selectedSourceID,
+           let picked = snapshot.playbackSources.first(where: { $0.id == id }) {
+            return picked
+        }
+        return primarySource()
     }
 
     /// Unified down/move handler. Called from `DragGesture(minimumDistance: 0)`
