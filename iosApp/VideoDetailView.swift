@@ -184,6 +184,21 @@ struct VideoDetailView: View {
 
     private func belowPlayerScroll(snapshot: VideoDetailScreenSnapshot, showsRelated: Bool) -> some View {
         ScrollView {
+            // Sentinel GeometryReader at the top of the scrollable content.
+            // Its frame.minY in the named "bottomScroll" coordinate space
+            // tracks the scroll offset directly: scroll up by 100pt and
+            // proxy.frame(in:).minY becomes -100 (because the sentinel
+            // physically moves up inside the ScrollView's fixed viewport).
+            // We negate so the published value grows positive as the user
+            // scrolls up, matching the player-shrink direction.
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: BottomScrollOffsetPreferenceKey.self,
+                    value: -proxy.frame(in: .named("bottomScroll")).minY
+                )
+            }
+            .frame(height: 0)
+
             LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
                 Section {
                     // Wrap the per-tab content in a Group with .id(selectedTab)
@@ -226,20 +241,6 @@ struct VideoDetailView: View {
                 }
             }
             .padding(.bottom, 24)
-            // Publish current scroll offset so the player area can shrink
-            // when the user scrolls up while paused. Reading from a sentinel
-            // GeometryReader at the top of the LazyVStack: as content
-            // scrolls up, minY drops below 0; we negate so the value grows
-            // positive. coordinateSpace(.named("bottomScroll")) keeps this
-            // measurement local to THIS ScrollView, not e.g. the screen.
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: BottomScrollOffsetPreferenceKey.self,
-                        value: -proxy.frame(in: .named("bottomScroll")).minY
-                    )
-                }
-            )
         }
         .coordinateSpace(name: "bottomScroll")
         .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { value in
