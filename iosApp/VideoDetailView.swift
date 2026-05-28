@@ -183,14 +183,14 @@ struct VideoDetailView: View {
     }
 
     private func belowPlayerScroll(snapshot: VideoDetailScreenSnapshot, showsRelated: Bool) -> some View {
-        ScrollView {
-            // Sentinel GeometryReader at the top of the scrollable content.
-            // Its frame.minY in the named "bottomScroll" coordinate space
-            // tracks the scroll offset directly: scroll up by 100pt and
-            // proxy.frame(in:).minY becomes -100 (because the sentinel
-            // physically moves up inside the ScrollView's fixed viewport).
-            // We negate so the published value grows positive as the user
-            // scrolls up, matching the player-shrink direction.
+        let scrollContent = ScrollView {
+            // iOS 16/17 fallback: 0-height GR sentinel as the first child of
+            // the ScrollView. minY in the named coordinate space tracks the
+            // scroll content's vertical movement against the ScrollView's
+            // viewport: scroll up 100pt → sentinel.minY becomes -100. We
+            // negate so the published value grows positive.
+            // On iOS 18+ this co-exists with .onScrollGeometryChange below;
+            // whichever fires first wins, both produce the same result.
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: BottomScrollOffsetPreferenceKey.self,
@@ -244,9 +244,22 @@ struct VideoDetailView: View {
         }
         .coordinateSpace(name: "bottomScroll")
         .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { value in
-            // Clamp to >= 0 — over-pull at the top should not expand the
-            // player past 16:9.
             bottomScrollOffset = max(0, value)
+        }
+
+        // iOS 18+ explicit scroll-offset reporting via Apple's public API.
+        // More reliable than GeometryReader-on-Lazy* containers, which can
+        // sometimes skip preference updates during inertial scrolling.
+        if #available(iOS 18.0, *) {
+            return AnyView(
+                scrollContent.onScrollGeometryChange(of: CGFloat.self) { geom in
+                    geom.contentOffset.y
+                } action: { _, newOffset in
+                    bottomScrollOffset = max(0, newOffset)
+                }
+            )
+        } else {
+            return AnyView(scrollContent)
         }
     }
 }
