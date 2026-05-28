@@ -6,11 +6,22 @@ struct CachedRemoteImage: View {
     let urlString: String?
     let contentMode: ContentMode
     let resizeWidth: CGFloat?
+    /// Optional: invoked once the remote image successfully loads, with the
+    /// decoded image's natural pixel size. Useful for callers that want to
+    /// size their container based on the actual image aspect (e.g. the
+    /// home banner) rather than a hard-coded ratio.
+    let onImageLoaded: ((CGSize) -> Void)?
 
-    init(urlString: String?, contentMode: ContentMode = .fill, resizeWidth: CGFloat? = nil) {
+    init(
+        urlString: String?,
+        contentMode: ContentMode = .fill,
+        resizeWidth: CGFloat? = nil,
+        onImageLoaded: ((CGSize) -> Void)? = nil
+    ) {
         self.urlString = urlString
         self.contentMode = contentMode
         self.resizeWidth = resizeWidth
+        self.onImageLoaded = onImageLoaded
     }
 
     var body: some View {
@@ -28,6 +39,11 @@ struct CachedRemoteImage: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+            }
+        }
+        .onCompletion { result in
+            if case .success(let response) = result {
+                onImageLoaded?(response.image.size)
             }
         }
     }
