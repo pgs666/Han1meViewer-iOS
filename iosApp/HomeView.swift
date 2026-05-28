@@ -15,6 +15,13 @@ struct HomeView: View {
     /// images shorter left empty bands — both manifested as visual
     /// "overlap" with adjacent rows.
     @State private var measuredBannerAspect: CGFloat?
+    /// User-customised home-section ordering. Stored as a comma-separated
+    /// list of section keys in NSUserDefaults under `home_section_order`.
+    /// Edited by HomeSectionOrderView (设置 → 首页栏目排序). Empty = use
+    /// the order the server returned. Sections present in the snapshot
+    /// but absent from the saved order are appended at the end (so newly
+    /// added server sections still surface).
+    @AppStorage("home_section_order") private var homeSectionOrderRaw: String = ""
 
     init(environment: SharedAppEnvironment, onOpenSearch: @escaping (HomeSectionRow) -> Void = { _ in }) {
         self.videoFeature = environment.videoFeature()
@@ -88,7 +95,7 @@ struct HomeView: View {
                         .padding(.bottom, horizontalSizeClass == .regular ? 10 : 0)
                     }
 
-                    ForEach(snapshot.sections) { section in
+                    ForEach(orderedSections(snapshot.sections)) { section in
                         HomeCategorySection(
                             section: section,
                             videoFeature: videoFeature,
@@ -107,6 +114,32 @@ struct HomeView: View {
                 measuredBannerAspect = nil
             }
         }
+    }
+
+    /// Reorders the snapshot's home sections according to the user's
+    /// saved preference. Sections in the saved order are emitted first;
+    /// any snapshot sections not yet ordered (e.g. new server sections)
+    /// keep their original relative order at the end. Saved keys that
+    /// no longer correspond to any current snapshot section are
+    /// silently ignored.
+    private func orderedSections(_ sections: [HomeSectionRow]) -> [HomeSectionRow] {
+        let preferred = homeSectionOrderRaw
+            .split(separator: ",")
+            .map(String.init)
+        guard !preferred.isEmpty else { return sections }
+        let bySectionKey = Dictionary(uniqueKeysWithValues: sections.map { ($0.key, $0) })
+        var seen = Set<String>()
+        var result: [HomeSectionRow] = []
+        for key in preferred {
+            if let section = bySectionKey[key], !seen.contains(key) {
+                result.append(section)
+                seen.insert(key)
+            }
+        }
+        for section in sections where !seen.contains(section.key) {
+            result.append(section)
+        }
+        return result
     }
 }
 

@@ -145,6 +145,12 @@ struct SettingsView: View {
                 .onValueChange(of: showBottomProgress) { newValue in
                     environment.preferences().showBottomProgress.set(value: newValue)
                 }
+
+            NavigationLink {
+                HomeSectionOrderView()
+            } label: {
+                SettingsNavigationRow(title: "首页栏目排序", systemImage: "list.number")
+            }
         }
     }
 
