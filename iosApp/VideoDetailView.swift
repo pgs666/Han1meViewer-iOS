@@ -137,6 +137,21 @@ struct VideoDetailView: View {
                             // perceives as layout shifting.
                             .animation(nil, value: bottomScrollOffset)
                             .animation(nil, value: isPlayerPlaying)
+                            // ⚠️ TEMP DEBUG — remove once root cause identified.
+                            .overlay(alignment: .topLeading) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("h=\(Int(playerHeight(panelWidth: leftWidth, parentHeight: proxy.size.height)))")
+                                    Text("offset=\(Int(bottomScrollOffset))")
+                                    Text("playing=\(isPlayerPlaying ? "Y" : "N")")
+                                    Text("scrolling=\(isUserScrollingBottom ? "Y" : "N")")
+                                    Text("w=\(Int(leftWidth)) ph=\(Int(proxy.size.height))")
+                                }
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .padding(4)
+                                .background(.black.opacity(0.55))
+                                .foregroundStyle(.green)
+                                .padding(8)
+                            }
 
                         if !isPlayerFullscreen {
                             // showsRelated=false on iPad regular landscape because the
