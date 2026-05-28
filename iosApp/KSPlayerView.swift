@@ -212,9 +212,17 @@ struct KSPlayerView: View {
                             }
                         }
 
-                        if current >= 2.0 {
-                            onProgress(current)
-                        }
+                        // Forward every post-startup tick to onProgress —
+                        // including current=0 (user dragged the slider all
+                        // the way back). The earlier `current >= 2.0` guard
+                        // was there to silence KSPlayer's startup-phantom
+                        // zeros, but those are already filtered out upstream
+                        // by the hasAppliedResumeSeek / hasReachedStartPlayTime
+                        // gates above. With the guard in place a deliberate
+                        // user rewind to 0 (or below ~2s) silently failed to
+                        // persist, so the saved resume position kept its
+                        // previous value across re-entry.
+                        onProgress(current)
                     }
                     .onFinish { _, _ in onPlaybackEnded() }
                     .onStateChanged { layer, state in
