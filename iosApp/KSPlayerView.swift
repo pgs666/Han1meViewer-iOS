@@ -33,6 +33,11 @@ struct KSPlayerView: View {
     /// the parent slide the navigation bar in / out together with the
     /// player's HUD so they always animate as one.
     let onControlsVisibilityChanged: (Bool) -> Void
+    /// Optional: invoked when the user taps the back button drawn inside
+    /// the player's controls overlay. The system back button has been
+    /// removed (parent hides the navigation bar entirely), so this is the
+    /// player's only way back.
+    let onBack: () -> Void
 
     @StateObject private var coordinator = KSVideoPlayer.Coordinator()
     @State private var showsControls = true
@@ -105,7 +110,8 @@ struct KSPlayerView: View {
         onProgress: @escaping (TimeInterval) -> Void = { _ in },
         onPlaybackEnded: @escaping () -> Void = {},
         onPlayingChanged: @escaping (Bool) -> Void = { _ in },
-        onControlsVisibilityChanged: @escaping (Bool) -> Void = { _ in }
+        onControlsVisibilityChanged: @escaping (Bool) -> Void = { _ in },
+        onBack: @escaping () -> Void = {}
     ) {
         self.snapshot = snapshot
         self._isFullscreen = isFullscreen
@@ -114,6 +120,7 @@ struct KSPlayerView: View {
         self.onPlaybackEnded = onPlaybackEnded
         self.onPlayingChanged = onPlayingChanged
         self.onControlsVisibilityChanged = onControlsVisibilityChanged
+        self.onBack = onBack
     }
 
     var body: some View {
@@ -330,6 +337,13 @@ struct KSPlayerView: View {
 
     private var topBar: some View {
         HStack(spacing: 8) {
+            // Back button — drawn inside the player overlay so it shows /
+            // hides together with the rest of the HUD without affecting
+            // any system layout. Parent (VideoDetailView) hides the nav
+            // bar entirely.
+            iconButton(systemImage: "chevron.left", label: "返回") {
+                onBack()
+            }
             // Fullscreen: surface video title where the navigation back-button
             // sat. Never shown inline (nav bar still has the back-button +
             // (after caller's change) no inline title).
