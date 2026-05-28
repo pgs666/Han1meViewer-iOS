@@ -37,17 +37,7 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        // The status-bar strip on iOS reflects the current colour scheme.
-        // Forcing this view into .dark while the player is on screen
-        // makes the status bar text light AND, with the player's own
-        // black background filling the area beneath, gives the impression
-        // of a black status-bar strip without any UINavigationBar
-        // appearance hacks. .preferredColorScheme is scoped to this view
-        // tree — when the user pops back the system theme returns.
-        ZStack {
-            content
-        }
-            .preferredColorScheme(isContentLoaded ? .dark : nil)
+        content
             // Navigation bar (and its system back button) is hidden the
             // whole time. The player draws its own floating back button
             // inside the controls overlay — that way show/hide of the
@@ -94,13 +84,6 @@ struct VideoDetailView: View {
             }
     }
 
-    /// True only when the video detail snapshot has finished loading.
-    /// Drives whether the black status-bar backdrop is applied.
-    private var isContentLoaded: Bool {
-        if case .loaded = viewModel.state { return true }
-        return false
-    }
-
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
@@ -136,6 +119,15 @@ struct VideoDetailView: View {
             //
             // Phone / iPad portrait collapses to a single full-width left panel
             // (no sidebar), giving the same visual as before for those modes.
+            //
+            // Layout: a black spacer sized to the device's status-bar height
+            // sits as the first child of the outer VStack so the area
+            // behind the system status icons is rendered black, joining
+            // visually with the player's own black background. The GR is
+            // expanded into the top safe area via .ignoresSafeArea(.top)
+            // so the spacer can actually paint that strip; proxy.safeAreaInsets.top
+            // still reports the real status-bar inset (SwiftUI tracks the
+            // logical safe-area regardless of which views ignore it).
             GeometryReader { proxy in
                 let isWide = horizontalSizeClass == .regular
                     && proxy.size.width >= 900
@@ -144,40 +136,53 @@ struct VideoDetailView: View {
                 let leftWidth: CGFloat = isWide
                     ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
                     : proxy.size.width
+                let statusBarHeight = proxy.safeAreaInsets.top
 
-                HStack(alignment: .top, spacing: 0) {
-                    VStack(spacing: 0) {
-                        playerArea(snapshot: snapshot)
-                            .frame(
-                                width: leftWidth,
-                                height: playerHeight(
-                                    panelWidth: leftWidth,
-                                    parentHeight: proxy.size.height
-                                )
-                            )
-
-                        if !isPlayerFullscreen {
-                            // showsRelated=false on iPad regular landscape because the
-                            // dedicated right sidebar already shows related videos —
-                            // duplicating them in the bottom scroll would be redundant.
-                            belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
-                        }
+                VStack(spacing: 0) {
+                    // Black backdrop matching the status-bar strip. Hidden in
+                    // fullscreen (status bar is itself hidden then) so the
+                    // player can use the entire screen.
+                    if !isPlayerFullscreen && statusBarHeight > 0 {
+                        Color.black
+                            .frame(height: statusBarHeight)
+                            .frame(maxWidth: .infinity)
                     }
-                    .frame(width: leftWidth)
 
-                    if isWide {
-                        Divider()
-                        TabletRelatedSidebar(
-                            videos: snapshot.relatedVideos,
-                            videoFeature: videoFeature,
-                            commentFeature: commentFeature
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemBackground))
+                    HStack(alignment: .top, spacing: 0) {
+                        VStack(spacing: 0) {
+                            playerArea(snapshot: snapshot)
+                                .frame(
+                                    width: leftWidth,
+                                    height: playerHeight(
+                                        panelWidth: leftWidth,
+                                        parentHeight: proxy.size.height
+                                    )
+                                )
+
+                            if !isPlayerFullscreen {
+                                // showsRelated=false on iPad regular landscape because the
+                                // dedicated right sidebar already shows related videos —
+                                // duplicating them in the bottom scroll would be redundant.
+                                belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
+                            }
+                        }
+                        .frame(width: leftWidth)
+
+                        if isWide {
+                            Divider()
+                            TabletRelatedSidebar(
+                                videos: snapshot.relatedVideos,
+                                videoFeature: videoFeature,
+                                commentFeature: commentFeature
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color(.systemBackground))
+                        }
                     }
                 }
             }
             .background(Color(.systemGroupedBackground))
+            .ignoresSafeArea(edges: .top)
         }
     }
 
