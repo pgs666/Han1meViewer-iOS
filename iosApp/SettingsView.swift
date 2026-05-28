@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var videoLanguage: String = "cht"
     @State private var longPressSpeed: Float = 2.0
     @State private var allowResumePlayback: Bool = true
+    @State private var forcePortraitFullscreenForVerticalVideos: Bool = true
     @State private var showPlayedIndicator: Bool = true
     @State private var showBottomProgress: Bool = true
 
@@ -112,6 +113,14 @@ struct SettingsView: View {
                 .onValueChange(of: allowResumePlayback) { newValue in
                     environment.preferences().allowResumePlayback.set(value: newValue)
                 }
+
+            Toggle("竖屏视频强制竖屏全屏", isOn: $forcePortraitFullscreenForVerticalVideos)
+                .onValueChange(of: forcePortraitFullscreenForVerticalVideos) { newValue in
+                    environment.preferences().forcePortraitFullscreenForVerticalVideos.set(value: newValue)
+                }
+            Text("打开后，竖屏视频进入全屏时保持竖屏，不旋转设备；横屏视频不受影响。关闭则始终强制横屏。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -197,6 +206,7 @@ struct SettingsView: View {
         videoLanguage = prefs.videoLanguage.get()
         longPressSpeed = prefs.longPressSpeedTimes.get()
         allowResumePlayback = prefs.allowResumePlayback.get()
+        forcePortraitFullscreenForVerticalVideos = prefs.forcePortraitFullscreenForVerticalVideos.get()
         showPlayedIndicator = prefs.showPlayedIndicator.get()
         showBottomProgress = prefs.showBottomProgress.get()
     }
