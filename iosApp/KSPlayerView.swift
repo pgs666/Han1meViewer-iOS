@@ -38,6 +38,17 @@ struct KSPlayerView: View {
     /// removed (parent hides the navigation bar entirely), so this is the
     /// player's only way back.
     let onBack: () -> Void
+    /// True when the parent has shrunk the player below its 16:9 size via
+    /// the follow-finger collapse (paused + scrolled). When this is true,
+    /// a single tap on the video does NOT toggle the controls overlay —
+    /// it instead asks the parent to expand the player back to 16:9. This
+    /// is the user-requested workaround for the visible "video + controls
+    /// pulse" that occurred when the controls overlay materialised on
+    /// top of a shrunken player.
+    let isShrunken: Bool
+    /// Tap handler invoked when the user taps a shrunken player; parent is
+    /// expected to expand the player back to its full size.
+    let onRequestExpand: () -> Void
 
     @StateObject private var coordinator = KSVideoPlayer.Coordinator()
     @State private var showsControls = true
@@ -111,7 +122,9 @@ struct KSPlayerView: View {
         onPlaybackEnded: @escaping () -> Void = {},
         onPlayingChanged: @escaping (Bool) -> Void = { _ in },
         onControlsVisibilityChanged: @escaping (Bool) -> Void = { _ in },
-        onBack: @escaping () -> Void = {}
+        onBack: @escaping () -> Void = {},
+        isShrunken: Bool = false,
+        onRequestExpand: @escaping () -> Void = {}
     ) {
         self.snapshot = snapshot
         self._isFullscreen = isFullscreen
@@ -121,6 +134,8 @@ struct KSPlayerView: View {
         self.onPlayingChanged = onPlayingChanged
         self.onControlsVisibilityChanged = onControlsVisibilityChanged
         self.onBack = onBack
+        self.isShrunken = isShrunken
+        self.onRequestExpand = onRequestExpand
     }
 
     var body: some View {
@@ -221,6 +236,16 @@ struct KSPlayerView: View {
                     }
                     .onTapGesture(count: 1) {
                         if isBoosted { endBoost() }
+                        if isShrunken {
+                            // Player is currently shrunk by scroll. First
+                            // tap restores it to 16:9 instead of opening the
+                            // controls — avoids the visible layout pulse
+                            // that would otherwise happen when the controls
+                            // overlay tries to materialise on top of a
+                            // mid-collapse-animation player.
+                            onRequestExpand()
+                            return
+                        }
                         withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
                         onControlsVisibilityChanged(showsControls)
                         if showsControls { scheduleAutoHide() }

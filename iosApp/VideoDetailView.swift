@@ -187,7 +187,14 @@ struct VideoDetailView: View {
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
-        KSPlayerView(
+        // Shrunken iff the follow-finger collapse has actually engaged
+        // (paused, not fullscreen / strip-collapsed, and the user has
+        // scrolled the bottom content up).
+        let shrunken = !isPlayerFullscreen
+            && !isPlayerCollapsed
+            && !isPlayerPlaying
+            && bottomScrollOffset > 1
+        return KSPlayerView(
             snapshot: snapshot,
             isFullscreen: $isPlayerFullscreen,
             isCollapsed: $isPlayerCollapsed,
@@ -198,7 +205,16 @@ struct VideoDetailView: View {
                     isPlayerPlaying = newValue
                 }
             },
-            onBack: { dismiss() }
+            onBack: { dismiss() },
+            isShrunken: shrunken,
+            onRequestExpand: {
+                // First tap on a shrunken player expands it back to 16:9
+                // by zeroing the scroll-driven shrink amount — and animate
+                // it so the player smoothly grows.
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    bottomScrollOffset = 0
+                }
+            }
         )
     }
 
