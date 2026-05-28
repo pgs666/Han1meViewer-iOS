@@ -120,14 +120,14 @@ struct VideoDetailView: View {
             // Phone / iPad portrait collapses to a single full-width left panel
             // (no sidebar), giving the same visual as before for those modes.
             //
-            // Layout: a black spacer sized to the device's status-bar height
-            // sits as the first child of the outer VStack so the area
-            // behind the system status icons is rendered black, joining
-            // visually with the player's own black background. The GR is
-            // expanded into the top safe area via .ignoresSafeArea(.top)
-            // so the spacer can actually paint that strip; proxy.safeAreaInsets.top
-            // still reports the real status-bar inset (SwiftUI tracks the
-            // logical safe-area regardless of which views ignore it).
+            // Status-bar strip: layered as a `.background(alignment: .top)` of
+            // the GR. The background view is a 0-height Color.black with
+            // .ignoresSafeArea(edges: .top), so it has no layout footprint
+            // (the GR and its inner HStack stay safely within the safe area,
+            // i.e. player never sits under the dynamic island) but it
+            // visually paints into the top safe-area, painting the status bar
+            // strip black. Suppressed in fullscreen because the status bar is
+            // already hidden then.
             GeometryReader { proxy in
                 let isWide = horizontalSizeClass == .regular
                     && proxy.size.width >= 900
@@ -136,53 +136,48 @@ struct VideoDetailView: View {
                 let leftWidth: CGFloat = isWide
                     ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
                     : proxy.size.width
-                let statusBarHeight = proxy.safeAreaInsets.top
 
-                VStack(spacing: 0) {
-                    // Black backdrop matching the status-bar strip. Hidden in
-                    // fullscreen (status bar is itself hidden then) so the
-                    // player can use the entire screen.
-                    if !isPlayerFullscreen && statusBarHeight > 0 {
-                        Color.black
-                            .frame(height: statusBarHeight)
-                            .frame(maxWidth: .infinity)
-                    }
-
-                    HStack(alignment: .top, spacing: 0) {
-                        VStack(spacing: 0) {
-                            playerArea(snapshot: snapshot)
-                                .frame(
-                                    width: leftWidth,
-                                    height: playerHeight(
-                                        panelWidth: leftWidth,
-                                        parentHeight: proxy.size.height
-                                    )
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(spacing: 0) {
+                        playerArea(snapshot: snapshot)
+                            .frame(
+                                width: leftWidth,
+                                height: playerHeight(
+                                    panelWidth: leftWidth,
+                                    parentHeight: proxy.size.height
                                 )
-
-                            if !isPlayerFullscreen {
-                                // showsRelated=false on iPad regular landscape because the
-                                // dedicated right sidebar already shows related videos —
-                                // duplicating them in the bottom scroll would be redundant.
-                                belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
-                            }
-                        }
-                        .frame(width: leftWidth)
-
-                        if isWide {
-                            Divider()
-                            TabletRelatedSidebar(
-                                videos: snapshot.relatedVideos,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature
                             )
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(.systemBackground))
+
+                        if !isPlayerFullscreen {
+                            // showsRelated=false on iPad regular landscape because the
+                            // dedicated right sidebar already shows related videos —
+                            // duplicating them in the bottom scroll would be redundant.
+                            belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
                         }
+                    }
+                    .frame(width: leftWidth)
+
+                    if isWide {
+                        Divider()
+                        TabletRelatedSidebar(
+                            videos: snapshot.relatedVideos,
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemBackground))
                     }
                 }
             }
+            .background(alignment: .top) {
+                if !isPlayerFullscreen {
+                    Color.black
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 0)
+                        .ignoresSafeArea(edges: .top)
+                }
+            }
             .background(Color(.systemGroupedBackground))
-            .ignoresSafeArea(edges: .top)
         }
     }
 
