@@ -9,41 +9,38 @@ struct Han1meViewerApp: App {
     @State private var selectedTab: MainTab = .home
     @State private var searchLaunchRequest: SearchLaunchRequest?
     @State private var deepLinkedVideo: DeepLinkedVideo?
-    /// Each root tab tracks an ever-changing identity. Tapping any tab
-    /// — including the currently selected one — bumps that tab's id,
-    /// which forces SwiftUI to teardown the entire NavigationStack
-    /// inside it (root view + every pushed sub-page like
-    /// VideoDetailView), then rebuild a fresh root. Two effects:
-    /// 1. Tab-bar tap always returns to the tab's root, never lands on
-    ///    a leftover pushed page.
-    /// 2. Pushed sub-pages are released, freeing their resources
-    ///    (e.g. KSPlayerLayer, scroll caches), so the app doesn't
-    ///    accumulate memory across tab visits.
-    @State private var homeTabResetID = UUID()
-    @State private var followingTabResetID = UUID()
-    @State private var mineTabResetID = UUID()
-    @State private var searchTabResetID = UUID()
+    /// Per-tab "pop to root" signal. Tapping ANY tab — including the
+    /// currently selected one — bumps that tab's signal, which a hidden
+    /// helper (PopToRootOnSignal) inside that tab observes and uses to
+    /// pop the enclosing UINavigationController back to its root view
+    /// controller. Pushed sub-pages (e.g. VideoDetailView) are deinit'd
+    /// and their resources released; the tab's root view itself is NOT
+    /// rebuilt.
+    @State private var homeTabPopSignal = UUID()
+    @State private var followingTabPopSignal = UUID()
+    @State private var mineTabPopSignal = UUID()
+    @State private var searchTabPopSignal = UUID()
 
     /// Binding wrapper around `selectedTab`. SwiftUI calls `.set` even
     /// when the user taps the already-selected tab, so we use this to
-    /// detect every tab-tap and bump that tab's `.id` regardless of
-    /// whether selection actually changed.
+    /// detect every tab-tap and bump that tab's pop signal regardless
+    /// of whether selection actually changed.
     private var tabSelection: Binding<MainTab> {
         Binding(
             get: { selectedTab },
             set: { newValue in
-                bumpResetID(for: newValue)
+                bumpPopSignal(for: newValue)
                 selectedTab = newValue
             }
         )
     }
 
-    private func bumpResetID(for tab: MainTab) {
+    private func bumpPopSignal(for tab: MainTab) {
         switch tab {
-        case .home:      homeTabResetID = UUID()
-        case .following: followingTabResetID = UUID()
-        case .mine:      mineTabResetID = UUID()
-        case .search:    searchTabResetID = UUID()
+        case .home:      homeTabPopSignal = UUID()
+        case .following: followingTabPopSignal = UUID()
+        case .mine:      mineTabPopSignal = UUID()
+        case .search:    searchTabPopSignal = UUID()
         }
     }
 
@@ -98,22 +95,22 @@ struct Han1meViewerApp: App {
                     searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
                     selectedTab = .search
                 }
-                .id(homeTabResetID)
+                .popsToRootWhen(signal: homeTabPopSignal)
             }
 
             Tab("关注", systemImage: "heart.fill", value: MainTab.following) {
                 FollowingView(environment: sharedEnvironment)
-                    .id(followingTabResetID)
+                    .popsToRootWhen(signal: followingTabPopSignal)
             }
 
             Tab("我的", systemImage: "person.crop.circle.fill", value: MainTab.mine) {
                 MineView(environment: sharedEnvironment)
-                    .id(mineTabResetID)
+                    .popsToRootWhen(signal: mineTabPopSignal)
             }
 
             Tab("搜索", systemImage: "magnifyingglass", value: MainTab.search, role: .search) {
                 SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
-                    .id(searchTabResetID)
+                    .popsToRootWhen(signal: searchTabPopSignal)
             }
         }
         .tint(.red)
@@ -126,28 +123,28 @@ struct Han1meViewerApp: App {
                 searchLaunchRequest = SearchLaunchRequest(sectionKey: section.key, sectionTitle: section.title)
                 selectedTab = .search
             }
-                .id(homeTabResetID)
+                .popsToRootWhen(signal: homeTabPopSignal)
                 .tabItem {
                     Label("首页", systemImage: "house")
                 }
                 .tag(MainTab.home)
 
             FollowingView(environment: sharedEnvironment)
-                .id(followingTabResetID)
+                .popsToRootWhen(signal: followingTabPopSignal)
                 .tabItem {
                     Label("关注", systemImage: "heart")
                 }
                 .tag(MainTab.following)
 
             MineView(environment: sharedEnvironment)
-                .id(mineTabResetID)
+                .popsToRootWhen(signal: mineTabPopSignal)
                 .tabItem {
                     Label("我的", systemImage: "person.crop.circle")
                 }
                 .tag(MainTab.mine)
 
             SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
-                .id(searchTabResetID)
+                .popsToRootWhen(signal: searchTabPopSignal)
                 .tabItem {
                     Label("搜索", systemImage: "magnifyingglass")
                 }

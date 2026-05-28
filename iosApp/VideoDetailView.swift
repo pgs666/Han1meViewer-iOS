@@ -37,7 +37,17 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        content
+        // ZStack so a Color.black layer always sits below `content`. With
+        // `.ignoresSafeArea()` it extends into the top safe area too,
+        // painting the area behind the status bar black. content itself
+        // is laid out within the safe area on top of this; its inner
+        // backgrounds (e.g. systemGroupedBackground inside .loaded) only
+        // cover content's own frame and never reach into the status bar
+        // strip.
+        ZStack {
+            Color.black.ignoresSafeArea()
+            content
+        }
             // Navigation bar (and its system back button) is hidden the
             // whole time. The player draws its own floating back button
             // inside the controls overlay — that way show/hide of the
@@ -60,12 +70,6 @@ struct VideoDetailView: View {
             .hidesTabBarOnAppear()
             .statusBarHidden(isPlayerFullscreen)
             .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
-            // Paint the area behind the status bar black so it visually
-            // joins the player (which is the topmost visible content
-            // inside the safe area). Without this, system status icons
-            // sit on top of whatever neutral background SwiftUI's root
-            // view chose, which clashed with the dark player.
-            .background(Color.black.ignoresSafeArea(edges: .top))
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
@@ -144,15 +148,6 @@ struct VideoDetailView: View {
                                     parentHeight: proxy.size.height
                                 )
                             )
-                            // Forbid implicit animation on the player frame.
-                            // Without this, transient state changes elsewhere
-                            // in the view tree (e.g. controls overlay
-                            // toggling, slider sync onAppear) trigger SwiftUI
-                            // to interpolate the height, producing a brief
-                            // "grow and shrink" pulse on tap that the user
-                            // perceives as layout shifting.
-                            .animation(nil, value: bottomScrollOffset)
-                            .animation(nil, value: isPlayerPlaying)
 
                         if !isPlayerFullscreen {
                             // showsRelated=false on iPad regular landscape because the
