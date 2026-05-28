@@ -128,6 +128,15 @@ struct VideoDetailView: View {
                                     parentHeight: proxy.size.height
                                 )
                             )
+                            // Forbid implicit animation on the player frame.
+                            // Without this, transient state changes elsewhere
+                            // in the view tree (e.g. controls overlay
+                            // toggling, slider sync onAppear) trigger SwiftUI
+                            // to interpolate the height, producing a brief
+                            // "grow and shrink" pulse on tap that the user
+                            // perceives as layout shifting.
+                            .animation(nil, value: bottomScrollOffset)
+                            .animation(nil, value: isPlayerPlaying)
 
                         if !isPlayerFullscreen {
                             // showsRelated=false on iPad regular landscape because the
