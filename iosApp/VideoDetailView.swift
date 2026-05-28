@@ -162,23 +162,33 @@ struct VideoDetailView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
                 Section {
-                    switch selectedTab {
-                    case .introduction:
-                        AndroidStyleIntroduction(
-                            snapshot: snapshot,
-                            videoFeature: videoFeature,
-                            commentFeature: commentFeature,
-                            isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                            onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                            onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                            onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                            onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                            onShowMessage: { viewModel.showActionMessage($0) },
-                            showsRelated: showsRelated
-                        )
-                    case .comments:
-                        CommentView(videoCode: videoCode, commentFeature: commentFeature)
+                    // Wrap the per-tab content in a Group with .id(selectedTab)
+                    // so SwiftUI treats the two branches as distinct view
+                    // identities. Without this, switching introduction →
+                    // comments inside a LazyVStack section sometimes
+                    // recycles the row and leaves contentSize stale, which
+                    // showed as a blank page until the user nudged the
+                    // ScrollView (re-laying out and refreshing the size).
+                    Group {
+                        switch selectedTab {
+                        case .introduction:
+                            AndroidStyleIntroduction(
+                                snapshot: snapshot,
+                                videoFeature: videoFeature,
+                                commentFeature: commentFeature,
+                                isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                                onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                                onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                                onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                                onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                                onShowMessage: { viewModel.showActionMessage($0) },
+                                showsRelated: showsRelated
+                            )
+                        case .comments:
+                            CommentView(videoCode: videoCode, commentFeature: commentFeature)
+                        }
                     }
+                    .id(selectedTab)
                 } header: {
                     Picker("Content", selection: $selectedTab) {
                         ForEach(VideoPageTab.allCases) { tab in
