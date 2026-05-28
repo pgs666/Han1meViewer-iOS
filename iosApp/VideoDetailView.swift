@@ -230,7 +230,9 @@ private struct AndroidStyleIntroduction: View {
                 ArtistCard(
                     artist: artist,
                     isRunning: isArtistActionRunning,
-                    toggleAction: onToggleArtistSubscription
+                    toggleAction: onToggleArtistSubscription,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
                 )
             }
 
@@ -280,29 +282,18 @@ private struct ArtistCard: View {
     let artist: VideoArtistRow
     let isRunning: Bool
     let toggleAction: () -> Void
+    let videoFeature: VideoFeature
+    let commentFeature: CommentFeature
+    @Environment(\.searchFeature) private var searchFeature
     @State private var isConfirmingUnsubscribe = false
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: artist.avatarURL) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Circle().fill(Color.secondary.opacity(0.15))
-            }
-            .frame(width: 52, height: 52)
-            .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(artist.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                if let genre = artist.genre, !genre.isEmpty {
-                    Text(genre)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            // Artist avatar / name / genre — tap to push the artist's videos
+            // page (NavigationLink). Subscription button to the right is
+            // independent and remains tap-able while the rest of the card
+            // navigates.
+            artistInfoTappable
 
             Spacer()
 
@@ -333,6 +324,54 @@ private struct ArtistCard: View {
         } message: {
             Text("确定要取消订阅吗？")
         }
+    }
+
+    /// Wraps the avatar + name + genre block in a NavigationLink that pushes
+    /// the artist's video list. Falls back to a non-tappable label if the
+    /// SearchFeature isn't available in the environment (shouldn't happen in
+    /// production but keeps the view robust during previews / testing).
+    @ViewBuilder
+    private var artistInfoTappable: some View {
+        if let searchFeature {
+            NavigationLink {
+                ArtistVideosView(
+                    artistName: artist.name,
+                    searchFeature: searchFeature,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+            } label: {
+                artistInfoLabel
+            }
+            .buttonStyle(.plain)
+        } else {
+            artistInfoLabel
+        }
+    }
+
+    private var artistInfoLabel: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: artist.avatarURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Circle().fill(Color.secondary.opacity(0.15))
+            }
+            .frame(width: 52, height: 52)
+            .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(artist.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                if let genre = artist.genre, !genre.isEmpty {
+                    Text(genre)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .contentShape(Rectangle())
     }
 }
 
