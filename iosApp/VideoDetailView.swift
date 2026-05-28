@@ -10,6 +10,16 @@ struct VideoDetailView: View {
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
     @State private var isPlayerCollapsed = false
+    /// True iff the player is currently playing (not paused / buffering).
+    /// Driven from KSPlayerView via the @Binding below. Used to lock the
+    /// player at full 16:9 height while playing — only paused state lets the
+    /// scroll-driven shrink behaviour engage.
+    @State private var isPlayerPlaying = false
+    /// Vertical scroll offset of the inline content area below the player,
+    /// measured from the natural top (>= 0). When the user scrolls UP (so
+    /// the offset grows), and the player is paused, the player shrinks
+    /// proportionally — Bilibili-style "follow finger" collapse.
+    @State private var bottomScrollOffset: CGFloat = 0
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(videoCode: String, videoFeature: VideoFeature, commentFeature: CommentFeature) {
@@ -145,7 +155,16 @@ struct VideoDetailView: View {
     private func playerHeight(panelWidth: CGFloat, parentHeight: CGFloat) -> CGFloat {
         if isPlayerFullscreen { return parentHeight }
         if isPlayerCollapsed { return 50 }
-        return panelWidth * 9 / 16
+        let baseHeight = panelWidth * 9 / 16
+        // While playing, lock to full 16:9 — never shrink with scroll.
+        if isPlayerPlaying { return baseHeight }
+        // Paused: follow the user's scroll. As bottomScrollOffset grows
+        // (content scrolled up), the player shrinks proportionally, never
+        // below playerCollapsedFollowMinHeight so its overlay controls
+        // remain at least partly visible.
+        let minHeight: CGFloat = max(baseHeight * 0.32, 80)
+        let shrink = max(0, min(baseHeight - minHeight, bottomScrollOffset))
+        return baseHeight - shrink
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
@@ -154,7 +173,12 @@ struct VideoDetailView: View {
             isFullscreen: $isPlayerFullscreen,
             isCollapsed: $isPlayerCollapsed,
             onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
-            onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) }
+            onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) },
+            onPlayingChanged: { newValue in
+                if isPlayerPlaying != newValue {
+                    isPlayerPlaying = newValue
+                }
+            }
         )
     }
 
@@ -202,7 +226,38 @@ struct VideoDetailView: View {
                 }
             }
             .padding(.bottom, 24)
+            // Publish current scroll offset so the player area can shrink
+            // when the user scrolls up while paused. Reading from a sentinel
+            // GeometryReader at the top of the LazyVStack: as content
+            // scrolls up, minY drops below 0; we negate so the value grows
+            // positive. coordinateSpace(.named("bottomScroll")) keeps this
+            // measurement local to THIS ScrollView, not e.g. the screen.
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: BottomScrollOffsetPreferenceKey.self,
+                        value: -proxy.frame(in: .named("bottomScroll")).minY
+                    )
+                }
+            )
         }
+        .coordinateSpace(name: "bottomScroll")
+        .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { value in
+            // Clamp to >= 0 — over-pull at the top should not expand the
+            // player past 16:9.
+            bottomScrollOffset = max(0, value)
+        }
+    }
+}
+
+/// Reports the inline-content ScrollView's vertical offset from its top so
+/// the player area can shrink (B-station-style) when the user scrolls up
+/// while paused. Reduce policy: keep the largest reported value of a single
+/// pass — there's only one ScrollView publishing into this key.
+private struct BottomScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
