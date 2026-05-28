@@ -37,25 +37,23 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        // The status-bar strip on iOS is actually the area behind the
-        // navigation bar's background. Hiding the nav bar
-        // (.toolbar(.hidden, ...)) doesn't remove that background — it
-        // just makes the bar's content invisible — so we explicitly
-        // colour the navigation toolbar's background black AND keep it
-        // visible so it shows through on top of the status icons. We
-        // do this only once content has loaded; loading / failed /
-        // idle states keep the system theme background.
+        // The status-bar strip on iOS reflects the current colour scheme.
+        // Forcing this view into .dark while the player is on screen
+        // makes the status bar text light AND, with the player's own
+        // black background filling the area beneath, gives the impression
+        // of a black status-bar strip without any UINavigationBar
+        // appearance hacks. .preferredColorScheme is scoped to this view
+        // tree — when the user pops back the system theme returns.
         ZStack {
             content
         }
+            .preferredColorScheme(isContentLoaded ? .dark : nil)
             // Navigation bar (and its system back button) is hidden the
             // whole time. The player draws its own floating back button
             // inside the controls overlay — that way show/hide of the
             // back button is purely an overlay-layer change and doesn't
             // resize / shift the rest of the view tree.
             .toolbar(.hidden, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(isContentLoaded ? Color.black : Color.clear, for: .navigationBar)
             // SwiftUI's `.toolbar(.hidden, for: .navigationBar)` also turns
             // off the edge-swipe-to-go-back gesture on the underlying
             // UINavigationController. Re-enable it explicitly so the user
