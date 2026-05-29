@@ -1,29 +1,73 @@
 import SwiftUI
 import KSPlayer
 
-/// Minimal full-screen player for a locally downloaded file. Unlike the
-/// in-app streaming player (KSPlayerView, which is deeply integrated with
-/// the video-detail snapshot, gestures, resume-seek, follow-finger
-/// collapse, etc.) this is a plain playback surface: it just feeds a
-/// file:// URL into KSPlayer's high-level KSVideoPlayerView, which brings
-/// its own standard control overlay. No favorite / comment / related —
-/// purely "play the file I downloaded".
+/// Full-screen player for a locally-downloaded file. Reuses the project's
+/// custom KSPlayerView (gestures, fullscreen auto-rotate, quality menu,
+/// resume seek, floating back button) by feeding it a synthetic
+/// VideoDetailScreenSnapshot whose single playback source is the local
+/// file:// URL. Purely playback — no favorite / comments / related.
 struct LocalVideoPlayerView: View {
     let title: String
     let fileURL: URL
 
-    @State private var didConfigure = false
+    @State private var isFullscreen = false
+    @State private var isCollapsed = false
+    @State private var videoNaturalSize: CGSize?
+    /// Mirrors the streaming detail page's preference so portrait videos
+    /// can stay portrait in fullscreen.
+    @AppStorage("force_portrait_fullscreen_for_vertical_videos")
+    private var forcePortraitForVerticalVideos: Bool = true
 
-    var body: some View {
-        KSVideoPlayerView(url: fileURL, options: makeOptions())
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .hidesTabBarOnAppear()
-            .ignoresSafeArea(edges: .bottom)
+    @Environment(\.dismiss) private var dismiss
+
+    private var snapshot: VideoDetailScreenSnapshot {
+        VideoDetailScreenSnapshot.local(
+            videoCode: "local",
+            title: title,
+            fileURL: fileURL,
+            coverUrl: nil,
+            playbackPositionMillis: 0
+        )
     }
 
-    private func makeOptions() -> KSOptions {
-        KSOptions.isAutoPlay = true
-        return KSOptions()
+    var body: some View {
+        KSPlayerView(
+            snapshot: snapshot,
+            isFullscreen: $isFullscreen,
+            isCollapsed: $isCollapsed,
+            onBack: { dismiss() },
+            onNaturalSize: { size in videoNaturalSize = size }
+        )
+        .background(Color.black.ignoresSafeArea())
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .hidesTabBarOnAppear()
+        .statusBarHidden(isFullscreen)
+        .ignoresSafeArea(edges: isFullscreen ? .all : [])
+        .onDisappear {
+            if isFullscreen {
+                AppOrientationController.shared.unlockAfterFullscreen()
+            }
+        }
+        .onValueChange(of: isFullscreen) { newValue in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+                if newValue {
+                    AppOrientationController.shared.lockForFullscreen(to: fullscreenOrientation)
+                } else {
+                    AppOrientationController.shared.unlockAfterFullscreen()
+                }
+            }
+        }
+    }
+
+    private var fullscreenOrientation: VideoFullscreenOrientation {
+        let isPortraitVideo: Bool = {
+            guard let size = videoNaturalSize else { return false }
+            return size.height > size.width
+        }()
+        if isPortraitVideo && forcePortraitForVerticalVideos {
+            return .portrait
+        }
+        return .landscape
     }
 }

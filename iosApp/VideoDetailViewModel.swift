@@ -528,6 +528,55 @@ struct VideoDetailScreenSnapshot {
         }
     }
 
+    /// Builds a minimal snapshot for playing a locally-downloaded file
+    /// through the same KSPlayerView the streaming detail page uses, so
+    /// downloaded videos get the full custom player (gestures, fullscreen
+    /// orientation auto-rotate, resume seek, etc.). Only the fields
+    /// KSPlayerView actually reads are meaningful here: title, the single
+    /// local playback source, and the resume position.
+    static func local(
+        videoCode: String,
+        title: String,
+        fileURL: URL,
+        coverUrl: String?,
+        playbackPositionMillis: Int64
+    ) -> VideoDetailScreenSnapshot {
+        VideoDetailScreenSnapshot(
+            videoCode: videoCode,
+            title: title,
+            chineseTitle: nil,
+            videoDescription: nil,
+            views: nil,
+            tagSummary: "",
+            sourceCount: 1,
+            defaultSourceLabel: "本地",
+            defaultSourceUrl: fileURL.absoluteString,
+            uploadDate: nil,
+            coverUrl: coverUrl,
+            artist: nil,
+            favTimes: nil,
+            isFav: false,
+            csrfToken: nil,
+            currentUserId: nil,
+            isWatchLater: false,
+            originalComic: nil,
+            playbackPositionMillis: playbackPositionMillis,
+            tags: [],
+            playbackSources: [
+                VideoPlaybackSourceRow(
+                    label: "本地",
+                    url: fileURL.absoluteString,
+                    contentType: "video/mp4",
+                    isDefault: true
+                )
+            ],
+            playlistName: nil,
+            playlistVideos: [],
+            myListItems: [],
+            relatedVideos: []
+        )
+    }
+
     private init(
         videoCode: String,
         title: String,
