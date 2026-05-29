@@ -32,6 +32,7 @@ struct HomeView: View {
         CompatibleNavigationStack {
             content
                 .navigationTitle("首页")
+                .logScreen("Home")
                 .task {
                     viewModel.loadIfNeeded()
                 }

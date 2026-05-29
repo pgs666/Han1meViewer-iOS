@@ -90,6 +90,7 @@ final class MineViewModel: ObservableObject {
                 if session.isLoggedIn {
                     isLoggedIn = true
                     needsReLogin = false
+                    AppLogger.log("login check: logged in")
                     await loadProfile(generation: generation)
                 } else {
                     // Session gone. If we previously thought we were logged
@@ -99,6 +100,7 @@ final class MineViewModel: ObservableObject {
                     isLoggedIn = false
                     profile = MineProfileSnapshot()
                     needsReLogin = wasLoggedIn
+                    AppLogger.log("login check: not logged in (wasLoggedIn=\(wasLoggedIn))")
                     clearPersistedProfile()
                 }
             } catch is CancellationError {

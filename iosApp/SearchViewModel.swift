@@ -73,6 +73,7 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
         currentFilters = nextFilters
         currentRecordHistory = recordHistory
         self.filters = nextFilters
+        AppLogger.log("search kw=\(trimmedKeyword) filters=\(nextFilters.activeCount)")
         super.load()
     }
 

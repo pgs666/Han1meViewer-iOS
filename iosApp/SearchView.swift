@@ -22,6 +22,7 @@ struct SearchView: View {
         CompatibleNavigationStack {
             content
             .navigationTitle("搜索")
+            .logScreen("Search")
             .searchable(
                 text: $keyword,
                 placement: .automatic,

@@ -123,6 +123,7 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
         } else {
             state = .failed(ErrorMessage.userFriendly(error))
         }
+        AppLogger.log("load failed: \(ErrorMessage.userFriendly(error))")
     }
 
     func setFailed(_ message: String) {

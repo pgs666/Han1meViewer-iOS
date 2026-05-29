@@ -87,6 +87,7 @@ final class VideoDetailViewModel: ObservableObject {
             return
         } catch {
             guard !Task.isCancelled, loadingVideoCode == videoCode else { return }
+            AppLogger.log("video load failed v=\(videoCode): \(ErrorMessage.userFriendly(error))")
             state = .failed(ErrorMessage.userFriendly(error))
         }
     }
@@ -263,7 +264,9 @@ final class VideoDetailViewModel: ObservableObject {
 
             do {
                 try await operation()
+                AppLogger.log("action ok id=\(id)")
             } catch {
+                AppLogger.log("action failed id=\(id): \(ErrorMessage.userFriendly(error))")
                 CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 actionMessage = VideoActionMessage(
                     message: ErrorMessage.userFriendly(error),
