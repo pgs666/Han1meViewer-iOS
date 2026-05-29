@@ -10,16 +10,20 @@ import UIKit
 private struct InteractivePopEnabler: UIViewControllerRepresentable {
     typealias UIViewControllerType = PopEnablerViewController
 
+    var disabled: Bool
+
     func makeUIViewController(context: Context) -> PopEnablerViewController {
         PopEnablerViewController()
     }
 
-    func updateUIViewController(_ uiViewController: PopEnablerViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: PopEnablerViewController, context: Context) {
+        uiViewController.popDelegate.disabled = disabled
+    }
 }
 
 final class PopEnablerViewController: UIViewController {
     // Retained so the recognizer's weak `delegate` doesn't dangle.
-    private let popDelegate = PopGestureDelegate()
+    let popDelegate = PopGestureDelegate()
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -62,8 +66,11 @@ final class PopEnablerViewController: UIViewController {
 /// SwiftUI gesture (e.g. the video player's full-area drag).
 final class PopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
     weak var navigationController: UINavigationController?
+    /// When true (e.g. the player is fullscreen), the edge swipe-back is
+    /// suppressed so horizontal swipes drive seek instead of popping.
+    var disabled = false
 
-    private var canPop: Bool { (navigationController?.viewControllers.count ?? 0) > 1 }
+    private var canPop: Bool { !disabled && (navigationController?.viewControllers.count ?? 0) > 1 }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         canPop
@@ -81,7 +88,7 @@ extension View {
     /// Restores the interactive (edge-swipe) pop gesture on the enclosing
     /// UINavigationController even after the navigation bar has been
     /// hidden via SwiftUI `.toolbar(.hidden, for: .navigationBar)`.
-    func enableInteractivePopOnHiddenNavBar() -> some View {
-        background(InteractivePopEnabler())
+    func enableInteractivePopOnHiddenNavBar(disabled: Bool = false) -> some View {
+        background(InteractivePopEnabler(disabled: disabled))
     }
 }

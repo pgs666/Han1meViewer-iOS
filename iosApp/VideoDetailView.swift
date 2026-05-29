@@ -61,7 +61,7 @@ struct VideoDetailView: View {
             // UINavigationController. Re-enable it explicitly so the user
             // still has the standard iOS gesture to navigate back even
             // though we hide the nav bar.
-            .enableInteractivePopOnHiddenNavBar()
+            .enableInteractivePopOnHiddenNavBar(disabled: isPlayerFullscreen)
             // The video detail page always hides the tab bar — it's a
             // pushed sub-page that benefits from extra vertical space, not a
             // top-level tab. (Fullscreen state doesn't matter; both inline
