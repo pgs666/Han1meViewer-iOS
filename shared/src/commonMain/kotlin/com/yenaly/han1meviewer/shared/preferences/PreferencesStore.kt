@@ -31,6 +31,11 @@ class PreferencesStore(
     /// button (false)? Default true (auto-play, current behaviour).
     val autoPlayOnEnter = booleanPref("auto_play_on_enter", true)
 
+    /// Maximum number of simultaneous video downloads. 0 / negative is
+    /// coerced to "unlimited" by the iOS layer; default 2 (matches the
+    /// Android client's MAX_CONCURRENT_DOWNLOAD_DEF).
+    val maxConcurrentDownloads = intPref("max_concurrent_downloads", 2)
+
     // Domain
     val domainName = stringPref("domain_name", "https://hanime1.me")
 

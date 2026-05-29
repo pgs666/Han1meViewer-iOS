@@ -110,8 +110,8 @@ struct MineView: View {
                     } label: {
                         MineMenuRow(title: "本地历史", systemImage: "clock")
                     }
-                    Button {
-                        activeAlert = .notMigrated(String(localized: "download"))
+                    NavigationLink {
+                        DownloadsView(environment: environment)
                     } label: {
                         MineMenuRow(title: "下载", systemImage: "arrow.down.circle")
                     }

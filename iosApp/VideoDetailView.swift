@@ -480,7 +480,17 @@ private struct AndroidStyleIntroduction: View {
                 onToggleFavorite: onToggleFavorite,
                 onToggleWatchLater: onToggleWatchLater,
                 onSetMyListItem: onSetMyListItem,
-                onShowMessage: onShowMessage
+                onShowMessage: onShowMessage,
+                onDownload: { source in
+                    DownloadManager.shared.enqueue(
+                        videoCode: snapshot.videoCode,
+                        quality: source.label,
+                        title: snapshot.title,
+                        coverUrl: snapshot.coverUrl,
+                        remoteUrl: source.url
+                    )
+                    onShowMessage(String(localized: "已加入下载"))
+                }
             )
 
             if !snapshot.tags.isEmpty {
@@ -680,9 +690,12 @@ private struct ActionButtonRow: View {
     let onToggleWatchLater: () -> Void
     let onSetMyListItem: (VideoMyListRow, Bool) -> Void
     let onShowMessage: (String) -> Void
+    /// Invoked when the user picks a concrete quality to download.
+    let onDownload: (VideoPlaybackSourceRow) -> Void
     @Environment(\.openURL) private var openURL
     @State private var isShowingMyList = false
     @State private var isShowingShareSheet = false
+    @State private var isShowingDownloadQuality = false
 
     private var videoURL: URL? {
         URL(string: "https://hanime1.me/watch?v=\(snapshot.videoCode)")
@@ -690,6 +703,14 @@ private struct ActionButtonRow: View {
 
     private var downloadURL: URL? {
         URL(string: "https://hanime1.me/download?v=\(snapshot.videoCode)")
+    }
+
+    /// Real downloadable sources (a concrete resolution + a usable URL).
+    /// A lone "auto" source means the page only exposed a JS-extracted
+    /// single URL with no resolution choices — in that case we fall back
+    /// to opening the official download page instead of in-app download.
+    private var downloadableSources: [VideoPlaybackSourceRow] {
+        snapshot.playbackSources.filter { $0.label.uppercased() != "AUTO" && !$0.url.isEmpty }
     }
 
     var body: some View {
@@ -723,8 +744,12 @@ private struct ActionButtonRow: View {
                     title: "下载",
                     systemImage: "arrow.down.circle",
                     action: {
-                        if let downloadURL {
-                            openURL(downloadURL)
+                        if downloadableSources.isEmpty {
+                            // No selectable resolutions parsed — defer to the
+                            // site's official download page in the browser.
+                            if let downloadURL { openURL(downloadURL) }
+                        } else {
+                            isShowingDownloadQuality = true
                         }
                     }
                 )
@@ -774,6 +799,13 @@ private struct ActionButtonRow: View {
         .sheet(isPresented: $isShowingShareSheet) {
             if let videoURL {
                 ActivityView(activityItems: [videoURL])
+            }
+        }
+        .confirmationDialog("选择下载画质", isPresented: $isShowingDownloadQuality, titleVisibility: .visible) {
+            ForEach(downloadableSources) { source in
+                Button(source.label) {
+                    onDownload(source)
+                }
             }
         }
     }
