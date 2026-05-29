@@ -22,6 +22,12 @@ struct HomeView: View {
     /// added server sections still surface).
     @AppStorage("home_section_order") private var homeSectionOrderRaw: String = ""
 
+    /// Vertical scroll offset of the loaded home content, used to fade the
+    /// self-drawn large "首页" title into a compact inline header on scroll.
+    /// See docs/known-issues/nav-bar-title-crossfade-over-player.md for why
+    /// the title is drawn manually instead of via .navigationTitle.
+    @State private var scrollOffset: CGFloat = 0
+
     init(environment: SharedAppEnvironment) {
         self.videoFeature = environment.videoFeature()
         self.commentFeature = environment.commentFeature()
@@ -31,7 +37,11 @@ struct HomeView: View {
     var body: some View {
         CompatibleNavigationStack {
             content
-                .navigationTitle("首页")
+                // System nav bar is hidden so it carries no "首页" title that
+                // could cross-fade on top of the full-bleed video player while
+                // popping back from VideoDetailView. The large title is drawn
+                // inside the content instead (option 3 in the known-issue doc).
+                .toolbar(.hidden, for: .navigationBar)
                 .logScreen("Home")
                 .task {
                     viewModel.loadIfNeeded()
@@ -40,6 +50,13 @@ struct HomeView: View {
                     await viewModel.refresh()
                 }
         }
+    }
+
+    /// 0 while the large title is fully visible, ramping to 1 once the user
+    /// has scrolled ~36pt — the crossover point where the large title has
+    /// left and the compact inline title takes over.
+    private var inlineTitleProgress: Double {
+        min(1, max(0, Double(scrollOffset) / 36))
     }
 
     @ViewBuilder
@@ -75,7 +92,26 @@ struct HomeView: View {
             }
         case .loaded(let snapshot):
             ScrollView {
+                // Scroll-offset sentinel: minY in the named space tracks the
+                // content's vertical movement so the self-drawn title can
+                // collapse like a system large title.
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: HomeScrollOffsetPreferenceKey.self,
+                        value: -proxy.frame(in: .named("homeScroll")).minY
+                    )
+                }
+                .frame(height: 0)
+
                 LazyVStack(alignment: .leading, spacing: 18) {
+                    // Self-drawn large title (option 3, see known-issue doc).
+                    // Fades out as it scrolls under the inline header overlay.
+                    Text("首页")
+                        .font(.largeTitle.bold())
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                        .opacity(1 - inlineTitleProgress)
+
                     if let banner = snapshot.banner {
                         HomeBannerView(
                             banner: banner,
@@ -103,6 +139,21 @@ struct HomeView: View {
                     }
                 }
                 .padding(.vertical, 12)
+            }
+            .coordinateSpace(name: "homeScroll")
+            .onPreferenceChange(HomeScrollOffsetPreferenceKey.self) { value in
+                scrollOffset = max(0, value)
+            }
+            // Compact inline title that fades in once the large title has
+            // scrolled away, mirroring the system large→inline collapse.
+            .overlay(alignment: .top) {
+                Text("首页")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(.bar)
+                    .opacity(inlineTitleProgress)
+                    .allowsHitTesting(false)
             }
             .background(Color(.systemGroupedBackground))
             .onValueChange(of: horizontalSizeClass) { _ in
@@ -138,6 +189,16 @@ struct HomeView: View {
             result.append(section)
         }
         return result
+    }
+}
+
+/// Reports HomeView's scroll offset so the self-drawn large title can
+/// collapse into a compact inline header (option 3, see
+/// docs/known-issues/nav-bar-title-crossfade-over-player.md).
+private struct HomeScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
