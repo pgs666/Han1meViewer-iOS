@@ -230,8 +230,15 @@ final class DownloadManager: NSObject, ObservableObject {
         Task {
             do {
                 let snapshot = try await videoFeature.loadVideo(videoCode: videoCode)
-                let match = snapshot.playbackSources.first { $0.label == quality }
-                    ?? snapshot.playbackSources.first
+                let count = Int(snapshot.playbackSourceCount())
+                var match: VideoPlaybackSourceSnapshot?
+                for i in 0..<count {
+                    if let s = snapshot.playbackSourceAt(index: Int32(i)), s.label == quality {
+                        match = s
+                        break
+                    }
+                }
+                if match == nil { match = snapshot.playbackSourceAt(index: 0) }
                 guard let fresh = match else {
                     store.updateState(videoCode: videoCode, quality: quality, state: Int32(DownloadState.failed.rawValue))
                     reloadItems()
@@ -274,22 +281,22 @@ final class DownloadManager: NSObject, ObservableObject {
 
     // MARK: - Paths
 
-    static func downloadsRoot() -> URL {
+    nonisolated static func downloadsRoot() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let dir = base.appendingPathComponent("Downloads", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
 
-    static func localFileURL(videoCode: String, quality: String) -> URL {
+    nonisolated static func localFileURL(videoCode: String, quality: String) -> URL {
         downloadsRoot().appendingPathComponent("\(videoCode)_\(quality).mp4")
     }
 
-    static func resumeDataURL(videoCode: String, quality: String) -> URL {
+    nonisolated static func resumeDataURL(videoCode: String, quality: String) -> URL {
         downloadsRoot().appendingPathComponent("\(videoCode)_\(quality).resume")
     }
 
-    private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    nonisolated private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 }
 
 // MARK: - URLSessionDownloadDelegate

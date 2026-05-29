@@ -23,8 +23,7 @@ struct LocalVideoPlayerView: View {
     }
 
     private func makeOptions() -> KSOptions {
-        let options = KSOptions()
-        options.isAutoPlay = true
-        return options
+        KSOptions.isAutoPlay = true
+        return KSOptions()
     }
 }
