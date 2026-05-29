@@ -11,14 +11,10 @@ struct AppleStyleHUD: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            Image(systemName: systemImage)
+            iconView
                 .font(.system(size: 72, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.primary)
-                // contentTransition makes the glyph swap smoothly if the
-                // caller updates the systemImage while the HUD is still
-                // on screen (rare but free to support).
-                .contentTransition(.symbolEffect(.replace))
 
             Text(message)
                 .font(.title3.weight(.semibold))
@@ -32,5 +28,18 @@ struct AppleStyleHUD: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 30, x: 0, y: 8)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Icon glyph. iOS 17+ gets the smooth replace contentTransition so
+    /// updating the systemImage while the HUD is on screen cross-fades
+    /// the glyph; pre-17 falls back to a plain swap.
+    @ViewBuilder
+    private var iconView: some View {
+        if #available(iOS 17.0, *) {
+            Image(systemName: systemImage)
+                .contentTransition(.symbolEffect(.replace))
+        } else {
+            Image(systemName: systemImage)
+        }
     }
 }
