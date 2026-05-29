@@ -55,6 +55,7 @@ struct Han1meViewerApp: App {
                 .environment(\.searchFeature, sharedEnvironment.searchFeature())
                 .onAppear {
                     DownloadManager.shared.configure(environment: sharedEnvironment)
+                    AppLogger.log("app launched")
                 }
                 .onReceive(NotificationCenter.default.publisher(for: SearchNavigationCenter.requestNotification)) { notification in
                     if let keyword = notification.userInfo?[SearchNavigationCenter.keywordKey] as? String {

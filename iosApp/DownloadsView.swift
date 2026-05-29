@@ -24,6 +24,7 @@ struct DownloadsView: View {
         .navigationTitle("下载")
         .navigationBarTitleDisplayMode(.inline)
         .hidesTabBarOnAppear()
+        .logScreen("Downloads")
     }
 
     private var emptyState: some View {

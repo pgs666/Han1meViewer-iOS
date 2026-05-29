@@ -49,6 +49,7 @@ struct VideoDetailView: View {
 
     var body: some View {
         content
+            .logScreen("VideoDetail v=\(videoCode)")
             // Navigation bar (and its system back button) is hidden the
             // whole time. The player draws its own floating back button
             // inside the controls overlay — that way show/hide of the

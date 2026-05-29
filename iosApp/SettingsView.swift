@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var resultMessage: String?
     @State private var cacheSizeText = "计算中…"
     @State private var crashReportSummary = CrashReporter.latestReportSummary()
+    @AppStorage(AppLogger.enabledKey) private var diagnosticLoggingEnabled = true
+    @State private var logSizeText = "—"
 
     // Preferences
     @State private var defaultVideoQuality: String = "1080P"
@@ -32,6 +34,7 @@ struct SettingsView: View {
             appInfoSection
             localDataSection
             cacheSection
+            diagnosticsSection
             crashReportSection
         }
         .navigationTitle("设置")
@@ -60,7 +63,13 @@ struct SettingsView: View {
         .task {
             await refreshCacheSize()
             loadPreferences()
+            refreshLogSize()
         }
+    }
+
+    private func refreshLogSize() {
+        let bytes = AppLogger.totalSizeBytes()
+        logSizeText = ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
     // MARK: - Sections
@@ -219,6 +228,35 @@ struct SettingsView: View {
             Text("缓存")
         } footer: {
             Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
+        }
+    }
+
+    @ViewBuilder
+    private var diagnosticsSection: some View {
+        Section {
+            Toggle("记录诊断日志", isOn: $diagnosticLoggingEnabled)
+
+            HStack {
+                Text("日志大小")
+                Spacer()
+                Text(logSizeText)
+                    .foregroundStyle(.secondary)
+            }
+
+            ShareLink(item: AppLogger.logsDirectory()) {
+                SettingsNavigationRow(title: "导出 / 分享日志", systemImage: "square.and.arrow.up")
+            }
+
+            Button(role: .destructive) {
+                AppLogger.clear()
+                refreshLogSize()
+            } label: {
+                Text("清除日志")
+            }
+        } header: {
+            Text("诊断日志")
+        } footer: {
+            Text("记录页面跳转与关键操作（已自动脱敏，不含账号、Cookie 等敏感信息），日志按大小滚动并自动清理。日志文件也可在「文件」App → 我的 iPhone/iPad → Han1meViewer → Logs 中找到，遇到问题时可导出并附到 GitHub issue。")
         }
     }
 
