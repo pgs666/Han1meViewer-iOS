@@ -40,6 +40,7 @@ struct MineView: View {
                                 profile: viewModel.profile
                             )
                         }
+                        .buttonStyle(.plain)
                     } else {
                         NavigationLink {
                             LoginView(
