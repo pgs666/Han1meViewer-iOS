@@ -109,12 +109,18 @@ struct Han1meViewerApp: App {
             }
 
             Tab("搜索", systemImage: "magnifyingglass", value: MainTab.search, role: .search) {
+                // NOTE: no .popsToRootWhen here. The PopToRootOnSignal helper
+                // is a .background(UIViewControllerRepresentable) which, on the
+                // iOS 26 search-role tab, disrupts the system's integrated
+                // search-field layout (the search box renders wrong). The
+                // search tab rarely needs the tap-to-pop behaviour anyway.
                 SearchView(environment: sharedEnvironment, launchRequest: $searchLaunchRequest)
-                    .popsToRootWhen(signal: searchTabPopSignal)
             }
         }
         .tint(.red)
-        .tabBarMinimizeBehavior(.onScrollDown)
+        // Keep the tab bar fully expanded while scrolling (do NOT collapse
+        // it into the minimized pill on scroll-down) per user preference.
+        .tabBarMinimizeBehavior(.never)
     }
 
     private var legacyTabView: some View {
