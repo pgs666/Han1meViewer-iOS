@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var allowResumePlayback: Bool = true
     @State private var forcePortraitFullscreenForVerticalVideos: Bool = true
     @State private var autoPlayOnEnter: Bool = true
+    @State private var maxConcurrentDownloads: Int = 2
     @State private var showPlayedIndicator: Bool = true
     @State private var showBottomProgress: Bool = true
 
@@ -27,6 +28,7 @@ struct SettingsView: View {
         List {
             playbackSettingsSection
             uiSection
+            downloadSettingsSection
             appInfoSection
             localDataSection
             cacheSection
@@ -155,6 +157,26 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
+    private var downloadSettingsSection: some View {
+        Section("下载") {
+            Stepper(value: $maxConcurrentDownloads, in: 1...5) {
+                HStack {
+                    Text("最大同时下载数")
+                    Spacer()
+                    Text("\(maxConcurrentDownloads)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onValueChange(of: maxConcurrentDownloads) { newValue in
+                environment.preferences().maxConcurrentDownloads.set(value: Int32(newValue))
+            }
+            Text("同时进行的下载任务数量上限，超出的会排队等待。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
     private var appInfoSection: some View {
         Section("应用") {
             SettingsInfoRow(title: "版本", value: appVersion)
@@ -223,6 +245,7 @@ struct SettingsView: View {
         allowResumePlayback = prefs.allowResumePlayback.get()
         forcePortraitFullscreenForVerticalVideos = prefs.forcePortraitFullscreenForVerticalVideos.get()
         autoPlayOnEnter = prefs.autoPlayOnEnter.get()
+        maxConcurrentDownloads = Int(prefs.maxConcurrentDownloads.get())
         showPlayedIndicator = prefs.showPlayedIndicator.get()
         showBottomProgress = prefs.showBottomProgress.get()
     }

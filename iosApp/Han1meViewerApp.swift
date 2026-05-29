@@ -53,6 +53,9 @@ struct Han1meViewerApp: App {
             rootView
                 .environmentObject(tabBarVisibility)
                 .environment(\.searchFeature, sharedEnvironment.searchFeature())
+                .onAppear {
+                    DownloadManager.shared.configure(environment: sharedEnvironment)
+                }
                 .onReceive(NotificationCenter.default.publisher(for: SearchNavigationCenter.requestNotification)) { notification in
                     if let keyword = notification.userInfo?[SearchNavigationCenter.keywordKey] as? String {
                         openSearch(keyword: keyword)
