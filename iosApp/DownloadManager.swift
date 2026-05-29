@@ -109,11 +109,22 @@ final class DownloadManager: NSObject, ObservableObject {
             totalBytes: existing?.totalBytes ?? 0,
             downloadedBytes: 0,
             state: Int32(DownloadState.queued.rawValue),
-            addedAtEpochMillis: existing?.addedAtEpochMillis ?? Int64(Date().timeIntervalSince1970 * 1000)
+            addedAtEpochMillis: existing?.addedAtEpochMillis ?? Int64(Date().timeIntervalSince1970 * 1000),
+            playbackPositionMillis: existing?.playbackPositionMillis ?? 0
         )
         store.upsert(item: item)
         reloadItems()
         startNextIfPossible()
+    }
+
+    /// Persist the local-playback resume position for a downloaded item.
+    func updatePlaybackPosition(videoCode: String, quality: String, positionMillis: Int64) {
+        store?.updatePlaybackPosition(videoCode: videoCode, quality: quality, positionMillis: positionMillis)
+    }
+
+    /// Resume position (ms) previously saved for local playback, 0 if none.
+    func playbackPosition(videoCode: String, quality: String) -> Int64 {
+        store?.find(videoCode: videoCode, quality: quality)?.playbackPositionMillis ?? 0
     }
 
     func pause(_ item: DownloadUIItem) {

@@ -7,6 +7,8 @@ import KSPlayer
 /// VideoDetailScreenSnapshot whose single playback source is the local
 /// file:// URL. Purely playback — no favorite / comments / related.
 struct LocalVideoPlayerView: View {
+    let videoCode: String
+    let quality: String
     let title: String
     let fileURL: URL
 
@@ -22,11 +24,11 @@ struct LocalVideoPlayerView: View {
 
     private var snapshot: VideoDetailScreenSnapshot {
         VideoDetailScreenSnapshot.local(
-            videoCode: "local",
+            videoCode: videoCode,
             title: title,
             fileURL: fileURL,
             coverUrl: nil,
-            playbackPositionMillis: 0
+            playbackPositionMillis: DownloadManager.shared.playbackPosition(videoCode: videoCode, quality: quality)
         )
     }
 
@@ -35,6 +37,21 @@ struct LocalVideoPlayerView: View {
             snapshot: snapshot,
             isFullscreen: $isFullscreen,
             isCollapsed: $isCollapsed,
+            onProgress: { seconds in
+                DownloadManager.shared.updatePlaybackPosition(
+                    videoCode: videoCode,
+                    quality: quality,
+                    positionMillis: Int64(max(0, seconds) * 1000)
+                )
+            },
+            onPlaybackEnded: {
+                // Finished playing → reset resume so next open starts fresh.
+                DownloadManager.shared.updatePlaybackPosition(
+                    videoCode: videoCode,
+                    quality: quality,
+                    positionMillis: 0
+                )
+            },
             onBack: { dismiss() },
             onNaturalSize: { size in videoNaturalSize = size }
         )

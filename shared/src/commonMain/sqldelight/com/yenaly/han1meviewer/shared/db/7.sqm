@@ -1,0 +1,1 @@
+ALTER TABLE download ADD COLUMN playback_position_millis INTEGER NOT NULL DEFAULT 0;
