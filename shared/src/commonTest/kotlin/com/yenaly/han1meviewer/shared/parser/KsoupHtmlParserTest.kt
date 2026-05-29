@@ -73,6 +73,46 @@ class KsoupHtmlParserTest {
     }
 
     @Test
+    fun parsesNewAnimeTrailerAsSimplifiedUnitsAtIndex12() {
+        // Build 13 rows (0..12). Row 12 holds simplified trailer anchors
+        // (a > img + div.home-rows-videos-title), matching Android's index-12
+        // trailer parse for the non-AV layout.
+        val rowHtml = (0..12).joinToString(separator = "\n") { index ->
+            if (index == 12) {
+                """
+                <div>
+                  <a href="/watch?v=7777"><img src="/t.jpg"><div class="home-rows-videos-title">Trailer A</div></a>
+                  <a href="/watch?v=7778"><img src="/t2.jpg"><div class="home-rows-videos-title">Trailer B</div></a>
+                </div>
+                """.trimIndent()
+            } else {
+                """
+                <div>
+                  <div class="horizontal-card">
+                    <a href="/watch?v=${1000 + index}"></a>
+                    <img src="/covers/$index.jpg">
+                    <div class="title">Video $index</div>
+                  </div>
+                </div>
+                """.trimIndent()
+            }
+        }
+        val html = """
+            <html><body>
+              <a id="user-modal-trigger" href="/user/42"></a>
+              <div id="home-rows-wrapper">$rowHtml</div>
+            </body></html>
+        """.trimIndent()
+
+        val home = parser.parseHome(html)
+        val trailer = home.sections.firstOrNull { it.key == "newAnimeTrailer" }
+
+        assertNotNull(trailer)
+        assertEquals(listOf("7777", "7778"), trailer.items.map { it.videoCode })
+        assertEquals(HanimeItemType.Simplified, trailer.items.first().itemType)
+    }
+
+    @Test
     fun parsesNormalSearchCards() {
         val html = """
             <html>
@@ -168,6 +208,29 @@ class KsoupHtmlParserTest {
         assertEquals(true, video.isFav)
         assertEquals(listOf("Tag B"), video.tags)
         assertNotNull(video.uploadTime)
+    }
+
+    @Test
+    fun dropsQuickActionTagAnchorsByStructureNotText() {
+        // Real tag anchors are the FIRST child of `.single-video-tag` and
+        // carry an href. The site's quick-action buttons (add/remove a tag
+        // to filters) are NOT first-child hrefs, so they must be dropped
+        // structurally — regardless of their (localisable) button text.
+        val html = """
+            <html>
+              <body>
+                <h1 id="shareBtn-title">Title</h1>
+                <video id="player"></video>
+                <div class="single-video-tag"><a href="/search?tags=real">#Real Tag (5)</a></div>
+                <div class="single-video-tag"><button>加入篩選</button><a href="/add">添加</a></div>
+                <a class="single-video-tag" href="/search?tags=bare">#Bare (3)</a>
+              </body>
+            </html>
+        """.trimIndent()
+
+        val video = parser.parseVideo(html, videoCode = "1")
+
+        assertEquals(listOf("Real Tag"), video.tags)
     }
 
     @Test

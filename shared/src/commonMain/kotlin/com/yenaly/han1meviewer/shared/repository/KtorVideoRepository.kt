@@ -21,8 +21,9 @@ class KtorVideoRepository(
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
+    private val videoLanguageProvider: () -> String = { "zht" },
 ) : VideoRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
     private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getVideo(videoCode: String): HanimeVideo {
@@ -66,7 +67,7 @@ class KtorVideoRepository(
 
         val response = submitMutationWithCsrfRetry(
             initialToken = initialToken,
-            refreshToken = { fetchFreshCsrfTokenAt("$baseUrl/watch?v=$videoCode") },
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, "$baseUrl/watch?v=$videoCode") },
             submit = ::submitFavorite,
         )
         cookieBridge.saveResponseCookies(response)
@@ -101,7 +102,7 @@ class KtorVideoRepository(
 
         val response = submitMutationWithCsrfRetry(
             initialToken = initialToken,
-            refreshToken = { fetchFreshCsrfTokenAt("$baseUrl/watch?v=$videoCode") },
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, "$baseUrl/watch?v=$videoCode") },
             submit = ::submitListItem,
         )
         cookieBridge.saveResponseCookies(response)
@@ -135,35 +136,10 @@ class KtorVideoRepository(
 
         val response = submitMutationWithCsrfRetry(
             initialToken = initialToken,
-            refreshToken = { fetchFreshCsrfTokenAt(baseUrl) },
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, baseUrl) },
             submit = ::submitSubscription,
         )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to update artist subscription.")
-    }
-
-    /// Fetches `pageUrl` solely to (a) refresh cookies (the server rotates
-    /// XSRF-TOKEN / laravel_session as part of its security model) and
-    /// (b) extract a fresh `_token` for retrying a mutation that just
-    /// returned 419. Per-mutation choice of pageUrl is important — for
-    /// per-video mutations (favorite, save-to-list) we hit the actual
-    /// /watch?v=<code> page so the new token belongs to the same logical
-    /// session the user is currently looking at; for cross-page mutations
-    /// (artist subscribe) we fall back to the home page. Returns null if
-    /// the page itself fails to load — caller surfaces the original 419
-    /// to the user.
-    private suspend fun fetchFreshCsrfTokenAt(pageUrl: String): String? {
-        return try {
-            val response = client.get(pageUrl) {
-                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-                header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                cookieBridge.applyStoredCookies(this)
-            }
-            cookieBridge.saveResponseCookies(response)
-            if (response.status.value !in 200..299) return null
-            parser.extractCsrfToken(response.bodyAsText())
-        } catch (_: Exception) {
-            null
-        }
     }
 }

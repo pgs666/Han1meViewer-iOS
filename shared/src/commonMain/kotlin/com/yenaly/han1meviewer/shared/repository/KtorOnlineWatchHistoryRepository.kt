@@ -28,8 +28,9 @@ class KtorOnlineWatchHistoryRepository(
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
+    private val videoLanguageProvider: () -> String = { "zht" },
 ) : OnlineWatchHistoryRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
     private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getHistories(
@@ -51,14 +52,23 @@ class KtorOnlineWatchHistoryRepository(
 
     override suspend fun removeHistoryItem(videoCode: String, csrfToken: String?) {
         val token = requireMutationCsrfToken(csrfToken)
-        val cookieHeader = cookieBridge.storedCookieHeader()
-        val response = client.delete("$baseUrl/user/tab-item/$videoCode") {
-            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-            header(HttpHeaders.Accept, "application/json, text/plain, */*")
-            header("X-CSRF-TOKEN", token)
-            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
-            setBody(FormDataContent(parameters { append("tab", "histories") }))
+
+        suspend fun submit(csrf: String): io.ktor.client.statement.HttpResponse {
+            val cookieHeader = cookieBridge.storedCookieHeader()
+            return client.delete("$baseUrl/user/tab-item/$videoCode") {
+                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+                header(HttpHeaders.Accept, "application/json, text/plain, */*")
+                header("X-CSRF-TOKEN", csrf)
+                cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+                setBody(FormDataContent(parameters { append("tab", "histories") }))
+            }
         }
+
+        val response = submitMutationWithCsrfRetry(
+            initialToken = token,
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, baseUrl) },
+            submit = ::submit,
+        )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to delete online watch history item.")
 

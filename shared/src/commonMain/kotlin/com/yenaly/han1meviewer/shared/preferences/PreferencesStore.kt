@@ -13,7 +13,7 @@ class PreferencesStore(
 ) {
     // Video playback
     val defaultVideoQuality = stringPref("default_video_quality", "1080P")
-    val videoLanguage = stringPref("video_language", "cht")
+    val videoLanguage = stringPref("video_language", "zht")
     val playerSpeed = floatPref("player_speed", 1.0f)
     val allowResumePlayback = booleanPref("allow_resume_playback", true)
     val longPressSpeedTimes = floatPref("long_press_speed_times", 2.0f)

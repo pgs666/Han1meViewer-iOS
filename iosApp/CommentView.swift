@@ -406,10 +406,10 @@ private enum RepliesState {
 }
 
 private struct CommentTextSheet: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var text: String
-    let placeholder: String
-    let submitTitle: String
+    let placeholder: LocalizedStringKey
+    let submitTitle: LocalizedStringKey
     let onCancel: () -> Void
     let onSubmit: () -> Void
 

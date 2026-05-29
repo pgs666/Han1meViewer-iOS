@@ -6,7 +6,7 @@ struct SettingsView: View {
 
     @State private var activeConfirmation: SettingsConfirmation?
     @State private var resultMessage: String?
-    @State private var cacheSizeText = "计算中…"
+    @State private var cacheSizeText = String(localized: "计算中…")
     @State private var crashReportSummary = CrashReporter.latestReportSummary()
     @AppStorage(AppLogger.enabledKey) private var diagnosticLoggingEnabled = true
     @State private var logSizeText = "—"
@@ -15,7 +15,7 @@ struct SettingsView: View {
 
     // Preferences
     @State private var defaultVideoQuality: String = "1080P"
-    @State private var videoLanguage: String = "cht"
+    @State private var videoLanguage: String = "zht"
     @State private var longPressSpeed: Float = 2.0
     @State private var allowResumePlayback: Bool = true
     @State private var forcePortraitFullscreenForVerticalVideos: Bool = true
@@ -93,10 +93,8 @@ struct SettingsView: View {
             }
 
             Picker("字幕语言", selection: $videoLanguage) {
-                Text("繁体中文").tag("cht")
-                Text("简体中文").tag("chs")
-                Text("日文").tag("jp")
-                Text("英文").tag("en")
+                Text("繁体中文").tag("zht")
+                Text("简体中文").tag("zhs")
             }
             .onValueChange(of: videoLanguage) { newValue in
                 environment.preferences().videoLanguage.set(value: newValue)
@@ -365,16 +363,16 @@ struct SettingsView: View {
         switch confirmation {
         case .clearSearchHistory:
             _ = environment.searchFeature().clearHistory()
-            resultMessage = "搜索历史已清除。"
+            resultMessage = String(localized: "搜索历史已清除。")
         case .clearWatchHistory:
             _ = environment.watchHistoryFeature().clear()
-            resultMessage = "本地观看历史已清除。"
+            resultMessage = String(localized: "本地观看历史已清除。")
         case .clearCache:
             let oldSize = cacheSizeText
             Task {
                 await CacheStorage.clearAsync()
                 await refreshCacheSize()
-                resultMessage = "已清除 \(oldSize) 缓存。"
+                resultMessage = String(localized: "已清除 \(oldSize) 缓存。")
             }
         }
         activeConfirmation = nil
@@ -404,22 +402,22 @@ private enum SettingsConfirmation: Identifiable {
     var title: String {
         switch self {
         case .clearSearchHistory:
-            return "确定清除搜索历史？"
+            return String(localized: "确定清除搜索历史？")
         case .clearWatchHistory:
-            return "确定清除本地观看历史？"
+            return String(localized: "确定清除本地观看历史？")
         case .clearCache:
-            return "确定清除缓存？"
+            return String(localized: "确定清除缓存？")
         }
     }
 
     var actionTitle: String {
         switch self {
         case .clearSearchHistory:
-            return "清除搜索历史"
+            return String(localized: "清除搜索历史")
         case .clearWatchHistory:
-            return "清除本地观看历史"
+            return String(localized: "清除本地观看历史")
         case .clearCache:
-            return "清除缓存"
+            return String(localized: "清除缓存")
         }
     }
 }

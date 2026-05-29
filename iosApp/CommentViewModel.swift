@@ -15,15 +15,15 @@ final class CommentViewModel: ObservableObject {
         var title: String {
             switch self {
             case .latest:
-                return "最新"
+                return String(localized: "最新")
             case .earliest:
-                return "最早"
+                return String(localized: "最早")
             case .mostReplies:
-                return "最多回复"
+                return String(localized: "最多回复")
             case .mostLikes:
-                return "最多赞"
+                return String(localized: "最多赞")
             case .mostDislikes:
-                return "最少赞"
+                return String(localized: "最少赞")
             }
         }
     }

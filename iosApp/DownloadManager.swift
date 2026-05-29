@@ -61,6 +61,12 @@ final class DownloadManager: NSObject, ObservableObject {
     /// videoCode|quality -> in-flight task.
     private var activeTasks: [String: URLSessionDownloadTask] = [:]
 
+    /// videoCode|quality -> number of CDN-link-expiry refetch attempts so
+    /// far. Capped at `maxRefetchAttempts` to avoid an infinite
+    /// fail→refetch→requeue→fail loop when a URL is permanently dead.
+    private var refetchCounts: [String: Int] = [:]
+    private let maxRefetchAttempts = 2
+
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.background(withIdentifier: "com.han1meviewer.downloads")
         config.sessionSendsLaunchEvents = true
@@ -156,6 +162,7 @@ final class DownloadManager: NSObject, ObservableObject {
             task.cancel()
             activeTasks[item.id] = nil
         }
+        refetchCounts[item.id] = nil
         try? FileManager.default.removeItem(at: item.localFileURL)
         try? FileManager.default.removeItem(at: Self.resumeDataURL(videoCode: item.videoCode, quality: item.quality))
         store?.delete(videoCode: item.videoCode, quality: item.quality)
@@ -309,6 +316,26 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     nonisolated private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+    /// Whether a completion error looks like an expired/stale CDN link
+    /// (worth re-resolving the video page for a fresh URL) versus a generic
+    /// transport failure (no point re-fetching). HTTP 403/404/410 are the
+    /// classic signed-URL-expiry responses; the listed NSURL error codes
+    /// cover a dropped/dead resource. Everything else fails fast.
+    nonisolated static func isLinkExpiry(status: Int?, error: NSError) -> Bool {
+        if let status, status == 403 || status == 404 || status == 410 {
+            return true
+        }
+        switch error.code {
+        case NSURLErrorResourceUnavailable,
+             NSURLErrorFileDoesNotExist,
+             NSURLErrorBadServerResponse,
+             NSURLErrorTimedOut:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 // MARK: - URLSessionDownloadDelegate
@@ -359,6 +386,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
         guard let key = task.taskDescription else { return }
         let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return }
+        let httpStatus = (task.response as? HTTPURLResponse)?.statusCode
         Task { @MainActor in
             self.activeTasks[key] = nil
             if let error = error as NSError? {
@@ -368,12 +396,27 @@ extension DownloadManager: URLSessionDownloadDelegate {
                     self.startNextIfPossible()
                     return
                 }
-                // Other failure → try a URL re-fetch once (covers expired
-                // CDN tokens after a long pause), which re-queues on success.
-                AppLogger.log("download failed v=\(parts[0]) q=\(parts[1]) code=\(error.code); refetching")
-                self.refetchAndRequeue(key)
+                // Only a CDN-link-expiry-class failure warrants re-resolving
+                // the video page. Other failures (no network, etc.) just fail
+                // so we don't loop. Cap refetches per item.
+                let count = self.refetchCounts[key] ?? 0
+                if Self.isLinkExpiry(status: httpStatus, error: error) && count < self.maxRefetchAttempts {
+                    self.refetchCounts[key] = count + 1
+                    AppLogger.log("download link-expiry v=\(parts[0]) q=\(parts[1]) status=\(httpStatus ?? -1) attempt=\(count + 1); refetching")
+                    self.refetchAndRequeue(key)
+                } else {
+                    AppLogger.log("download failed v=\(parts[0]) q=\(parts[1]) status=\(httpStatus ?? -1) code=\(error.code); giving up")
+                    self.store?.updateState(
+                        videoCode: parts[0],
+                        quality: parts[1],
+                        state: Int32(DownloadState.failed.rawValue)
+                    )
+                    self.reloadItems()
+                    self.startNextIfPossible()
+                }
             } else {
                 AppLogger.log("download finished v=\(parts[0]) q=\(parts[1])")
+                self.refetchCounts[key] = nil
                 self.store?.updateState(
                     videoCode: parts[0],
                     quality: parts[1],
