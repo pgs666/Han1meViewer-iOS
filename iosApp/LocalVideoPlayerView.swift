@@ -59,6 +59,7 @@ struct LocalVideoPlayerView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .hidesTabBarOnAppear()
+        .logScreen("LocalPlayer v=\(videoCode)")
         .statusBarHidden(isFullscreen)
         .ignoresSafeArea(edges: isFullscreen ? .all : [])
         .onDisappear {

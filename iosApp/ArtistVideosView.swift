@@ -55,6 +55,7 @@ struct ArtistVideosView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .hidesTabBarOnAppear()
+            .logScreen("VideoGrid \(title)")
             .onAppear {
                 guard !didStartLoading else { return }
                 didStartLoading = true

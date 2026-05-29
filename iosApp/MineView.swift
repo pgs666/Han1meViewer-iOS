@@ -130,6 +130,7 @@ struct MineView: View {
                 }
             }
             .navigationTitle("我的")
+            .logScreen("Mine")
             .task {
                 viewModel.refreshLoginState()
             }

@@ -18,6 +18,7 @@ struct FollowingView: View {
         CompatibleNavigationStack {
             content
                 .navigationTitle("关注")
+                .logScreen("Following")
                 .refreshable {
                     await viewModel.refresh()
                 }
