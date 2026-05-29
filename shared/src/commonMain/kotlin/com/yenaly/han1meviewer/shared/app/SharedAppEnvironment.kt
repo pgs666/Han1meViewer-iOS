@@ -9,6 +9,7 @@ import com.yenaly.han1meviewer.shared.following.FollowingFeature
 import com.yenaly.han1meviewer.shared.history.WatchHistoryFeature
 import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
 import com.yenaly.han1meviewer.shared.history.OnlineWatchHistoryFeature
+import com.yenaly.han1meviewer.shared.download.DownloadStore
 import com.yenaly.han1meviewer.shared.home.HomeFeature
 import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
 import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
@@ -49,6 +50,7 @@ class SharedAppEnvironment(
     val preferencesStore = PreferencesStore(preferencesStorage)
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
     private val watchHistoryStore = WatchHistoryStore(database)
+    private val downloadStore = DownloadStore(database)
     private val searchHistoryStore = SearchHistoryStore(database)
     private val sharedCookieBridge = KtorCookieBridge(sessionStore, baseUrl)
     private val httpClient = createHan1meHttpClient(
@@ -112,6 +114,11 @@ class SharedAppEnvironment(
     fun watchHistoryFeature(): WatchHistoryFeature {
         return WatchHistoryFeature(watchHistoryStore)
     }
+
+    /// Direct access to the download metadata store. The iOS layer owns
+    /// the actual byte transfer (background URLSession) and uses this
+    /// store only to persist the task list / progress / state.
+    fun downloadStore(): DownloadStore = downloadStore
 
     fun onlineWatchHistoryFeature(): OnlineWatchHistoryFeature {
         return OnlineWatchHistoryFeature(
