@@ -163,13 +163,13 @@ final class VideoDetailViewModel: ObservableObject {
         runningActionIDs.contains(id)
     }
 
-    func showActionMessage(_ message: String) {
-        actionMessage = VideoActionMessage(message: message)
+    func showActionMessage(_ message: String, kind: VideoActionMessage.Kind = .info) {
+        actionMessage = VideoActionMessage(message: message, kind: kind)
     }
 
     func toggleFavorite(snapshot: VideoDetailScreenSnapshot) {
         guard snapshot.currentUserId != nil else {
-            showActionMessage(String(localized: "video.action.login_required"))
+            showActionMessage(String(localized: "video.action.login_required"), kind: .info)
             return
         }
         runAction(id: "favorite") {
@@ -182,13 +182,17 @@ final class VideoDetailViewModel: ObservableObject {
             )
             self.updateLoadedSnapshot { $0.updatingFavorite(isFavorite: nextValue) }
             let messageKey = nextValue ? "video.action.favorite.added" : "video.action.favorite.removed"
-            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
+            // Heart for added, slashed-heart for removed — Apple Music
+            // uses the action-specific glyph (not a plain checkmark) so
+            // the HUD reads as "this is what you just did" at a glance.
+            let symbol = nextValue ? "heart.fill" : "heart.slash.fill"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""), kind: .success(systemImage: symbol))
         }
     }
 
     func toggleWatchLater(snapshot: VideoDetailScreenSnapshot) {
         guard snapshot.currentUserId != nil else {
-            showActionMessage(String(localized: "video.action.login_required"))
+            showActionMessage(String(localized: "video.action.login_required"), kind: .info)
             return
         }
         runAction(id: "watchLater") {
@@ -201,13 +205,14 @@ final class VideoDetailViewModel: ObservableObject {
             )
             self.updateLoadedSnapshot { $0.updatingWatchLater(isSelected: nextValue) }
             let messageKey = nextValue ? "video.action.watch_later.added" : "video.action.watch_later.removed"
-            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
+            let symbol = nextValue ? "clock.fill" : "clock.badge.xmark.fill"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""), kind: .success(systemImage: symbol))
         }
     }
 
     func setMyListItem(snapshot: VideoDetailScreenSnapshot, item: VideoMyListRow, isSelected: Bool) {
         guard snapshot.currentUserId != nil else {
-            showActionMessage(String(localized: "video.action.login_required"))
+            showActionMessage(String(localized: "video.action.login_required"), kind: .info)
             return
         }
         runAction(id: "myList-\(item.code)") {
@@ -219,7 +224,8 @@ final class VideoDetailViewModel: ObservableObject {
             )
             self.updateLoadedSnapshot { $0.updatingMyListItem(code: item.code, isSelected: isSelected) }
             let messageKey = isSelected ? "video.action.playlist.added" : "video.action.playlist.removed"
-            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
+            let symbol = isSelected ? "text.badge.checkmark" : "text.badge.minus"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""), kind: .success(systemImage: symbol))
         }
     }
 
@@ -227,7 +233,7 @@ final class VideoDetailViewModel: ObservableObject {
         guard let artist = snapshot.artist,
               let userId = artist.subscriptionUserId,
               let artistId = artist.subscriptionArtistId else {
-            showActionMessage(String(localized: "video.action.subscription.login_required"))
+            showActionMessage(String(localized: "video.action.subscription.login_required"), kind: .info)
             return
         }
 
@@ -241,7 +247,8 @@ final class VideoDetailViewModel: ObservableObject {
             )
             self.updateLoadedSnapshot { $0.updatingArtistSubscription(isSubscribed: nextValue) }
             let messageKey = nextValue ? "video.action.subscription.added" : "video.action.subscription.removed"
-            self.showActionMessage(NSLocalizedString(messageKey, comment: ""))
+            let symbol = nextValue ? "person.badge.plus.fill" : "person.badge.minus.fill"
+            self.showActionMessage(NSLocalizedString(messageKey, comment: ""), kind: .success(systemImage: symbol))
         }
     }
 
@@ -258,7 +265,10 @@ final class VideoDetailViewModel: ObservableObject {
                 try await operation()
             } catch {
                 CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
-                actionMessage = VideoActionMessage(message: ErrorMessage.userFriendly(error))
+                actionMessage = VideoActionMessage(
+                    message: ErrorMessage.userFriendly(error),
+                    kind: .failure
+                )
             }
         }
     }
@@ -383,6 +393,31 @@ final class VideoDetailViewModel: ObservableObject {
 struct VideoActionMessage: Identifiable {
     let id = UUID()
     let message: String
+    let kind: Kind
+
+    /// HUD style. Carries the SF Symbol that should be shown above the
+    /// message text. Designed to read as the Apple Music / system-volume
+    /// HUD family — a single big centred glyph plus a one-or-two-line
+    /// caption.
+    enum Kind {
+        /// Action succeeded. Caller picks an action-appropriate symbol
+        /// (heart.fill on like, clock.fill on watch-later, etc.). Falls
+        /// back to a checkmark if nil.
+        case success(systemImage: String?)
+        /// Generic failure HUD with an xmark.
+        case failure
+        /// Plain informational HUD (e.g. login required) — uses the
+        /// info.circle.fill glyph; no success/failure colouring.
+        case info
+    }
+
+    var systemImage: String {
+        switch kind {
+        case .success(let symbol): return symbol ?? "checkmark"
+        case .failure:             return "xmark"
+        case .info:                return "info.circle.fill"
+        }
+    }
 }
 
 struct VideoDetailScreenSnapshot {

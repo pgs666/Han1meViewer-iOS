@@ -83,9 +83,41 @@ struct VideoDetailView: View {
                     AppOrientationController.shared.unlockAfterFullscreen()
                 }
             }
-            .alert(item: $viewModel.actionMessage) { message in
-                Alert(title: Text(message.message))
+            // Apple-Music-style centred HUD for action results
+            // (favorited / watch-later / playlist / subscribe / errors).
+            // .overlay so it floats on top of everything, including the
+            // player. allowsHitTesting(false) so it never blocks taps.
+            // The HUD self-dismisses 1.2s after appearing (see .task
+            // modifier on the inner view that's keyed on the message id).
+            .overlay(alignment: .center) {
+                if let actionMessage = viewModel.actionMessage {
+                    AppleStyleHUD(
+                        systemImage: actionMessage.systemImage,
+                        message: actionMessage.message
+                    )
+                    .transition(
+                        .scale(scale: 0.85)
+                        .combined(with: .opacity)
+                    )
+                    .allowsHitTesting(false)
+                    .task(id: actionMessage.id) {
+                        // Auto-dismiss timer. The .task is keyed on the
+                        // message id so consecutive HUDs (e.g. user
+                        // mashes the favorite button) reset the timer
+                        // rather than dismissing early.
+                        try? await Task.sleep(nanoseconds: 1_200_000_000)
+                        // Make sure we're still showing the same message;
+                        // if the user fired another action mid-sleep, the
+                        // task is cancelled and we don't clear theirs.
+                        if viewModel.actionMessage?.id == actionMessage.id {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                viewModel.actionMessage = nil
+                            }
+                        }
+                    }
+                }
             }
+            .animation(.spring(response: 0.32, dampingFraction: 0.78), value: viewModel.actionMessage?.id)
             .onValueChange(of: isPlayerFullscreen) { newValue in
                 // The fullscreen toggle button wraps `isPlayerFullscreen.toggle()`
                 // in `withAnimation(.easeInOut(duration: 0.25))` so the
