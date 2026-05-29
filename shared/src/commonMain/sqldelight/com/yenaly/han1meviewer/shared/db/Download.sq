@@ -10,6 +10,8 @@ CREATE TABLE download (
     -- 0 queued, 1 downloading, 2 paused, 3 finished, 4 failed
     state INTEGER NOT NULL DEFAULT 0,
     added_at_epoch_millis INTEGER NOT NULL,
+    -- last local-playback position for resume, independent of online history
+    playback_position_millis INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (video_code, quality)
 );
 
@@ -34,9 +36,15 @@ INSERT OR REPLACE INTO download(
     total_bytes,
     downloaded_bytes,
     state,
-    added_at_epoch_millis
+    added_at_epoch_millis,
+    playback_position_millis
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updatePlaybackPosition:
+UPDATE download
+SET playback_position_millis = ?
+WHERE video_code = ? AND quality = ?;
 
 updateProgress:
 UPDATE download

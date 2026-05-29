@@ -44,6 +44,15 @@ class DownloadStore(
             downloaded_bytes = item.downloadedBytes,
             state = item.state.toLong(),
             added_at_epoch_millis = item.addedAtEpochMillis,
+            playback_position_millis = item.playbackPositionMillis,
+        )
+    }
+
+    fun updatePlaybackPosition(videoCode: String, quality: String, positionMillis: Long) {
+        database.downloadQueries.updatePlaybackPosition(
+            playback_position_millis = positionMillis.coerceAtLeast(0L),
+            video_code = videoCode,
+            quality = quality,
         )
     }
 
@@ -84,6 +93,7 @@ class DownloadStore(
         downloadedBytes: Long,
         state: Long,
         addedAtEpochMillis: Long,
+        playbackPositionMillis: Long,
     ): DownloadItem = DownloadItem(
         videoCode = videoCode,
         quality = quality,
@@ -95,6 +105,7 @@ class DownloadStore(
         downloadedBytes = downloadedBytes,
         state = state.toInt(),
         addedAtEpochMillis = addedAtEpochMillis,
+        playbackPositionMillis = playbackPositionMillis,
     )
 }
 
@@ -109,4 +120,5 @@ data class DownloadItem(
     val downloadedBytes: Long,
     val state: Int,
     val addedAtEpochMillis: Long,
+    val playbackPositionMillis: Long = 0,
 )

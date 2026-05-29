@@ -62,7 +62,12 @@ struct DownloadsView: View {
 
         if item.isFinished {
             NavigationLink {
-                LocalVideoPlayerView(title: item.title, fileURL: item.localFileURL)
+                LocalVideoPlayerView(
+                    videoCode: item.videoCode,
+                    quality: item.quality,
+                    title: item.title,
+                    fileURL: item.localFileURL
+                )
             } label: {
                 content
             }
