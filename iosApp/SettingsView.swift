@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var crashReportSummary = CrashReporter.latestReportSummary()
     @AppStorage(AppLogger.enabledKey) private var diagnosticLoggingEnabled = true
     @State private var logSizeText = "—"
+    @State private var selectedDomain = AppDomain.currentBaseURL
+    @State private var showDomainRestartHint = false
 
     // Preferences
     @State private var defaultVideoQuality: String = "1080P"
@@ -31,6 +33,7 @@ struct SettingsView: View {
             playbackSettingsSection
             uiSection
             downloadSettingsSection
+            networkSettingsSection
             appInfoSection
             localDataSection
             cacheSection
@@ -228,6 +231,29 @@ struct SettingsView: View {
             Text("缓存")
         } footer: {
             Text("缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。")
+        }
+    }
+
+    @ViewBuilder
+    private var networkSettingsSection: some View {
+        Section {
+            Picker("站点域名", selection: $selectedDomain) {
+                ForEach(AppDomain.options, id: \.url) { option in
+                    Text(option.label).tag(option.url)
+                }
+            }
+            .onValueChange(of: selectedDomain) { newValue in
+                guard newValue != AppDomain.currentBaseURL else { return }
+                AppDomain.setBaseURL(newValue)
+                showDomainRestartHint = true
+            }
+        } header: {
+            Text("网络")
+        } footer: {
+            Text(showDomainRestartHint
+                 ? "域名已切换，请完全退出并重新打开应用以生效。"
+                 : "当某个域名无法访问时，可切换到备用域名。切换后需重启应用生效。")
+            .foregroundStyle(showDomainRestartHint ? Color.orange : Color.secondary)
         }
     }
 
