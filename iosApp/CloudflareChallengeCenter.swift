@@ -7,8 +7,7 @@ enum CloudflareChallengeCenter {
     private static let defaultChallengeURLString = "https://hanime1.me"
 
     static func requestChallengeIfNeeded(for error: Error) {
-        let lowercased = error.localizedDescription.lowercased()
-        if lowercased.contains("cloudflare") || lowercased.contains("cf-mitigated") {
+        if DomainErrorCode.isCloudflare(error) {
             requestChallenge()
         }
     }

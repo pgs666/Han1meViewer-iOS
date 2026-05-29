@@ -86,11 +86,11 @@ final class CommentViewModel: ObservableObject {
     func postComment(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
-            actionMessage = "评论太短"
+            actionMessage = String(localized: "评论太短")
             return
         }
         guard let snapshot = currentSnapshot, let userId = snapshot.currentUserId else {
-            actionMessage = "请先登录"
+            actionMessage = String(localized: "请先登录")
             return
         }
 
@@ -101,7 +101,7 @@ final class CommentViewModel: ObservableObject {
                 csrfToken: snapshot.csrfToken,
                 text: trimmed
             )
-            self.actionMessage = "评论已发送"
+            self.actionMessage = String(localized: "评论已发送")
             self.load()
         }
     }
@@ -109,15 +109,15 @@ final class CommentViewModel: ObservableObject {
     func postReply(to comment: CommentRow, text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
-            actionMessage = "回复太短"
+            actionMessage = String(localized: "回复太短")
             return
         }
         guard currentSnapshot?.currentUserId != nil else {
-            actionMessage = "请先登录"
+            actionMessage = String(localized: "请先登录")
             return
         }
         guard let replyTargetId = comment.replyTargetId else {
-            actionMessage = "无法回复这条评论"
+            actionMessage = String(localized: "无法回复这条评论")
             return
         }
 
@@ -127,7 +127,7 @@ final class CommentViewModel: ObservableObject {
                 csrfToken: self.currentSnapshot?.csrfToken,
                 text: trimmed
             )
-            self.actionMessage = "回复已发送"
+            self.actionMessage = String(localized: "回复已发送")
             self.load()
         }
     }
@@ -148,7 +148,7 @@ final class CommentViewModel: ObservableObject {
 
     func likeAndReturn(comment: CommentRow, isPositive: Bool) async throws -> CommentRow {
         guard currentSnapshot?.currentUserId != nil else {
-            actionMessage = "请先登录"
+            actionMessage = String(localized: "请先登录")
             throw CommentViewModelError.loginRequired
         }
         let generation = requestGeneration
@@ -176,7 +176,7 @@ final class CommentViewModel: ObservableObject {
 
     func report(comment: CommentRow, reason: ReportReasonRow) {
         guard let snapshot = currentSnapshot, snapshot.currentUserId != nil else {
-            actionMessage = "请先登录"
+            actionMessage = String(localized: "请先登录")
             return
         }
 
@@ -188,7 +188,7 @@ final class CommentViewModel: ObservableObject {
                 comment: comment.snapshot,
                 reason: reason.value
             )
-            self.actionMessage = "举报已提交"
+            self.actionMessage = String(localized: "举报已提交")
         }
     }
 
@@ -379,9 +379,9 @@ enum CommentViewModelError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingReplyTarget:
-            return "无法加载回复"
+            return String(localized: "无法加载回复")
         case .loginRequired:
-            return "请先登录"
+            return String(localized: "请先登录")
         }
     }
 }
