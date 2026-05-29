@@ -185,10 +185,19 @@ struct SearchFilterState: Equatable {
             items.append(String(format: String(localized: "search.summary.duration"), duration.displayName))
         }
         if !tags.isEmpty {
-            items.append(String(format: String(localized: "search.summary.tags"), tags.count))
+            // Show the actual tag names (joined), not just a count, so the
+            // search summary / history reads e.g. "标签: 巨乳, 制服" instead
+            // of "标签: 2".
+            let names = tags.map(\.displayName).filter { !$0.isEmpty }.sorted()
+            if !names.isEmpty {
+                items.append(String(format: String(localized: "search.summary.tags"), names.joined(separator: ", ")))
+            }
         }
         if !brands.isEmpty {
-            items.append(String(format: String(localized: "search.summary.brands"), brands.count))
+            let names = brands.map(\.displayName).filter { !$0.isEmpty }.sorted()
+            if !names.isEmpty {
+                items.append(String(format: String(localized: "search.summary.brands"), names.joined(separator: ", ")))
+            }
         }
         if broad {
             items.append(String(localized: "search.summary.broad"))
