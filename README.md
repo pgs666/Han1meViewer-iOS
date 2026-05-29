@@ -266,3 +266,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 - 所有内容仅用于技术研究学习和移动端用户体验优化，不得用于非法用途
 - 原始视频/图文内容版权均归原站或原始制作/发行方所有，本应用不存储、不修改、不声称拥有任何版权内容
 - 使用产生的一切后果由用户自行承担
+
+---
+
+## 🌟 Star 历史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=pgs666/Han1meViewer-iOS&type=Date)](https://star-history.com/#pgs666/Han1meViewer-iOS&Date)
