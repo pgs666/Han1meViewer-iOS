@@ -18,6 +18,9 @@ private struct InteractivePopEnabler: UIViewControllerRepresentable {
 }
 
 final class PopEnablerViewController: UIViewController {
+    // Retained so the recognizer's weak `delegate` doesn't dangle.
+    private let popDelegate = PopGestureDelegate()
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         applyOnce()
@@ -30,12 +33,18 @@ final class PopEnablerViewController: UIViewController {
 
     private func applyOnce() {
         guard let nav = navigationControllerInChain else { return }
-        // Re-enable. We intentionally null out the delegate so UIKit
-        // falls back to its default permissive policy (allow pop
-        // whenever the stack has > 1 vc), instead of whatever
-        // delegate SwiftUI installed that's currently refusing.
+        popDelegate.navigationController = nav
         nav.interactivePopGestureRecognizer?.isEnabled = true
-        nav.interactivePopGestureRecognizer?.delegate = nil
+        // Install our own delegate (NOT nil). nil falls back to a policy
+        // where the edge-swipe refuses to recognise simultaneously with
+        // any other gesture — so the video player's
+        // DragGesture(minimumDistance: 0), which claims the touch the
+        // instant a finger lands, CANCELS the edge swipe. Our delegate
+        // returns true from shouldRecognizeSimultaneouslyWith so the
+        // edge-pop and the SwiftUI drag can both proceed; the player's
+        // left/right deadzone then makes the drag a no-op at the edge,
+        // leaving the pop to drive the back navigation.
+        nav.interactivePopGestureRecognizer?.delegate = popDelegate
     }
 
     private var navigationControllerInChain: UINavigationController? {
@@ -46,6 +55,25 @@ final class PopEnablerViewController: UIViewController {
             node = v.parent
         }
         return nil
+    }
+}
+
+/// Delegate that keeps the edge swipe-back alive even when it overlaps a
+/// SwiftUI gesture (e.g. the video player's full-area drag).
+final class PopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    weak var navigationController: UINavigationController?
+
+    private var canPop: Bool { (navigationController?.viewControllers.count ?? 0) > 1 }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        canPop
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        canPop
     }
 }
 
