@@ -113,6 +113,7 @@ final class DownloadManager: NSObject, ObservableObject {
             playbackPositionMillis: existing?.playbackPositionMillis ?? 0
         )
         store.upsert(item: item)
+        AppLogger.log("download enqueue v=\(videoCode) q=\(quality)")
         reloadItems()
         startNextIfPossible()
     }
@@ -369,8 +370,10 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 }
                 // Other failure → try a URL re-fetch once (covers expired
                 // CDN tokens after a long pause), which re-queues on success.
+                AppLogger.log("download failed v=\(parts[0]) q=\(parts[1]) code=\(error.code); refetching")
                 self.refetchAndRequeue(key)
             } else {
+                AppLogger.log("download finished v=\(parts[0]) q=\(parts[1])")
                 self.store?.updateState(
                     videoCode: parts[0],
                     quality: parts[1],
