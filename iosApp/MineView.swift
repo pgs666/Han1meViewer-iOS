@@ -25,19 +25,18 @@ struct MineView: View {
         CompatibleNavigationStack {
             List {
                 Section {
-                    if viewModel.isCheckingLogin {
-                        MineAccountRow(
-                            isLoggedIn: viewModel.isLoggedIn,
-                            isChecking: viewModel.isCheckingLogin,
-                            profile: viewModel.profile
-                        )
-                    } else if viewModel.isLoggedIn {
+                    if viewModel.isLoggedIn {
+                        // Logged-in (or cached-as-logged-in): tapping the
+                        // card logs out. The background check runs silently;
+                        // only a small trailing spinner / re-login hint
+                        // appears inside the card.
                         Button {
                             activeAlert = .confirmLogout
                         } label: {
                             MineAccountRow(
-                                isLoggedIn: viewModel.isLoggedIn,
+                                isLoggedIn: true,
                                 isChecking: viewModel.isCheckingLogin,
+                                needsReLogin: viewModel.needsReLogin,
                                 profile: viewModel.profile
                             )
                         }
@@ -52,8 +51,9 @@ struct MineView: View {
                             )
                         } label: {
                             MineAccountRow(
-                                isLoggedIn: viewModel.isLoggedIn,
+                                isLoggedIn: false,
                                 isChecking: viewModel.isCheckingLogin,
+                                needsReLogin: viewModel.needsReLogin,
                                 profile: viewModel.profile
                             )
                         }
@@ -117,7 +117,10 @@ struct MineView: View {
                     }
                 }
 
-                if let message = viewModel.errorMessage {
+                // Only show the generic error banner for errors that the
+                // account card isn't already surfacing (the card shows its
+                // own "请重新登录" hint when needsReLogin is set).
+                if let message = viewModel.errorMessage, !viewModel.needsReLogin {
                     Section {
                         Label(message, systemImage: "exclamationmark.triangle")
                             .font(.footnote)
@@ -234,6 +237,7 @@ private enum MineAlert: Identifiable {
 private struct MineAccountRow: View {
     let isLoggedIn: Bool
     let isChecking: Bool
+    let needsReLogin: Bool
     let profile: MineProfileSnapshot
 
     var body: some View {
@@ -245,12 +249,31 @@ private struct MineAccountRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayName)
                     .foregroundStyle(.primary)
-                Text(isChecking ? String(localized: "mine.login.checking") : (isLoggedIn ? String(localized: "mine.login.logout_hint") : String(localized: "mine.login.web_hint")))
+                Text(subtitle)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(needsReLogin ? Color.red : Color.secondary)
+            }
+
+            Spacer()
+
+            // Background-check indicator lives inside the card on the right,
+            // so the login verification never blocks or reshuffles the UI.
+            if isChecking {
+                ProgressView()
+                    .controlSize(.small)
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var subtitle: String {
+        if needsReLogin {
+            return String(localized: "登录已失效，请重新登录")
+        }
+        if isLoggedIn {
+            return String(localized: "mine.login.logout_hint")
+        }
+        return String(localized: "mine.login.web_hint")
     }
 
     private var displayName: String {
@@ -266,10 +289,12 @@ private struct MineAccountRow: View {
             CachedRemoteImage(urlString: avatarUrl, resizeWidth: 42)
         } else {
             ZStack {
+                // Logged-in placeholder uses the neutral primary tint
+                // (black/white adaptive) rather than the accent colour.
                 Circle()
-                    .fill(isLoggedIn ? Color.green.opacity(0.15) : Color.accentColor.opacity(0.12))
-                Image(systemName: isLoggedIn ? "person.crop.circle.fill.badge.checkmark" : "person.crop.circle.badge.checkmark")
-                    .foregroundStyle(isLoggedIn ? .green : .accentColor)
+                    .fill(isLoggedIn ? Color.primary.opacity(0.08) : Color.accentColor.opacity(0.12))
+                Image(systemName: isLoggedIn ? "person.crop.circle.fill" : "person.crop.circle.badge.checkmark")
+                    .foregroundStyle(isLoggedIn ? Color.primary : Color.accentColor)
                     .imageScale(.large)
             }
         }
