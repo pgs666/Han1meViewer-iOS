@@ -2,6 +2,12 @@
 
 > 基于 Kotlin Multiplatform + SwiftUI 的 iOS 移植版本
 
+[![Stars](https://img.shields.io/github/stars/pgs666/Han1meViewer-iOS?style=flat&logo=github&color=yellow)](https://github.com/pgs666/Han1meViewer-iOS/stargazers)
+[![Forks](https://img.shields.io/github/forks/pgs666/Han1meViewer-iOS?style=flat&logo=github&color=blue)](https://github.com/pgs666/Han1meViewer-iOS/network/members)
+[![License](https://img.shields.io/github/license/pgs666/Han1meViewer-iOS?style=flat&color=green)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/pgs666/Han1meViewer-iOS?style=flat&logo=git)](https://github.com/pgs666/Han1meViewer-iOS/commits/main)
+[![CI](https://img.shields.io/github/actions/workflow/status/pgs666/Han1meViewer-iOS/ios-app-build.yml?branch=main&style=flat&logo=github-actions&label=build)](https://github.com/pgs666/Han1meViewer-iOS/actions/workflows/ios-app-build.yml)
+
 ## 📜 项目来源与鸣谢
 
 本项目是 [Han1meViewer](https://github.com/misaka10032w/Han1meViewer) 的 iOS 移植版本。
