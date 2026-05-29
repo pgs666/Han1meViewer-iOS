@@ -459,6 +459,22 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
         // file is deleted as soon as we return.
         try? FileManager.default.removeItem(at: dest)
         try? FileManager.default.moveItem(at: location, to: dest)
+        // DIAGNOSTIC: log what actually landed on disk so we can tell a real
+        // mp4 from an HLS playlist / HTML error page when local playback
+        // shows a black screen. Not a fix — pure signal.
+        let http = downloadTask.response as? HTTPURLResponse
+        let status = http?.statusCode ?? -1
+        let mime = http?.mimeType ?? "?"
+        let size = (try? FileManager.default.attributesOfItem(atPath: dest.path))?[.size] as? NSNumber
+        var magic = "?"
+        if let fh = try? FileHandle(forReadingFrom: dest) {
+            let head = fh.readData(ofLength: 16)
+            try? fh.close()
+            let ascii = String(data: head, encoding: .ascii) ?? ""
+            let hex = head.map { String(format: "%02x", $0) }.joined()
+            magic = "ascii=\(ascii.prefix(16)) hex=\(hex)"
+        }
+        AppLogger.log("download landed v=\(parts[0]) q=\(parts[1]) status=\(status) mime=\(mime) bytes=\(size?.int64Value.description ?? "nil") magic[\(magic)]")
     }
 
     func urlSession(
