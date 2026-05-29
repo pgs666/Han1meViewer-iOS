@@ -322,32 +322,21 @@ struct KSPlayerView: View {
                     // reliably fire pressing(false) when composed with other
                     // simultaneous gestures.
                     //
-                    // The gesture is hosted on an overlay that is INSET 24pt on
-                    // the left/right edges (and clear there) rather than on the
-                    // full-size video view. This is what actually frees the
-                    // screen-edge strips for the system interactive-pop
-                    // (swipe-back) gesture: a SwiftUI DragGesture(minimumDistance:
-                    // 0) covering the full width would claim the touch on
-                    // touch-down before UIKit's edge recogniser could, so merely
-                    // no-oping our handler in the deadzone wasn't enough — the
-                    // edge swipe still got swallowed. By giving the gesture no
-                    // hittable area in the edge strips, the edge swipe reaches
-                    // UIKit. The horizontal-swipe seek can't start exactly at the
-                    // very edge anymore, which is an acceptable trade-off.
-                    .overlay {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .padding(.horizontal, 24)
-                            .simultaneousGesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        handlePressOrSwipe(value, in: proxy.size)
-                                    }
-                                    .onEnded { _ in
-                                        handlePressOrSwipeEnded()
-                                    }
-                            )
-                    }
+                    // Edge handling: the left/right deadzone lives inside
+                    // handlePressOrSwipe (touches starting in the outer 24pt are
+                    // ignored for seek). This gesture stays attached to the
+                    // video view itself — NOT a separate hittable overlay —
+                    // otherwise the overlay would sit above the video and steal
+                    // the tap / double-tap / pinch gestures.
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                handlePressOrSwipe(value, in: proxy.size)
+                            }
+                            .onEnded { _ in
+                                handlePressOrSwipeEnded()
+                            }
+                    )
             }
 
             // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
