@@ -2054,13 +2054,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tags: %d"
+            "value": "Tags: %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标签: %d"
+            "value": "标签: %@"
           }
         }
       }
@@ -2070,13 +2070,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Brands: %d"
+            "value": "Brands: %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "品牌: %d"
+            "value": "品牌: %@"
           }
         }
       }
