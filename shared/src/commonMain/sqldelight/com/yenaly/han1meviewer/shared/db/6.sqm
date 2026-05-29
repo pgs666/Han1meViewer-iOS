@@ -1,0 +1,13 @@
+CREATE TABLE download (
+    video_code TEXT NOT NULL,
+    quality TEXT NOT NULL,
+    title TEXT NOT NULL,
+    cover_url TEXT,
+    remote_url TEXT NOT NULL,
+    local_path TEXT NOT NULL,
+    total_bytes INTEGER NOT NULL DEFAULT 0,
+    downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+    state INTEGER NOT NULL DEFAULT 0,
+    added_at_epoch_millis INTEGER NOT NULL,
+    PRIMARY KEY (video_code, quality)
+);
