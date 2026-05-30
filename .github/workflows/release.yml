@@ -119,20 +119,6 @@ jobs:
           cd "$IPA_DIR"
           /usr/bin/zip -qry "Han1meViewer-${VERSION}-unsigned.ipa" Payload
 
-      - name: Create corresponding source archive (GPL-3.0)
-        # GPL-3.0 §6 requires that distributors of the binary form
-        # provide the corresponding source. We ship an explicit tar.gz
-        # alongside the IPA so the GPL relationship is unambiguous,
-        # even though GitHub also auto-attaches "Source code (zip/tar.gz)".
-        run: |
-          VERSION="${{ steps.ver.outputs.version }}"
-          PREFIX="Han1meViewer-iOS-${VERSION}"
-          mkdir -p build/release
-          git archive --format=tar.gz \
-            --prefix="${PREFIX}/" \
-            -o "build/release/${PREFIX}-source.tar.gz" \
-            HEAD
-
       - name: Stage release assets
         run: |
           VERSION="${{ steps.ver.outputs.version }}"
@@ -160,13 +146,7 @@ jobs:
 
             本项目以 [GNU General Public License v3.0](https://github.com/pgs666/Han1meViewer-iOS/blob/${{ steps.ver.outputs.tag }}/LICENSE) 发布。
 
-            按 GPL-3.0 §6 要求，与本二进制对应的完整源码以下方两种形式提供：
-
-            - `Han1meViewer-iOS-${{ steps.ver.outputs.version }}-source.tar.gz` — 与本 IPA 由同一 commit 构建的源码归档。
-            - GitHub 自动生成的 `Source code (zip)` / `Source code (tar.gz)`。
-
-            `LICENSE.txt` 也作为单独文件附在下方便于查阅。
+            按 GPL-3.0 §6 要求，与本二进制对应的完整源码以下方 GitHub 自动生成的 **Source code (zip)** / **Source code (tar.gz)** 形式提供——它们与本 IPA 由同一 commit (`${{ steps.ver.outputs.tag }}`) 构建。`LICENSE.txt` 也作为单独文件附在下方便于查阅。
           files: |
             build/release/Han1meViewer-${{ steps.ver.outputs.version }}-unsigned.ipa
-            build/release/Han1meViewer-iOS-${{ steps.ver.outputs.version }}-source.tar.gz
             build/release/LICENSE.txt
