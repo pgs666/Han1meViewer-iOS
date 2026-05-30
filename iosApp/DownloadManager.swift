@@ -50,10 +50,6 @@ final class DownloadManager: NSObject, ObservableObject {
     /// every mutation; progress ticks patch entries in place.
     @Published private(set) var items: [DownloadUIItem] = []
 
-    /// Background-session completion handler handed to us by the
-    /// AppDelegate; invoked once all background events are processed.
-    var backgroundCompletionHandler: (() -> Void)?
-
     private var environment: SharedAppEnvironment?
     private var store: DownloadStore?
     private var videoFeature: VideoFeature?
@@ -417,11 +413,6 @@ extension DownloadManager {
         }
     }
 
-    /// All background events delivered; fire the system completion handler.
-    func handleBackgroundEventsFinished() {
-        backgroundCompletionHandler?()
-        backgroundCompletionHandler = nil
-    }
 }
 
 // MARK: - URLSessionDownloadDelegate (nonisolated background-queue shim)
@@ -536,9 +527,4 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
         }
     }
 
-    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-        Task { @MainActor [weak manager] in
-            manager?.handleBackgroundEventsFinished()
-        }
-    }
 }
