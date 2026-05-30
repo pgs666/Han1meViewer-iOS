@@ -29,20 +29,21 @@
 
 - [✨ 功能列表](docs/FEATURES.md) — 完整功能清单 + 路线图
 - [🏗️ 技术架构](docs/ARCHITECTURE.md) — 技术栈、架构图、目录结构
-- [🛠️ 构建与安装](docs/BUILDING.md) — 开发环境、启动流程、自签上机、CI
+- [🛠️ 从源码构建](docs/BUILDING.md) — 开发环境、启动流程、CI
 - [⚠️ 已知问题](docs/known-issues/README.md)
 
-## 🚀 快速开始
+## 📲 安装
 
-```bash
-git clone https://github.com/pgs666/Han1meViewer-iOS.git
-cd Han1meViewer-iOS
-brew install xcodegen && xcodegen generate
-./gradlew :shared:embedAndSignAppleFrameworkForXcode
-# 用 Xcode 打开生成的 .xcodeproj 运行
-```
+本项目不走 App Store 分发，安装到非开发用 iOS 设备需要**自签**。
 
-> 不打算上 App Store。设备上跑的话从 [Actions](https://github.com/pgs666/Han1meViewer-iOS/actions) 下载未签名 IPA，用 Impactor / AltStore / Sideloadly 等自签即可。详见 [构建与安装](docs/BUILDING.md)。
+获取未签名 IPA：
+
+- **稳定版**：[Releases](https://github.com/pgs666/Han1meViewer-iOS/releases) 页下载最新版本的 `Han1meViewer-X.Y.Z-unsigned.ipa`
+- **最新构建**：[Actions](https://github.com/pgs666/Han1meViewer-iOS/actions) 里最近一次成功 build 的 `Han1meViewer-unsigned-ipa` artifact
+
+任何能给 IPA 重签的工具都可以使用：[Impactor](https://github.com/claration/Impactor)、AltStore、Sideloadly、原生 Xcode 开发者签名等。配上自己的 Apple ID 重签后即可安装到设备。
+
+> 想从源码自己构建的开发者请看 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 🐛 问题反馈
 
