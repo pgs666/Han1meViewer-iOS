@@ -141,11 +141,11 @@ private struct DownloadRow: View {
     private var statusLine: String {
         let pct = Int(item.progress * 100)
         switch item.state {
-        case .queued:      return "排队中 · \(item.quality)"
-        case .downloading: return "下载中 \(pct)% · \(item.quality)"
-        case .paused:      return "已暂停 \(pct)% · \(item.quality)"
-        case .finished:    return "已完成 · \(item.quality)"
-        case .failed:      return "下载失败，点击重试 · \(item.quality)"
+        case .queued:      return String(localized: "排队中 · \(item.quality)")
+        case .downloading: return String(localized: "下载中 \(pct)% · \(item.quality)")
+        case .paused:      return String(localized: "已暂停 \(pct)% · \(item.quality)")
+        case .finished:    return String(localized: "已完成 · \(item.quality)")
+        case .failed:      return String(localized: "下载失败，点击重试 · \(item.quality)")
         }
     }
 }

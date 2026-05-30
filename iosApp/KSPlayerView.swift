@@ -235,6 +235,14 @@ struct KSPlayerView: View {
                     }
                     .onFinish { _, _ in onPlaybackEnded() }
                     .onStateChanged { layer, state in
+                        // DIAGNOSTIC: the player previously swallowed every
+                        // state, so a failed open showed only a black screen
+                        // with no clue. Log the error state (and the URL /
+                        // whether it's a local file) so we can see WHY a
+                        // downloaded file won't play. Not a fix — pure signal.
+                        if state == .error {
+                            AppLogger.log("player error state url=\(url.absoluteString) isFile=\(url.isFileURL) state=\(state)")
+                        }
                         let nowPlaying = state.isPlaying
                         if nowPlaying != isPlaying {
                             isPlaying = nowPlaying

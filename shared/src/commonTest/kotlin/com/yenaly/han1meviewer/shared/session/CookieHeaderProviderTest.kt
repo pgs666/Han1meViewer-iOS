@@ -19,7 +19,7 @@ class CookieHeaderProviderTest {
         val provider = CookieHeaderProvider(store)
 
         assertEquals(
-            "user_lang=zh-TW; session=abc; cf_clearance=token",
+            "user_lang=zht; session=abc; cf_clearance=token",
             provider.buildCookieHeader("hanime1.me")
         )
     }
@@ -38,7 +38,7 @@ class CookieHeaderProviderTest {
         )
         val provider = CookieHeaderProvider(store)
 
-        assertEquals("user_lang=zh-TW", provider.buildCookieHeader("hanime1.me"))
+        assertEquals("user_lang=zht", provider.buildCookieHeader("hanime1.me"))
     }
 
     @Test
@@ -55,8 +55,16 @@ class CookieHeaderProviderTest {
         )
         val provider = CookieHeaderProvider(store)
 
-        assertEquals("user_lang=zh-TW", provider.buildCookieHeader("hanime1.me", isSecureTransport = false))
-        assertEquals("user_lang=zh-TW; session=abc", provider.buildCookieHeader("hanime1.me", isSecureTransport = true))
+        assertEquals("user_lang=zht", provider.buildCookieHeader("hanime1.me", isSecureTransport = false))
+        assertEquals("user_lang=zht; session=abc", provider.buildCookieHeader("hanime1.me", isSecureTransport = true))
+    }
+
+    @Test
+    fun injectsSelectedVideoLanguageIntoUserLangCookie() = runTest {
+        val provider = CookieHeaderProvider(MemorySessionStore())
+
+        assertEquals("user_lang=zhs", provider.buildCookieHeader("hanime1.me", videoLanguage = "zhs"))
+        assertEquals("user_lang=zht", provider.buildCookieHeader("hanime1.me", videoLanguage = "zht"))
     }
 
     @Test
@@ -71,7 +79,7 @@ class CookieHeaderProviderTest {
         val provider = CookieHeaderProvider(store)
 
         assertEquals(
-            "user_lang=zh-TW; hanime1_session=new; XSRF-TOKEN=token",
+            "user_lang=zht; hanime1_session=new; XSRF-TOKEN=token",
             provider.buildCookieHeader("hanime1.me")
         )
     }

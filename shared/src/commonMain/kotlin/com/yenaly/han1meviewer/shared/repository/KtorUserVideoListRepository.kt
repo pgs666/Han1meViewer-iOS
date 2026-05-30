@@ -23,8 +23,9 @@ class KtorUserVideoListRepository(
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
+    private val videoLanguageProvider: () -> String = { "zht" },
 ) : UserVideoListRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
     private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getUserVideoList(
@@ -63,19 +64,28 @@ class KtorUserVideoListRepository(
         csrfToken: String?,
     ) {
         val token = requireMutationCsrfToken(csrfToken)
-        val cookieHeader = cookieBridge.storedCookieHeader()
-        val response = client.submitForm(
-            url = "$baseUrl/deletePlayitem",
-            formParameters = parameters {
-                append("playlist_id", type.path) // "likes" or "saves"
-                append("video_id", videoCode)
-                append("count", "1")
-            },
-        ) {
-            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", token)
-            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+
+        suspend fun submit(csrf: String): io.ktor.client.statement.HttpResponse {
+            val cookieHeader = cookieBridge.storedCookieHeader()
+            return client.submitForm(
+                url = "$baseUrl/deletePlayitem",
+                formParameters = parameters {
+                    append("playlist_id", type.path) // "likes" or "saves"
+                    append("video_id", videoCode)
+                    append("count", "1")
+                },
+            ) {
+                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+                header("X-CSRF-TOKEN", csrf)
+                cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+            }
         }
+
+        val response = submitMutationWithCsrfRetry(
+            initialToken = token,
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, baseUrl) },
+            submit = ::submit,
+        )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to remove user list item.")
         val body = response.bodyAsText()
@@ -99,20 +109,30 @@ class KtorUserVideoListRepository(
         csrfToken: String?,
     ) {
         val token = requireMutationCsrfToken(csrfToken)
-        val cookieHeader = cookieBridge.storedCookieHeader()
-        val response = client.submitForm(
-            url = "$baseUrl/save",
-            formParameters = parameters {
-                append("_token", token)
-                append("input_id", listCode)
-                append("video_id", videoCode)
-                append("is_checked", if (isChecked) "1" else "0")
-            },
-        ) {
-            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", token)
-            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+
+        suspend fun submit(csrf: String): io.ktor.client.statement.HttpResponse {
+            val cookieHeader = cookieBridge.storedCookieHeader()
+            return client.submitForm(
+                url = "$baseUrl/save",
+                formParameters = parameters {
+                    append("_token", csrf)
+                    append("input_id", listCode)
+                    append("video_id", videoCode)
+                    append("is_checked", isChecked.toString())
+                    append("user_id", "")
+                },
+            ) {
+                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+                header("X-CSRF-TOKEN", csrf)
+                cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+            }
         }
+
+        val response = submitMutationWithCsrfRetry(
+            initialToken = token,
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, "$baseUrl/watch?v=$videoCode") },
+            submit = ::submit,
+        )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to update list state.")
     }

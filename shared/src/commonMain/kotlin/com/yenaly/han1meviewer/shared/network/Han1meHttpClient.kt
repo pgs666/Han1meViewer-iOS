@@ -2,7 +2,10 @@ package com.yenaly.han1meviewer.shared.network
 
 import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
+import com.yenaly.han1meviewer.shared.repository.HanimeNetworkDefaults
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.http.HttpMethod
 import io.ktor.client.plugins.HttpResponseValidator
@@ -21,45 +24,64 @@ import kotlinx.serialization.json.Json
 internal fun createHan1meHttpClient(
     saveCookies: (suspend (io.ktor.client.statement.HttpResponse) -> Unit)? = null,
     isAlreadyLogin: (suspend () -> Boolean)? = null,
-): HttpClient = HttpClient {
-    install(ContentNegotiation) {
-        json(
-            Json {
-                ignoreUnknownKeys = true
-                explicitNulls = false
+    engine: HttpClientEngine? = null,
+): HttpClient {
+    val config: HttpClientConfig<*>.() -> Unit = {
+        install(ContentNegotiation) {
+            json(
+                Json {
+                    ignoreUnknownKeys = true
+                    explicitNulls = false
+                }
+            )
+        }
+        if (saveCookies != null) {
+            install(ResponseObserver) {
+                onResponse { response -> saveCookies(response) }
             }
-        )
-    }
-    if (saveCookies != null) {
-        install(ResponseObserver) {
-            onResponse { response -> saveCookies(response) }
         }
-    }
-    install(HttpTimeout) {
-        requestTimeoutMillis = 30_000
-        connectTimeoutMillis = 15_000
-        socketTimeoutMillis = 30_000
-    }
-    install(HttpRequestRetry) {
-        retryOnExceptionIf(maxRetries = 2) { request, cause ->
-            cause !is DomainException && request.method in setOf(HttpMethod.Get, HttpMethod.Head)
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30_000
+            connectTimeoutMillis = 15_000
+            socketTimeoutMillis = 30_000
         }
-        exponentialDelay()
-    }
-    install(Logging) {
-        level = LogLevel.NONE
-    }
-    HttpResponseValidator {
-        validateResponse { response ->
-            if (response.isCloudflareChallenge()) {
-                throw DomainException(
-                    DomainError.CloudflareBlocked(
-                        "Cloudflare blocked this request. Open the site in the login browser and try again."
+        install(HttpRequestRetry) {
+            // Read-only GET/HEAD requests fall back across the backup
+            // domains (matching Android HANIME_URL) when the primary is
+            // Cloudflare-blocked or unreachable. POST mutations are never
+            // rotated cross-domain — CSRF token / session cookies are bound
+            // to the domain the page was loaded from.
+            retryOnExceptionIf(maxRetries = HanimeNetworkDefaults.BACKUP_HOSTNAMES.size - 1) { request, cause ->
+                if (request.method !in setOf(HttpMethod.Get, HttpMethod.Head)) return@retryOnExceptionIf false
+                when (cause) {
+                    is DomainException -> cause.error is DomainError.CloudflareBlocked
+                    else -> true // transient IO / connection failures
+                }
+            }
+            modifyRequest { request ->
+                val host = request.url.host
+                if (host in HanimeNetworkDefaults.BACKUP_HOSTNAMES &&
+                    request.method in setOf(HttpMethod.Get, HttpMethod.Head)
+                ) {
+                    HanimeNetworkDefaults.BACKUP_HOSTNAMES.getOrNull(retryCount)?.let { request.url.host = it }
+                }
+            }
+            exponentialDelay()
+        }
+        install(Logging) {
+            level = LogLevel.NONE
+        }
+        HttpResponseValidator {
+            validateResponse { response ->
+                if (response.isCloudflareChallenge()) {
+                    throw DomainException(
+                        DomainError.CloudflareBlocked(
+                            "Cloudflare blocked this request. Open the site in the login browser and try again."
+                        )
                     )
-                )
-            }
-            when (response.status) {
-                HttpStatusCode.Unauthorized -> throw DomainException(
+                }
+                when (response.status) {
+                    HttpStatusCode.Unauthorized -> throw DomainException(
                     DomainError.Auth("Login session expired. Please sign in again.")
                 )
                 HttpStatusCode.Forbidden -> throw DomainException(
@@ -86,6 +108,8 @@ internal fun createHan1meHttpClient(
             }
         }
     }
+    }
+    return if (engine != null) HttpClient(engine, config) else HttpClient(config)
 }
 
 internal fun Headers.setCookieHeaders(): List<String> = getAll(HttpHeaders.SetCookie).orEmpty()

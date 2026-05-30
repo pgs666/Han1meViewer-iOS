@@ -71,6 +71,23 @@ class KsoupHtmlParser : HtmlParser {
         val sections = HOME_SECTION_MAPPINGS.mapNotNull { (index, key) ->
             val items = rows.getOrNull(index).toHanimeInfoList()
             if (items.isEmpty()) null else HomeSection(key = key, title = key, items = items)
+        }.toMutableList()
+
+        // New-anime trailer (預告). Mirrors Android Parser.homePageVer2 for the
+        // non-AV site: read row index 12 — which the upstream layout reuses
+        // for BOTH cosplay AND the trailer rail (TODO: upstream quirk, the
+        // two share an index) — and parse it as simplified units via
+        // `a` + `home-rows-videos-title`, not the generic horizontal-card.
+        val trailerItems = rows.getOrNull(NEW_ANIME_TRAILER_INDEX)
+            ?.select("a")
+            ?.mapNotNull { it.toSimplifiedHanimeInfo() }
+            .orEmpty()
+        if (trailerItems.isNotEmpty()) {
+            sections += HomeSection(
+                key = "newAnimeTrailer",
+                title = "newAnimeTrailer",
+                items = trailerItems,
+            )
         }
 
         return HomePage(
@@ -137,14 +154,16 @@ class KsoupHtmlParser : HtmlParser {
                 .orEmpty()
         }
 
-        val tags = body.select(".single-video-tag a")
-            .map { it.text().substringBefore(" (").removePrefix("#").trim() }
+        // Mirror Android Parser.hanimeVideoVer2: iterate each
+        // `.single-video-tag` container and take its FIRST child element
+        // only when that child carries an `href` (the real tag anchor).
+        // The site's quick-action "add"/"remove" buttons aren't first-child
+        // hrefs, so this drops them structurally — no locale-fragile text
+        // blacklist needed.
+        val tags = body.select(".single-video-tag")
+            .mapNotNull { tag -> tag.children().firstOrNull()?.takeIf { it.hasAttr("href") }?.text() }
+            .map { it.substringBefore(" (").removePrefix("#").trim() }
             .filter { it.isNotEmpty() }
-            // The .single-video-tag container also includes "add" / "remove"
-            // anchors that the site uses as quick-action buttons (add tag /
-            // remove tag from the user's filters). They show up as anchor
-            // text but aren't real tag values, so drop them.
-            .filterNot { it.equals("add", ignoreCase = true) || it.equals("remove", ignoreCase = true) }
 
         val myListItems = body.select("div[class~=playlist-checkbox-wrapper]").mapNotNull { wrapper ->
             val input = wrapper.selectFirst("input") ?: return@mapNotNull null
@@ -524,13 +543,19 @@ class KsoupHtmlParser : HtmlParser {
             ?.selectFirst("input[name=comment-likes-sum]")
             ?.attr("value")
             ?.toIntOrNull()
-        val fallbackThumbUp = postElement
-            ?.selectFirst("#comment-like-form-wrapper")
+        // Mirror Android: thumbUp comes from the 2nd `span[style]`'s text in
+        // the like form. For top-level comments that lives under
+        // `#comment-like-form-wrapper`; for replies the post element itself
+        // holds the spans (no wrapper). Fall back to the hidden likes-sum /
+        // likes-count inputs only when the span isn't a parseable number
+        // (iOS-only robustness; the original uses the span text directly).
+        val likeFormWrapper = postElement?.selectFirst("#comment-like-form-wrapper") ?: postElement
+        val spanThumbUp = likeFormWrapper
             ?.select("span[style]")
             ?.getOrNull(1)
             ?.text()
             ?.toIntOrNull()
-        val thumbUp = commentLikesSum ?: commentLikesCount ?: fallbackThumbUp
+        val thumbUp = spanThumbUp ?: commentLikesSum ?: commentLikesCount
         val id = selectFirst("div[id^=reply-section-wrapper]")
             ?.id()
             ?.substringAfterLast("-")
@@ -616,8 +641,12 @@ class KsoupHtmlParser : HtmlParser {
             11 to "mmd",
             12 to "cosplay",
             13 to "watchingNow",
-            14 to "newAnimeTrailer",
         )
+
+        // Non-AV layout: the trailer rail reuses cosplay's row index. See
+        // Parser.homePageVer2 (Android). Kept separate from the generic
+        // mappings because it parses as simplified units.
+        const val NEW_ANIME_TRAILER_INDEX = 12
     }
 
     override fun extractCsrfToken(html: String): String? {

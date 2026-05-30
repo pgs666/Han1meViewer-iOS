@@ -168,8 +168,7 @@ struct CommentView: View {
                     ForEach(comments) { comment in
                         CommentRowView(
                             comment: comment,
-                            isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)-true")
-                                || viewModel.runningActionIDs.contains("like-\(comment.id)-false"),
+                            isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)"),
                             onReply: {
                                 replyText = "@\(comment.username) "
                                 replyTarget = comment
@@ -387,8 +386,7 @@ private struct CommentRepliesSheet: View {
     }
 
     private func isRunningLike(_ comment: CommentRow) -> Bool {
-        viewModel.runningActionIDs.contains("like-\(comment.id)-true")
-            || viewModel.runningActionIDs.contains("like-\(comment.id)-false")
+        viewModel.runningActionIDs.contains("like-\(comment.id)")
     }
 
     private var reportDialogBinding: Binding<Bool> {
@@ -406,10 +404,10 @@ private enum RepliesState {
 }
 
 private struct CommentTextSheet: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var text: String
-    let placeholder: String
-    let submitTitle: String
+    let placeholder: LocalizedStringKey
+    let submitTitle: LocalizedStringKey
     let onCancel: () -> Void
     let onSubmit: () -> Void
 

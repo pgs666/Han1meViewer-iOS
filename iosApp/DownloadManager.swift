@@ -50,10 +50,6 @@ final class DownloadManager: NSObject, ObservableObject {
     /// every mutation; progress ticks patch entries in place.
     @Published private(set) var items: [DownloadUIItem] = []
 
-    /// Background-session completion handler handed to us by the
-    /// AppDelegate; invoked once all background events are processed.
-    var backgroundCompletionHandler: (() -> Void)?
-
     private var environment: SharedAppEnvironment?
     private var store: DownloadStore?
     private var videoFeature: VideoFeature?
@@ -61,11 +57,36 @@ final class DownloadManager: NSObject, ObservableObject {
     /// videoCode|quality -> in-flight task.
     private var activeTasks: [String: URLSessionDownloadTask] = [:]
 
+    /// videoCode|quality -> number of CDN-link-expiry refetch attempts so
+    /// far. Capped at `maxRefetchAttempts` to avoid an infinite
+    /// fail→refetch→requeue→fail loop when a URL is permanently dead.
+    private var refetchCounts: [String: Int] = [:]
+    private let maxRefetchAttempts = 2
+
+    /// Dedicated delegate so the URLSession callbacks (which arrive on a
+    /// background queue) run on a `nonisolated` type that holds only a
+    /// `weak` reference to this `@MainActor` manager. That makes it
+    /// impossible — by construction, enforced at compile time — to touch
+    /// the store / activeTasks / refetchCounts off the main actor: the
+    /// delegate can only reach them through the manager's `@MainActor`
+    /// handler methods below.
+    private lazy var sessionDelegate = DownloadSessionDelegate(manager: self)
+
     private lazy var session: URLSession = {
-        let config = URLSessionConfiguration.background(withIdentifier: "com.han1meviewer.downloads")
-        config.sessionSendsLaunchEvents = true
-        config.isDiscretionary = false
-        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        // FIX: previously URLSessionConfiguration.background(withIdentifier:),
+        // but on iOS 16 (esp. sideloaded IPAs) the sandbox extension that
+        // would let our app read nsurlsessiond's temp file in
+        // didFinishDownloadingTo is not granted — copyItem fails with
+        // NSCocoaErrorDomain#257 (read-no-permission) and the file is
+        // lost. Switch to a foreground session: the download runs in our
+        // own process and the temp file lands in this app's sandbox,
+        // sidestepping the cross-sandbox dance entirely.
+        // Trade-off: downloads pause when the app is suspended long
+        // enough; resumes when the user re-opens it. Acceptable for the
+        // interactive video-download use case.
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
+        return URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
     }()
 
     private var maxConcurrent: Int {
@@ -156,6 +177,7 @@ final class DownloadManager: NSObject, ObservableObject {
             task.cancel()
             activeTasks[item.id] = nil
         }
+        refetchCounts[item.id] = nil
         try? FileManager.default.removeItem(at: item.localFileURL)
         try? FileManager.default.removeItem(at: Self.resumeDataURL(videoCode: item.videoCode, quality: item.quality))
         store?.delete(videoCode: item.videoCode, quality: item.quality)
@@ -309,12 +331,106 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     nonisolated private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+    /// Whether a completion error looks like an expired/stale CDN link
+    /// (worth re-resolving the video page for a fresh URL) versus a generic
+    /// transport failure (no point re-fetching). HTTP 403/404/410 are the
+    /// classic signed-URL-expiry responses; the listed NSURL error codes
+    /// cover a dropped/dead resource. Everything else fails fast.
+    nonisolated static func isLinkExpiry(status: Int?, error: NSError) -> Bool {
+        if let status, status == 403 || status == 404 || status == 410 {
+            return true
+        }
+        switch error.code {
+        case NSURLErrorResourceUnavailable,
+             NSURLErrorFileDoesNotExist,
+             NSURLErrorBadServerResponse,
+             NSURLErrorTimedOut:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
-// MARK: - URLSessionDownloadDelegate
+// MARK: - MainActor handlers (called by the background delegate)
 
-extension DownloadManager: URLSessionDownloadDelegate {
-    nonisolated func urlSession(
+extension DownloadManager {
+    /// Progress tick. MainActor-only; touches the store + published list.
+    func handleProgress(key: String, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return }
+        store?.updateProgress(
+            videoCode: parts[0],
+            quality: parts[1],
+            downloadedBytes: totalBytesWritten,
+            totalBytes: max(totalBytesExpectedToWrite, 0),
+            state: Int32(DownloadState.downloading.rawValue)
+        )
+        reloadItems()
+    }
+
+    /// Task completion. MainActor-only.
+    func handleCompletion(key: String, httpStatus: Int?, error: NSError?) {
+        let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return }
+        activeTasks[key] = nil
+        if let error {
+            // Explicit user-cancel produced resume data → already paused;
+            // don't overwrite that state.
+            if error.code == NSURLErrorCancelled {
+                startNextIfPossible()
+                return
+            }
+            // Only a CDN-link-expiry-class failure warrants re-resolving
+            // the video page. Other failures (no network, etc.) just fail
+            // so we don't loop. Cap refetches per item.
+            let count = refetchCounts[key] ?? 0
+            if Self.isLinkExpiry(status: httpStatus, error: error) && count < maxRefetchAttempts {
+                refetchCounts[key] = count + 1
+                AppLogger.log("download link-expiry v=\(parts[0]) q=\(parts[1]) status=\(httpStatus ?? -1) attempt=\(count + 1); refetching")
+                refetchAndRequeue(key)
+            } else {
+                AppLogger.log("download failed v=\(parts[0]) q=\(parts[1]) status=\(httpStatus ?? -1) code=\(error.code); giving up")
+                store?.updateState(
+                    videoCode: parts[0],
+                    quality: parts[1],
+                    state: Int32(DownloadState.failed.rawValue)
+                )
+                reloadItems()
+                startNextIfPossible()
+            }
+        } else {
+            AppLogger.log("download finished v=\(parts[0]) q=\(parts[1])")
+            refetchCounts[key] = nil
+            store?.updateState(
+                videoCode: parts[0],
+                quality: parts[1],
+                state: Int32(DownloadState.finished.rawValue)
+            )
+            reloadItems()
+            startNextIfPossible()
+        }
+    }
+
+}
+
+// MARK: - URLSessionDownloadDelegate (nonisolated background-queue shim)
+
+/// Runs on the background URLSession delegate queue. Holds only a `weak`
+/// reference to the `@MainActor` manager and forwards every callback to it,
+/// so it has no way to touch the manager's main-actor-isolated state
+/// directly. The only synchronous work it does itself is the temp-file move
+/// (which must happen inside `didFinishDownloadingTo` before the file is
+/// deleted) — that touches the filesystem only, no shared state.
+final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
+    private weak var manager: DownloadManager?
+
+    init(manager: DownloadManager) {
+        self.manager = manager
+    }
+
+    func urlSession(
         _ session: URLSession,
         downloadTask: URLSessionDownloadTask,
         didWriteData bytesWritten: Int64,
@@ -322,21 +438,16 @@ extension DownloadManager: URLSessionDownloadDelegate {
         totalBytesExpectedToWrite: Int64
     ) {
         guard let key = downloadTask.taskDescription else { return }
-        let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else { return }
-        Task { @MainActor in
-            self.store?.updateProgress(
-                videoCode: parts[0],
-                quality: parts[1],
-                downloadedBytes: totalBytesWritten,
-                totalBytes: max(totalBytesExpectedToWrite, 0),
-                state: Int32(DownloadState.downloading.rawValue)
+        Task { @MainActor [weak manager] in
+            manager?.handleProgress(
+                key: key,
+                totalBytesWritten: totalBytesWritten,
+                totalBytesExpectedToWrite: totalBytesExpectedToWrite
             )
-            self.reloadItems()
         }
     }
 
-    nonisolated func urlSession(
+    func urlSession(
         _ session: URLSession,
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
@@ -344,51 +455,76 @@ extension DownloadManager: URLSessionDownloadDelegate {
         guard let key = downloadTask.taskDescription else { return }
         let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return }
-        let dest = Self.localFileURL(videoCode: parts[0], quality: parts[1])
-        // Must move the file synchronously inside this callback — the temp
-        // file is deleted as soon as we return.
-        try? FileManager.default.removeItem(at: dest)
-        try? FileManager.default.moveItem(at: location, to: dest)
+        let dest = DownloadManager.localFileURL(videoCode: parts[0], quality: parts[1])
+        let fm = FileManager.default
+        // DIAGNOSTIC: capture the actual filesystem state around the move.
+        // Previous round's logs (bytes=nil magic[?]) proved the file was NOT
+        // at dest after the move — but the two `try?`s swallowed the error,
+        // so we don't know WHY. Replace with explicit do/catch + before/after
+        // existence checks. Still not a fix; pure signal.
+        let parent = dest.deletingLastPathComponent()
+        let srcExists = fm.fileExists(atPath: location.path)
+        let parentExists = fm.fileExists(atPath: parent.path)
+        let srcSize: Int64 = {
+            guard let n = (try? fm.attributesOfItem(atPath: location.path))?[.size] as? NSNumber else { return -1 }
+            return n.int64Value
+        }()
+        // FIX: in iOS 13+ the temp URL handed to didFinishDownloadingTo is
+        // a security-scoped resource owned by nsurlsessiond. Without
+        // startAccessingSecurityScopedResource() we cannot move/copy out of
+        // it (NSCocoaErrorDomain#513). Also use copyItem rather than
+        // moveItem — URLSession deletes the temp file automatically after
+        // this callback returns, so a copy is sufficient and avoids cross-
+        // sandbox rename failures.
+        let didStart = location.startAccessingSecurityScopedResource()
+        defer { if didStart { location.stopAccessingSecurityScopedResource() } }
+        var removeErr: String = "ok"
+        do { try fm.removeItem(at: dest) }
+        catch let e as NSError {
+            // Missing file is expected on first run — not a real error.
+            if !(e.domain == NSCocoaErrorDomain && e.code == NSFileNoSuchFileError) {
+                removeErr = "\(e.domain)#\(e.code) \(e.localizedDescription)"
+            }
+        }
+        var moveErr: String = "ok"
+        do { try fm.copyItem(at: location, to: dest) }
+        catch let e as NSError {
+            moveErr = "\(e.domain)#\(e.code) \(e.localizedDescription)"
+        }
+        let destExists = fm.fileExists(atPath: dest.path)
+        let http = downloadTask.response as? HTTPURLResponse
+        let status = http?.statusCode ?? -1
+        let mime = http?.mimeType ?? "?"
+        let size = (try? fm.attributesOfItem(atPath: dest.path))?[.size] as? NSNumber
+        var magic = "?"
+        if let fh = try? FileHandle(forReadingFrom: dest) {
+            let head = fh.readData(ofLength: 16)
+            try? fh.close()
+            let ascii = String(data: head, encoding: .ascii) ?? ""
+            let hex = head.map { String(format: "%02x", $0) }.joined()
+            magic = "ascii=\(ascii.prefix(16)) hex=\(hex)"
+        }
+        AppLogger.log(
+            "download landed v=\(parts[0]) q=\(parts[1])"
+            + " status=\(status) mime=\(mime)"
+            + " src[exists=\(srcExists) bytes=\(srcSize) path=\(location.path)]"
+            + " parent[exists=\(parentExists) path=\(parent.path)]"
+            + " scoped=\(didStart) remove=[\(removeErr)] copy=[\(moveErr)]"
+            + " dest[exists=\(destExists) bytes=\(size?.int64Value.description ?? "nil") magic=\(magic)]"
+        )
     }
 
-    nonisolated func urlSession(
+    func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
         guard let key = task.taskDescription else { return }
-        let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else { return }
-        Task { @MainActor in
-            self.activeTasks[key] = nil
-            if let error = error as NSError? {
-                // Explicit user-cancel produced resume data → already paused;
-                // don't overwrite that state.
-                if error.code == NSURLErrorCancelled {
-                    self.startNextIfPossible()
-                    return
-                }
-                // Other failure → try a URL re-fetch once (covers expired
-                // CDN tokens after a long pause), which re-queues on success.
-                AppLogger.log("download failed v=\(parts[0]) q=\(parts[1]) code=\(error.code); refetching")
-                self.refetchAndRequeue(key)
-            } else {
-                AppLogger.log("download finished v=\(parts[0]) q=\(parts[1])")
-                self.store?.updateState(
-                    videoCode: parts[0],
-                    quality: parts[1],
-                    state: Int32(DownloadState.finished.rawValue)
-                )
-                self.reloadItems()
-                self.startNextIfPossible()
-            }
+        let httpStatus = (task.response as? HTTPURLResponse)?.statusCode
+        let nsError = error as NSError?
+        Task { @MainActor [weak manager] in
+            manager?.handleCompletion(key: key, httpStatus: httpStatus, error: nsError)
         }
     }
 
-    nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-        Task { @MainActor in
-            self.backgroundCompletionHandler?()
-            self.backgroundCompletionHandler = nil
-        }
-    }
 }

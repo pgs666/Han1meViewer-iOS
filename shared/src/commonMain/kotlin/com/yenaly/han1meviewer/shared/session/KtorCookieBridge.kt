@@ -11,6 +11,7 @@ import io.ktor.http.Url
 internal class KtorCookieBridge(
     private val sessionStore: SessionStore,
     baseUrl: String,
+    private val videoLanguageProvider: () -> String = { "zht" },
 ) {
     private val url = Url(baseUrl)
     private val domain = url.host
@@ -18,7 +19,7 @@ internal class KtorCookieBridge(
     private val cookieHeaderProvider = CookieHeaderProvider(sessionStore)
 
     suspend fun storedCookieHeader(): String? {
-        return cookieHeaderProvider.buildCookieHeader(domain, "/", isSecureTransport)
+        return cookieHeaderProvider.buildCookieHeader(domain, "/", isSecureTransport, videoLanguageProvider())
     }
 
     suspend fun applyStoredCookies(builder: HttpRequestBuilder) {
@@ -26,7 +27,7 @@ internal class KtorCookieBridge(
             val urlObj = Url(fullUrl)
             urlObj.encodedPath.ifEmpty { "/" }
         }
-        cookieHeaderProvider.buildCookieHeader(domain, path, isSecureTransport)?.let { cookieHeader ->
+        cookieHeaderProvider.buildCookieHeader(domain, path, isSecureTransport, videoLanguageProvider())?.let { cookieHeader ->
             builder.header(HttpHeaders.Cookie, cookieHeader)
         }
     }

@@ -1,4 +1,3 @@
-import AVKit
 import Foundation
 import Han1meShared
 
@@ -14,25 +13,12 @@ final class VideoDetailViewModel: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published var actionMessage: VideoActionMessage?
     @Published private(set) var runningActionIDs: Set<String> = []
-    @Published private(set) var player: AVPlayer?
-    @Published var playerError: String?
-    @Published var selectedPlaybackSourceID = ""
-    @Published private(set) var selectedPlaybackRate: Float = 1.0
-
-    let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     private let videoFeature: VideoFeature
     private var loadedVideoCode: String?
     private var loadingVideoCode: String?
     private var loadTask: Task<Void, Never>?
-    private var currentPlayerVideoCode: String?
-    private var currentPlayerSourceID: String?
-    private var didApplyRestoredPlaybackPosition = false
-    private var playerItemStatusObservation: NSKeyValueObservation?
-    private var failedToPlayObserver: NSObjectProtocol?
-    /// 已写入 db 的最近一次播放进度（毫秒）。`recordPlaybackPosition(seconds:)` 用它做
-    /// 大幅倒退保护，避免 KSPlayer 启动期 onPlay(0~少秒) 把已保存的 resume position
-    /// 抹掉。每次 `load(videoCode:)` 时 reset；snapshot loaded 后用 db 已存值初始化。
+    /// 已写入 db 的最近一次播放进度（毫秒）。snapshot loaded 后用 db 已存值初始化基线。
     private var lastSavedPlaybackMillis: Int64?
 
     init(videoFeature: VideoFeature) {
@@ -55,8 +41,6 @@ final class VideoDetailViewModel: ObservableObject {
 
     func load(videoCode: String) {
         loadTask?.cancel()
-        persistPlaybackPosition()
-        releasePlayer()
         loadedVideoCode = nil
         lastSavedPlaybackMillis = nil
         loadingVideoCode = videoCode
@@ -92,58 +76,13 @@ final class VideoDetailViewModel: ObservableObject {
         }
     }
 
-    func preparePlayer(snapshot: VideoDetailScreenSnapshot) {
-        let defaultSource = snapshot.playbackSources.first { $0.isDefault } ?? snapshot.playbackSources.first
-        let source = snapshot.playbackSources.first { $0.id == selectedPlaybackSourceID } ?? defaultSource
-        guard let source else {
-            releasePlayer()
-            return
-        }
-
-        if selectedPlaybackSourceID != source.id {
-            selectedPlaybackSourceID = source.id
-        }
-        configurePlayer(snapshot: snapshot, sourceID: source.id, preservePosition: false)
-    }
-
-    func selectPlaybackSource(snapshot: VideoDetailScreenSnapshot, sourceID: String) {
-        selectedPlaybackSourceID = sourceID
-        configurePlayer(snapshot: snapshot, sourceID: sourceID, preservePosition: true)
-    }
-
-    func selectPlaybackRate(_ rate: Float) {
-        guard playbackRates.contains(rate) else { return }
-        selectedPlaybackRate = rate
-        applyPlaybackRateIfNeeded()
-    }
-
-    func persistPlaybackPosition() {
-        guard let currentPlayerVideoCode,
-              case .loaded(let snapshot) = state,
-              snapshot.videoCode == currentPlayerVideoCode,
-              let currentTimeMillis = player?.currentTime().positiveMillis else {
-            return
-        }
-
-        videoFeature.recordPlaybackPosition(
-            videoCode: snapshot.videoCode,
-            playbackPositionMillis: currentTimeMillis
-        )
-    }
-
-    /// 由外部播放器（如 KSPlayer）回调当前播放时间时使用，
-    /// 与 `persistPlaybackPosition()` 等价但不依赖 `self.player`。
+    /// 由外部播放器（KSPlayer）回调当前播放时间时写入观看进度 db。
     ///
-    /// **No regression guard here on purpose.** Earlier we kept a 30s
-    /// regression cap to defend against KSPlayer firing early-stage onPlay
-    /// ticks (current=0..few seconds) before its startPlayTime seek had
-    /// landed. That cap also blocked legitimate user-seek-backwards (e.g.
-    /// jumping from 2:00 back to 1:00), so the saved resume position
-    /// behaved like "highest point reached" instead of "last known
-    /// position". The startup-phantom problem is now solved upstream in
-    /// `KSPlayerView.onPlay` (hasReachedStartPlayTime gate), so this layer
-    /// can faithfully mirror the player's current time and the user's
-    /// rewind seeks survive across re-entry.
+    /// No regression guard here on purpose: the startup-phantom problem
+    /// (KSPlayer firing early 0..few-second onPlay ticks before its
+    /// startPlayTime seek lands) is handled upstream in `KSPlayerView.onPlay`
+    /// (hasReachedStartPlayTime gate), so this layer faithfully mirrors the
+    /// player's current time and the user's rewind seeks survive re-entry.
     func recordPlaybackPosition(seconds: TimeInterval) {
         guard case .loaded(let snapshot) = state else { return }
         let clampedSeconds = max(0, seconds)
@@ -153,11 +92,6 @@ final class VideoDetailViewModel: ObservableObject {
             videoCode: snapshot.videoCode,
             playbackPositionMillis: millis
         )
-    }
-
-    func pausePlayer() {
-        persistPlaybackPosition()
-        player?.pause()
     }
 
     func isActionRunning(_ id: String) -> Bool {
@@ -281,116 +215,6 @@ final class VideoDetailViewModel: ObservableObject {
         state = .loaded(transform(snapshot))
     }
 
-    private func configurePlayer(
-        snapshot: VideoDetailScreenSnapshot,
-        sourceID: String,
-        preservePosition: Bool
-    ) {
-        guard let source = snapshot.playbackSources.first(where: { $0.id == sourceID }) ?? snapshot.playbackSources.first,
-              let url = URL(string: source.url) else {
-            releasePlayer()
-            return
-        }
-
-        if currentPlayerVideoCode == snapshot.videoCode,
-           currentPlayerSourceID == source.id,
-           player != nil {
-            applyPlaybackRateIfNeeded()
-            return
-        }
-
-        let previousPlayer = player
-        let previousTime = preservePosition ? previousPlayer?.currentTime() : nil
-        let shouldResume = previousPlayer?.timeControlStatus == .playing
-        previousPlayer?.pause()
-
-        let nextPlayer = AVPlayer(url: url)
-        player = nextPlayer
-        playerError = nil
-        currentPlayerVideoCode = snapshot.videoCode
-        currentPlayerSourceID = source.id
-        observePlayerItemErrors(nextPlayer)
-
-        let restoredTime = !preservePosition && !didApplyRestoredPlaybackPosition
-            ? CMTime(positiveMilliseconds: snapshot.playbackPositionMillis)
-            : nil
-        let seekTime = previousTime ?? restoredTime
-        didApplyRestoredPlaybackPosition = true
-
-        if let seekTime {
-            nextPlayer.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak nextPlayer] _ in
-                Task { @MainActor in
-                    guard let self,
-                          let nextPlayer,
-                          self.player === nextPlayer,
-                          shouldResume else {
-                        return
-                    }
-                    self.resume(nextPlayer)
-                }
-            }
-        } else if shouldResume {
-            resume(nextPlayer)
-        }
-    }
-
-    private func resume(_ player: AVPlayer) {
-        player.playImmediately(atRate: selectedPlaybackRate)
-    }
-
-    private func applyPlaybackRateIfNeeded() {
-        guard let player,
-              player.timeControlStatus == .playing || player.rate != 0 else {
-            return
-        }
-        player.rate = selectedPlaybackRate
-    }
-
-    private func releasePlayer() {
-        removePlayerObservers()
-        player?.pause()
-        player = nil
-        playerError = nil
-        selectedPlaybackSourceID = ""
-        currentPlayerVideoCode = nil
-        currentPlayerSourceID = nil
-        didApplyRestoredPlaybackPosition = false
-    }
-
-    private func observePlayerItemErrors(_ player: AVPlayer) {
-        removePlayerObservers()
-
-        // Observe player item status changes for errors
-        if let item = player.currentItem {
-            playerItemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-                guard item.status == .failed else { return }
-                let message = item.error?.localizedDescription ?? "Video playback failed."
-                Task { @MainActor [weak self] in
-                    self?.playerError = message
-                }
-            }
-        }
-
-        // Observe failedToPlayToEndTime notification
-        failedToPlayObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemFailedToPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { [weak self] notification in
-            let message = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?
-                .localizedDescription ?? "Video playback failed to reach end."
-            self?.playerError = message
-        }
-    }
-
-    private func removePlayerObservers() {
-        playerItemStatusObservation?.invalidate()
-        playerItemStatusObservation = nil
-        if let observer = failedToPlayObserver {
-            NotificationCenter.default.removeObserver(observer)
-            failedToPlayObserver = nil
-        }
-    }
 }
 
 struct VideoActionMessage: Identifiable {
@@ -769,21 +593,5 @@ struct VideoMyListRow: Identifiable, Hashable {
 
     func updatingSelection(_ isSelected: Bool) -> VideoMyListRow {
         VideoMyListRow(code: code, title: title, isSelected: isSelected)
-    }
-}
-
-private extension CMTime {
-    init?(positiveMilliseconds milliseconds: Int64) {
-        guard milliseconds > 0 else {
-            return nil
-        }
-        self.init(seconds: Double(milliseconds) / 1000, preferredTimescale: 600)
-    }
-
-    var positiveMillis: Int64? {
-        guard isValid, isNumeric, seconds.isFinite, seconds > 0 else {
-            return nil
-        }
-        return Int64(seconds * 1000)
     }
 }

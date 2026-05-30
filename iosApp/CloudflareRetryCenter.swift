@@ -66,8 +66,7 @@ enum CloudflareRetryCenter {
         do {
             return try await block()
         } catch {
-            let lowercased = error.localizedDescription.lowercased()
-            guard lowercased.contains("cloudflare") || lowercased.contains("cf-mitigated") else {
+            guard DomainErrorCode.isCloudflare(error) else {
                 throw error
             }
             

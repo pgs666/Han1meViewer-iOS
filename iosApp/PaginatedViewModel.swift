@@ -107,8 +107,7 @@ class PaginatedViewModel<S: PaginatedSnapshot>: ObservableObject {
     }
 
     func applyLoadError(_ error: Error, appendingTo existingSnapshot: S?) {
-        let lowercased = error.localizedDescription.lowercased()
-        if (lowercased.contains("cloudflare") || lowercased.contains("cf-mitigated")) && !isRetryingCF {
+        if DomainErrorCode.isCloudflare(error) && !isRetryingCF {
             // Show CF challenge and auto-retry
             CloudflareChallengeCenter.requestChallenge()
             let page = existingSnapshot?.page ?? 1

@@ -79,7 +79,8 @@ struct VideoDetailView: View {
                 viewModel.load(videoCode: videoCode)
             }
             .onDisappear {
-                viewModel.pausePlayer()
+                // KSPlayer pauses itself in its own .onDisappear; the
+                // detail VM no longer owns a player.
                 if isPlayerFullscreen {
                     AppOrientationController.shared.unlockAfterFullscreen()
                 }

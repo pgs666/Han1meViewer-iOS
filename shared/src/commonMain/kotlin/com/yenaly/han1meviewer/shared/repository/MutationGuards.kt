@@ -2,9 +2,46 @@ package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
+import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
+import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
+
+/**
+ * Fetches [pageUrl] solely to (a) refresh cookies (the server rotates
+ * XSRF-TOKEN / laravel_session as part of its security model) and
+ * (b) extract a fresh `_token` for retrying a mutation that just
+ * returned 419. Returns null if the page fails to load — the caller then
+ * surfaces the original 419. Shared by every repository's mutation retry.
+ */
+internal suspend fun fetchFreshCsrfTokenAt(
+    client: HttpClient,
+    cookieBridge: KtorCookieBridge,
+    parser: KsoupHtmlParser,
+    pageUrl: String,
+): String? {
+    return try {
+        val response = client.get(pageUrl) {
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+            header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            cookieBridge.applyStoredCookies(this)
+        }
+        cookieBridge.saveResponseCookies(response)
+        if (response.status.value !in 200..299) return null
+        parser.extractCsrfToken(response.bodyAsText())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+}
 
 internal fun requireMutationCsrfToken(csrfToken: String?): String {
     return csrfToken?.takeIf { it.isNotBlank() }
