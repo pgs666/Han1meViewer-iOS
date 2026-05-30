@@ -77,9 +77,19 @@ final class DownloadManager: NSObject, ObservableObject {
     private lazy var sessionDelegate = DownloadSessionDelegate(manager: self)
 
     private lazy var session: URLSession = {
-        let config = URLSessionConfiguration.background(withIdentifier: "com.han1meviewer.downloads")
-        config.sessionSendsLaunchEvents = true
-        config.isDiscretionary = false
+        // FIX: previously URLSessionConfiguration.background(withIdentifier:),
+        // but on iOS 16 (esp. sideloaded IPAs) the sandbox extension that
+        // would let our app read nsurlsessiond's temp file in
+        // didFinishDownloadingTo is not granted — copyItem fails with
+        // NSCocoaErrorDomain#257 (read-no-permission) and the file is
+        // lost. Switch to a foreground session: the download runs in our
+        // own process and the temp file lands in this app's sandbox,
+        // sidestepping the cross-sandbox dance entirely.
+        // Trade-off: downloads pause when the app is suspended long
+        // enough; resumes when the user re-opens it. Acceptable for the
+        // interactive video-download use case.
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
         return URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
     }()
 
