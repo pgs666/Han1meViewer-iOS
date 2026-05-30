@@ -1,4 +1,6 @@
-# 构建与安装
+# 从源码构建
+
+> 想直接装上设备使用的话，请看仓库 [README](../README.md#-安装) 的「安装」章节，下载未签名 IPA 自签即可。本页面是给想从源码自己构建的开发者看的。
 
 ## 开发环境
 
@@ -34,18 +36,14 @@
 
 > Xcode 的 Pre-build Script 会自动执行 Gradle 构建，首次编译可能较慢。
 
-## 自签上机
-
-由于本项目无意走 App Store 分发，安装到非开发用 iOS 设备需要自签。推荐使用 **[Impactor](https://github.com/claration/Impactor)** 给 GitHub Actions 产出的未签名 IPA 重签：
-
-1. 从本仓库 [Actions](https://github.com/pgs666/Han1meViewer-iOS/actions) 下载最新一次成功 build 的 `Han1meViewer-unsigned-ipa` artifact
-2. 用 Impactor 配合自己的 Apple ID 重签并安装到设备
-
-> 这里只是个人偏好的推荐，任何能给 IPA 重签的工具（AltStore、Sideloadly、原生开发者签名等）原则上都可以用。
-
 ## CI
 
-GitHub Actions 工作流：`.github/workflows/ios-app-build.yml`
+GitHub Actions 工作流位于 `.github/workflows/`：
 
-- `:shared:jvmTest` 跑 KMP 共享层单元测试
-- `xcodebuild` 构建未签名 IPA（产物 artifact 可下载）
+- **`ios-app-build.yml`**：每次 push / PR 触发
+  - `:shared:jvmTest` 跑 KMP 共享层单元测试
+  - `xcodebuild` 构建 Debug 配置的未签名 IPA（artifact 90 天可下载）
+- **`release.yml`**：推 `v*` tag 或手动触发
+  - 构建 Release 配置的未签名 IPA
+  - 打包对应 commit 的源码归档（满足 GPL-3.0 §6 要求）
+  - 创建 GitHub Release 并附 IPA + 源码 + LICENSE
