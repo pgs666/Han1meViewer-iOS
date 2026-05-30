@@ -468,6 +468,15 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
             guard let n = (try? fm.attributesOfItem(atPath: location.path))?[.size] as? NSNumber else { return -1 }
             return n.int64Value
         }()
+        // FIX: in iOS 13+ the temp URL handed to didFinishDownloadingTo is
+        // a security-scoped resource owned by nsurlsessiond. Without
+        // startAccessingSecurityScopedResource() we cannot move/copy out of
+        // it (NSCocoaErrorDomain#513). Also use copyItem rather than
+        // moveItem — URLSession deletes the temp file automatically after
+        // this callback returns, so a copy is sufficient and avoids cross-
+        // sandbox rename failures.
+        let didStart = location.startAccessingSecurityScopedResource()
+        defer { if didStart { location.stopAccessingSecurityScopedResource() } }
         var removeErr: String = "ok"
         do { try fm.removeItem(at: dest) }
         catch let e as NSError {
@@ -477,7 +486,7 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
             }
         }
         var moveErr: String = "ok"
-        do { try fm.moveItem(at: location, to: dest) }
+        do { try fm.copyItem(at: location, to: dest) }
         catch let e as NSError {
             moveErr = "\(e.domain)#\(e.code) \(e.localizedDescription)"
         }
@@ -499,7 +508,7 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
             + " status=\(status) mime=\(mime)"
             + " src[exists=\(srcExists) bytes=\(srcSize) path=\(location.path)]"
             + " parent[exists=\(parentExists) path=\(parent.path)]"
-            + " remove=[\(removeErr)] move=[\(moveErr)]"
+            + " scoped=\(didStart) remove=[\(removeErr)] copy=[\(moveErr)]"
             + " dest[exists=\(destExists) bytes=\(size?.int64Value.description ?? "nil") magic=\(magic)]"
         )
     }
