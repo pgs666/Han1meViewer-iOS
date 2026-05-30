@@ -8,4 +8,4 @@
 | 部分动画在 iOS 16 缺失 | 受系统限制 | 标签栏滑动等动画依赖 iOS 17+ API，iOS 16 上功能正常但无对应动画。 |
 | 后台下载暂停 | 设计如此 | iOS 16 + 当前签名/分发上下文下 background URLSession 的跨沙盒访问扩展不可用，下载使用前台 URLSession。App 被系统挂起足够久会暂停下载，回到 App 自动续。 |
 
-> 如发现此处未列出的问题，欢迎参照 [问题反馈](../REPORTING_ISSUES.md) 提交 Issue。
+> 如发现此处未列出的问题，欢迎到 [GitHub Issues](https://github.com/pgs666/Han1meViewer-iOS/issues) 提交。提交方式（含崩溃日志和诊断日志的获取）请参照仓库 [README](../../README.md#-问题反馈) 的「问题反馈」章节。
