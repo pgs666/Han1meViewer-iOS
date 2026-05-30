@@ -6,14 +6,19 @@ import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 class CookieHeaderProvider(
     private val sessionStore: SessionStore,
 ) {
-    suspend fun buildCookieHeader(domain: String, requestPath: String = "/", isSecureTransport: Boolean = true): String? {
+    suspend fun buildCookieHeader(
+        domain: String,
+        requestPath: String = "/",
+        isSecureTransport: Boolean = true,
+        videoLanguage: String = "zht",
+    ): String? {
         val now = currentEpochMillis()
         val storedCookies = sessionStore.loadCookies()
             .filter { cookie -> cookie.matchesDomain(domain) }
             .filter { cookie -> cookie.matchesPath(requestPath) }
             .filter { cookie -> cookie.expiresAtEpochMillis == null || cookie.expiresAtEpochMillis > now }
             .filter { cookie -> !cookie.secure || isSecureTransport }
-        val prefCookies = preferencesCookies(domain)
+        val prefCookies = preferencesCookies(domain, videoLanguage)
             .filter { pref -> storedCookies.none { it.name == pref.name } }
         val cookies = storedCookies + prefCookies
 
@@ -32,7 +37,7 @@ class CookieHeaderProvider(
      * These persist across login/logout (like Android's preferencesCookieList).
      * The video language defaults to the device locale and can be overridden via settings.
      */
-    fun preferencesCookies(domain: String, videoLanguage: String = "zh-TW"): List<SessionCookie> {
+    fun preferencesCookies(domain: String, videoLanguage: String = "zht"): List<SessionCookie> {
         return listOf(
             SessionCookie(
                 name = "user_lang",

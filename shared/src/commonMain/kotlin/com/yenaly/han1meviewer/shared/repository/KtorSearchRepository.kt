@@ -21,8 +21,9 @@ class KtorSearchRepository(
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
+    private val videoLanguageProvider: () -> String = { "zht" },
 ) : SearchRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
     private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun search(params: SearchParams, page: Int): PageResult<HanimeInfo> {

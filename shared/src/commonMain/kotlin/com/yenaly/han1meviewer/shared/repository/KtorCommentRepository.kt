@@ -17,6 +17,7 @@ import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.parameters
@@ -26,8 +27,9 @@ class KtorCommentRepository(
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     client: HttpClient? = null,
     private val parser: KsoupHtmlParser = KsoupHtmlParser(),
+    private val videoLanguageProvider: () -> String = { "zht" },
 ) : CommentRepository {
-    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl)
+    private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
     private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
 
     override suspend fun getComments(type: CommentTargetType, code: String): VideoComments {
@@ -65,23 +67,32 @@ class KtorCommentRepository(
         text: String,
     ) {
         val token = requireMutationCsrfToken(csrfToken)
-        val cookieHeader = cookieBridge.storedCookieHeader()
-        val response = client.submitForm(
-            url = "$baseUrl/createComment",
-            formParameters = parameters {
-                append("_token", token)
-                append("comment-user-id", currentUserId)
-                append("comment-type", type.value)
-                append("comment-foreign-id", targetId)
-                append("comment-text", text)
-                append("comment-count", "1")
-                append("comment-is-political", "0")
-            },
-        ) {
-            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", token)
-            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+
+        suspend fun submit(csrf: String): HttpResponse {
+            val cookieHeader = cookieBridge.storedCookieHeader()
+            return client.submitForm(
+                url = "$baseUrl/createComment",
+                formParameters = parameters {
+                    append("_token", csrf)
+                    append("comment-user-id", currentUserId)
+                    append("comment-type", type.value)
+                    append("comment-foreign-id", targetId)
+                    append("comment-text", text)
+                    append("comment-count", "1")
+                    append("comment-is-political", "0")
+                },
+            ) {
+                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+                header("X-CSRF-TOKEN", csrf)
+                cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+            }
         }
+
+        val response = submitMutationWithCsrfRetry(
+            initialToken = token,
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, "$baseUrl/watch?v=$targetId") },
+            submit = ::submit,
+        )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to post comment.")
     }
@@ -92,19 +103,28 @@ class KtorCommentRepository(
         text: String,
     ) {
         val token = requireMutationCsrfToken(csrfToken)
-        val cookieHeader = cookieBridge.storedCookieHeader()
-        val response = client.submitForm(
-            url = "$baseUrl/replyComment",
-            formParameters = parameters {
-                append("_token", token)
-                append("reply-comment-id", replyCommentId)
-                append("reply-comment-text", text)
-            },
-        ) {
-            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", token)
-            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+
+        suspend fun submit(csrf: String): HttpResponse {
+            val cookieHeader = cookieBridge.storedCookieHeader()
+            return client.submitForm(
+                url = "$baseUrl/replyComment",
+                formParameters = parameters {
+                    append("_token", csrf)
+                    append("reply-comment-id", replyCommentId)
+                    append("reply-comment-text", text)
+                },
+            ) {
+                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+                header("X-CSRF-TOKEN", csrf)
+                cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+            }
         }
+
+        val response = submitMutationWithCsrfRetry(
+            initialToken = token,
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, baseUrl) },
+            submit = ::submit,
+        )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to post reply.")
     }
@@ -116,25 +136,34 @@ class KtorCommentRepository(
         comment: VideoComment,
     ) {
         val token = requireMutationCsrfToken(csrfToken)
-        val cookieHeader = cookieBridge.storedCookieHeader()
-        val response = client.submitForm(
-            url = "$baseUrl/commentLike",
-            formParameters = parameters {
-                append("_token", token)
-                append("foreign_type", place.value)
-                append("foreign_id", comment.post.foreignId.orEmpty())
-                append("is_positive", if (isPositive) "1" else "0")
-                append("comment-like-user-id", comment.post.likeUserId.orEmpty())
-                append("comment-likes-count", (comment.post.commentLikesCount ?: 0).toString())
-                append("comment-likes-sum", (comment.post.commentLikesSum ?: 0).toString())
-                append("like-comment-status", if (comment.post.likeCommentStatus) "1" else "0")
-                append("unlike-comment-status", if (comment.post.unlikeCommentStatus) "1" else "0")
-            },
-        ) {
-            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", token)
-            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+
+        suspend fun submit(csrf: String): HttpResponse {
+            val cookieHeader = cookieBridge.storedCookieHeader()
+            return client.submitForm(
+                url = "$baseUrl/commentLike",
+                formParameters = parameters {
+                    append("_token", csrf)
+                    append("foreign_type", place.value)
+                    append("foreign_id", comment.post.foreignId.orEmpty())
+                    append("is_positive", if (isPositive) "1" else "0")
+                    append("comment-like-user-id", comment.post.likeUserId.orEmpty())
+                    append("comment-likes-count", (comment.post.commentLikesCount ?: 0).toString())
+                    append("comment-likes-sum", (comment.post.commentLikesSum ?: 0).toString())
+                    append("like-comment-status", if (comment.post.likeCommentStatus) "1" else "0")
+                    append("unlike-comment-status", if (comment.post.unlikeCommentStatus) "1" else "0")
+                },
+            ) {
+                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+                header("X-CSRF-TOKEN", csrf)
+                cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+            }
         }
+
+        val response = submitMutationWithCsrfRetry(
+            initialToken = token,
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, baseUrl) },
+            submit = ::submit,
+        )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to update comment reaction.")
     }
@@ -150,21 +179,30 @@ class KtorCommentRepository(
         val currentUserId = userId?.takeIf { it.isNotBlank() }
             ?: throw DomainException(DomainError.Auth("Login is required to report comments."))
         val token = requireMutationCsrfToken(csrfToken)
-        val cookieHeader = cookieBridge.storedCookieHeader()
-        val response = client.submitForm(
-            url = "$baseUrl/user/$currentUserId/report",
-            formParameters = parameters {
-                append("_token", token)
-                append("redirect-url", redirectUrl)
-                append("reportable-id", reportableId.orEmpty())
-                append("reportable-type", reportableType.orEmpty())
-                append("reason", reason)
-            },
-        ) {
-            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
-            header("X-CSRF-TOKEN", token)
-            cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+
+        suspend fun submit(csrf: String): HttpResponse {
+            val cookieHeader = cookieBridge.storedCookieHeader()
+            return client.submitForm(
+                url = "$baseUrl/user/$currentUserId/report",
+                formParameters = parameters {
+                    append("_token", csrf)
+                    append("redirect-url", redirectUrl)
+                    append("reportable-id", reportableId.orEmpty())
+                    append("reportable-type", reportableType.orEmpty())
+                    append("reason", reason)
+                },
+            ) {
+                header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+                header("X-CSRF-TOKEN", csrf)
+                cookieHeader?.let { header(HttpHeaders.Cookie, it) }
+            }
         }
+
+        val response = submitMutationWithCsrfRetry(
+            initialToken = token,
+            refreshToken = { fetchFreshCsrfTokenAt(client, cookieBridge, parser, baseUrl) },
+            submit = ::submit,
+        )
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to report comment.")
     }

@@ -1,8 +1,13 @@
 name: Han1meViewer
 options:
   bundleIdPrefix: com.yenaly
+  developmentLanguage: zh-Hans
   deploymentTarget:
     iOS: "16.0"
+knownRegions:
+  - en
+  - zh-Hans
+  - Base
 settings:
   base:
     SWIFT_VERSION: "5.0"
