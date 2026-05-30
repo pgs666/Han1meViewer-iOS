@@ -1,0 +1,170 @@
+name: Release
+
+# Build an unsigned IPA, bundle the corresponding source archive (so the
+# release page satisfies GPL-3.0 §6's requirement to provide source
+# alongside the binary), and create a GitHub Release.
+#
+# Triggers:
+#   - Pushing an annotated tag `vX.Y.Z` (e.g. `git tag -a v0.1.0 -m "..." && git push --tags`)
+#   - Manually via workflow_dispatch with a version input (e.g. 0.1.0)
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 0.1.0)'
+        required: true
+        default: '0.1.0'
+      prerelease:
+        description: 'Mark this release as a pre-release'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write   # required to create the release and tag
+
+jobs:
+  release:
+    name: Build IPA and publish release
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # Full history ensures `git archive HEAD` produces a complete
+          # source tree matching the commit being released.
+          fetch-depth: 0
+
+      - name: Resolve version and tag
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+            TAG="v${VERSION}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Releasing version ${VERSION} as tag ${TAG}"
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Cache Kotlin/Native (~/.konan)
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/build.gradle.kts', 'gradle.properties') }}
+          restore-keys: |
+            konan-${{ runner.os }}-
+
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('project.yml') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Run shared JVM tests
+        run: ./gradlew :shared:jvmTest --no-daemon
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned device app
+        run: |
+          xcodebuild \
+            -project Han1meViewer.xcodeproj \
+            -scheme Han1meViewer \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            -jobs "$(sysctl -n hw.ncpu)" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          APP_PATH="$(pwd)/build/Build/Products/Release-iphoneos/Han1meViewer.app"
+          IPA_DIR="$(pwd)/build/ipa"
+          mkdir -p "$IPA_DIR/Payload"
+          cp -R "$APP_PATH" "$IPA_DIR/Payload/"
+          cd "$IPA_DIR"
+          /usr/bin/zip -qry "Han1meViewer-${VERSION}-unsigned.ipa" Payload
+
+      - name: Create corresponding source archive (GPL-3.0)
+        # GPL-3.0 §6 requires that distributors of the binary form
+        # provide the corresponding source. We ship an explicit tar.gz
+        # alongside the IPA so the GPL relationship is unambiguous,
+        # even though GitHub also auto-attaches "Source code (zip/tar.gz)".
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          PREFIX="Han1meViewer-iOS-${VERSION}"
+          mkdir -p build/release
+          git archive --format=tar.gz \
+            --prefix="${PREFIX}/" \
+            -o "build/release/${PREFIX}-source.tar.gz" \
+            HEAD
+
+      - name: Stage release assets
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          mkdir -p build/release
+          cp "build/ipa/Han1meViewer-${VERSION}-unsigned.ipa" build/release/
+          cp LICENSE build/release/LICENSE.txt
+          ls -la build/release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Han1meViewer iOS ${{ steps.ver.outputs.version }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prerelease == 'true' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            ## 安装
+
+            下方 `Han1meViewer-${{ steps.ver.outputs.version }}-unsigned.ipa` 是未签名 IPA。
+            自行重签后安装到设备即可（推荐 Impactor / AltStore / Sideloadly 等任一自签工具）。
+            构建/安装详细说明见 [docs/BUILDING.md](https://github.com/pgs666/Han1meViewer-iOS/blob/${{ steps.ver.outputs.tag }}/docs/BUILDING.md)。
+
+            ## 许可证（GPL-3.0）
+
+            本项目以 [GNU General Public License v3.0](https://github.com/pgs666/Han1meViewer-iOS/blob/${{ steps.ver.outputs.tag }}/LICENSE) 发布。
+
+            按 GPL-3.0 §6 要求，与本二进制对应的完整源码以下方两种形式提供：
+
+            - `Han1meViewer-iOS-${{ steps.ver.outputs.version }}-source.tar.gz` — 与本 IPA 由同一 commit 构建的源码归档。
+            - GitHub 自动生成的 `Source code (zip)` / `Source code (tar.gz)`。
+
+            `LICENSE.txt` 也作为单独文件附在下方便于查阅。
+          files: |
+            build/release/Han1meViewer-${{ steps.ver.outputs.version }}-unsigned.ipa
+            build/release/Han1meViewer-iOS-${{ steps.ver.outputs.version }}-source.tar.gz
+            build/release/LICENSE.txt
