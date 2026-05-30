@@ -63,6 +63,11 @@ jobs:
 
       - name: Build unsigned device app
         run: |
+          # Stamp the IPA with a dev marker + short commit hash so the
+          # Settings → 关于 page shows e.g. "dev (8d7c017)" instead of the
+          # static project.yml default "1.0 (1)". Real releases overwrite
+          # these in release.yml with the tag version + run number.
+          SHORT_SHA="${GITHUB_SHA:0:7}"
           xcodebuild \
             -project Han1meViewer.xcodeproj \
             -scheme Han1meViewer \
@@ -74,6 +79,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="dev" \
+            CURRENT_PROJECT_VERSION="${SHORT_SHA}" \
             build
 
       - name: Package unsigned IPA
