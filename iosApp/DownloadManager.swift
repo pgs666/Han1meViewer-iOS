@@ -455,17 +455,37 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
         let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return }
         let dest = DownloadManager.localFileURL(videoCode: parts[0], quality: parts[1])
-        // Must move the file synchronously inside this callback — the temp
-        // file is deleted as soon as we return.
-        try? FileManager.default.removeItem(at: dest)
-        try? FileManager.default.moveItem(at: location, to: dest)
-        // DIAGNOSTIC: log what actually landed on disk so we can tell a real
-        // mp4 from an HLS playlist / HTML error page when local playback
-        // shows a black screen. Not a fix — pure signal.
+        let fm = FileManager.default
+        // DIAGNOSTIC: capture the actual filesystem state around the move.
+        // Previous round's logs (bytes=nil magic[?]) proved the file was NOT
+        // at dest after the move — but the two `try?`s swallowed the error,
+        // so we don't know WHY. Replace with explicit do/catch + before/after
+        // existence checks. Still not a fix; pure signal.
+        let parent = dest.deletingLastPathComponent()
+        let srcExists = fm.fileExists(atPath: location.path)
+        let parentExists = fm.fileExists(atPath: parent.path)
+        let srcSize: Int64 = {
+            guard let n = (try? fm.attributesOfItem(atPath: location.path))?[.size] as? NSNumber else { return -1 }
+            return n.int64Value
+        }()
+        var removeErr: String = "ok"
+        do { try fm.removeItem(at: dest) }
+        catch let e as NSError {
+            // Missing file is expected on first run — not a real error.
+            if !(e.domain == NSCocoaErrorDomain && e.code == NSFileNoSuchFileError) {
+                removeErr = "\(e.domain)#\(e.code) \(e.localizedDescription)"
+            }
+        }
+        var moveErr: String = "ok"
+        do { try fm.moveItem(at: location, to: dest) }
+        catch let e as NSError {
+            moveErr = "\(e.domain)#\(e.code) \(e.localizedDescription)"
+        }
+        let destExists = fm.fileExists(atPath: dest.path)
         let http = downloadTask.response as? HTTPURLResponse
         let status = http?.statusCode ?? -1
         let mime = http?.mimeType ?? "?"
-        let size = (try? FileManager.default.attributesOfItem(atPath: dest.path))?[.size] as? NSNumber
+        let size = (try? fm.attributesOfItem(atPath: dest.path))?[.size] as? NSNumber
         var magic = "?"
         if let fh = try? FileHandle(forReadingFrom: dest) {
             let head = fh.readData(ofLength: 16)
@@ -474,7 +494,14 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
             let hex = head.map { String(format: "%02x", $0) }.joined()
             magic = "ascii=\(ascii.prefix(16)) hex=\(hex)"
         }
-        AppLogger.log("download landed v=\(parts[0]) q=\(parts[1]) status=\(status) mime=\(mime) bytes=\(size?.int64Value.description ?? "nil") magic[\(magic)]")
+        AppLogger.log(
+            "download landed v=\(parts[0]) q=\(parts[1])"
+            + " status=\(status) mime=\(mime)"
+            + " src[exists=\(srcExists) bytes=\(srcSize) path=\(location.path)]"
+            + " parent[exists=\(parentExists) path=\(parent.path)]"
+            + " remove=[\(removeErr)] move=[\(moveErr)]"
+            + " dest[exists=\(destExists) bytes=\(size?.int64Value.description ?? "nil") magic=\(magic)]"
+        )
     }
 
     func urlSession(
