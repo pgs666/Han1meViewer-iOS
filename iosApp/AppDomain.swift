@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Available site domains, mirroring the Android client's domain switch
 /// (HanimeConstants.HANIME_URL). The selected domain is persisted under
@@ -10,13 +11,13 @@ import Foundation
 enum AppDomain {
     static let preferenceKey = "domain_name"
 
-    /// (display label, base URL). Base URLs have NO trailing slash to match
-    /// SharedAppEnvironment's expectation.
-    static let options: [(label: String, url: String)] = [
-        ("hanime1.me (默认)", "https://hanime1.me"),
-        ("hanime1.com (备用)", "https://hanime1.com"),
-        ("hanimeone.me (备用)", "https://hanimeone.me"),
-        ("javchu.com (AV)", "https://javchu.com"),
+    /// (host shown verbatim, base URL, localized suffix key). Base URLs
+    /// have NO trailing slash to match SharedAppEnvironment's expectation.
+    static let options: [(host: String, url: String, suffix: LocalizedStringKey)] = [
+        ("hanime1.me", "https://hanime1.me", "默认"),
+        ("hanime1.com", "https://hanime1.com", "备用"),
+        ("hanimeone.me", "https://hanimeone.me", "备用"),
+        ("javchu.com", "https://javchu.com", "AV"),
     ]
 
     static let defaultBaseURL = "https://hanime1.me"

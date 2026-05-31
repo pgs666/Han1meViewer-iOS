@@ -74,7 +74,7 @@ struct UserPlaylistView: View {
                             NavigationLink {
                                 UserVideoListView(
                                     title: playlist.title,
-                                    emptyMessage: "暂无清单视频",
+                                    emptyMessage: String(localized: "暂无清单视频"),
                                     feature: environment.playlistVideoListFeature(listCode: playlist.listCode),
                                     environment: environment
                                 )

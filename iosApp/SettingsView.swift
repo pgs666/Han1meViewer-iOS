@@ -237,7 +237,8 @@ struct SettingsView: View {
         Section {
             Picker("站点域名", selection: $selectedDomain) {
                 ForEach(AppDomain.options, id: \.url) { option in
-                    Text(option.label).tag(option.url)
+                    (Text(verbatim: option.host) + Text(verbatim: " (") + Text(option.suffix) + Text(verbatim: ")"))
+                        .tag(option.url)
                 }
             }
             .onValueChange(of: selectedDomain) { newValue in
@@ -423,7 +424,7 @@ private enum SettingsConfirmation: Identifiable {
 }
 
 private struct SettingsInfoRow: View {
-    let title: String
+    let title: LocalizedStringKey
     let value: String
 
     var body: some View {
@@ -437,7 +438,7 @@ private struct SettingsInfoRow: View {
 }
 
 private struct SettingsNavigationRow: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
 
     var body: some View {

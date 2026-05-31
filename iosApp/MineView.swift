@@ -72,8 +72,8 @@ struct MineView: View {
                 Section("我的列表") {
                     NavigationLink {
                         UserVideoListView(
-                            title: "稍后观看",
-                            emptyMessage: "暂无稍后观看",
+                            title: String(localized: "稍后观看"),
+                            emptyMessage: String(localized: "暂无稍后观看"),
                             feature: environment.watchLaterFeature(),
                             environment: environment
                         )
@@ -82,8 +82,8 @@ struct MineView: View {
                     }
                     NavigationLink {
                         UserVideoListView(
-                            title: "收藏影片",
-                            emptyMessage: "暂无收藏影片",
+                            title: String(localized: "收藏影片"),
+                            emptyMessage: String(localized: "暂无收藏影片"),
                             feature: environment.favoriteVideoFeature(),
                             environment: environment
                         )
@@ -304,7 +304,7 @@ private struct MineAccountRow: View {
 }
 
 private struct MineMenuRow: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
 
     var body: some View {
