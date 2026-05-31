@@ -3,6 +3,12 @@ import Han1meShared
 
 struct FollowingView: View {
     @StateObject private var viewModel: FollowingViewModel
+    /// Default false → the subscribed-artists row is a horizontal scroll
+    /// strip (compact). Tapping the section header's expand button flips
+    /// it true and the row reflows into a full LazyVGrid that shows every
+    /// artist at once. Animated via withAnimation so the transition is
+    /// smooth instead of snapping.
+    @State private var isArtistsExpanded = false
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
     private let searchFeature: SearchFeature
@@ -62,9 +68,18 @@ struct FollowingView: View {
         case .loaded(let snapshot), .loadingMore(let snapshot):
             List {
                 if !snapshot.artists.isEmpty {
-                    Section("订阅作者") {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 14) {
+                    Section {
+                        if isArtistsExpanded {
+                            // Full grid: shows every subscribed artist
+                            // at once. minimum: 84 leaves room for the
+                            // 58pt avatar + 12pt of breathing room
+                            // either side; the 1-line caption clamps
+                            // to 72pt inside FollowingArtistCell so
+                            // long names truncate uniformly.
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 84), spacing: 14)],
+                                spacing: 14
+                            ) {
                                 ForEach(snapshot.artists) { artist in
                                     NavigationLink {
                                         ArtistVideosView(
@@ -80,6 +95,48 @@ struct FollowingView: View {
                                 }
                             }
                             .padding(.vertical, 4)
+                        } else {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 14) {
+                                    ForEach(snapshot.artists) { artist in
+                                        NavigationLink {
+                                            ArtistVideosView(
+                                                artistName: artist.name,
+                                                searchFeature: searchFeature,
+                                                videoFeature: videoFeature,
+                                                commentFeature: commentFeature
+                                            )
+                                        } label: {
+                                            FollowingArtistCell(artist: artist)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    } header: {
+                        HStack {
+                            Text("订阅作者")
+                            Spacer()
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.22)) {
+                                    isArtistsExpanded.toggle()
+                                }
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text(isArtistsExpanded ? "收起" : "展开")
+                                    Image(systemName: isArtistsExpanded ? "chevron.up" : "chevron.down")
+                                        .imageScale(.small)
+                                }
+                                .foregroundStyle(.tint)
+                            }
+                            .buttonStyle(.plain)
+                            // Section header text is auto-uppercased on
+                            // some locales; we don't want that bleeding
+                            // into the button label, so opt out for the
+                            // whole HStack.
+                            .textCase(nil)
                         }
                     }
                 }
