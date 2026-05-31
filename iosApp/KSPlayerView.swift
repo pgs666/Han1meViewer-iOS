@@ -475,9 +475,23 @@ struct KSPlayerView: View {
             stateLogBudget = 8
             lastLoadedEnd = 0
             lastSampleAt = nil
-            isLoading = true
+            // Initialize isLoading from the player's CURRENT state if a
+            // layer is already attached, so a re-appearance (e.g. user
+            // pushed an artist / tag sub-page and returned) doesn't
+            // wrongly flash the loading HUD over an already-paused or
+            // already-ready player. KSPlayer doesn't re-fire onStateChanged
+            // when the state hasn't actually changed across the navigation,
+            // so unconditional isLoading=true here would stay true forever.
+            // Fresh mounts (no layer yet) keep the default-true behaviour
+            // so the HUD covers the gap before the first state callback.
+            switch coordinator.playerLayer?.state {
+            case .bufferFinished?, .paused?, .playedToTheEnd?, .error?:
+                isLoading = false
+            default:
+                isLoading = true
+            }
             currentSpeedText = nil
-            startSpeedSampling()
+            if isLoading { startSpeedSampling() }
             AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
         }
         .onDisappear {
