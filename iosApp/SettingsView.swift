@@ -13,19 +13,35 @@ struct SettingsView: View {
     @State private var selectedDomain = AppDomain.currentBaseURL
     @State private var showDomainRestartHint = false
 
-    // Preferences
-    @State private var defaultVideoQuality: String = "1080P"
-    @State private var videoLanguage: String = "zht"
-    @State private var longPressSpeed: Float = 2.0
-    @State private var allowResumePlayback: Bool = true
-    @State private var forcePortraitFullscreenForVerticalVideos: Bool = true
-    @State private var autoPlayOnEnter: Bool = true
-    @State private var maxConcurrentDownloads: Int = 2
-    @State private var showPlayedIndicator: Bool = true
-    @State private var showBottomProgress: Bool = true
+    // Preferences. Seeded with the REAL stored values in init() so the
+    // controls render at their actual positions on first frame. Previously
+    // these held hard-coded defaults and were overwritten by loadPreferences()
+    // from .task AFTER `await refreshCacheSize()` — that late batch of ~9
+    // @State writes landed inside the push transition window, which made
+    // SwiftUI drop the push animation (and showed the sliders visibly jump
+    // from default to real value).
+    @State private var defaultVideoQuality: String
+    @State private var videoLanguage: String
+    @State private var longPressSpeed: Float
+    @State private var allowResumePlayback: Bool
+    @State private var forcePortraitFullscreenForVerticalVideos: Bool
+    @State private var autoPlayOnEnter: Bool
+    @State private var maxConcurrentDownloads: Int
+    @State private var showPlayedIndicator: Bool
+    @State private var showBottomProgress: Bool
 
     init(environment: SharedAppEnvironment) {
         self.environment = environment
+        let prefs = environment.preferences()
+        _defaultVideoQuality = State(initialValue: prefs.defaultVideoQuality.get())
+        _videoLanguage = State(initialValue: prefs.videoLanguage.get())
+        _longPressSpeed = State(initialValue: prefs.longPressSpeedTimes.get())
+        _allowResumePlayback = State(initialValue: prefs.allowResumePlayback.get())
+        _forcePortraitFullscreenForVerticalVideos = State(initialValue: prefs.forcePortraitFullscreenForVerticalVideos.get())
+        _autoPlayOnEnter = State(initialValue: prefs.autoPlayOnEnter.get())
+        _maxConcurrentDownloads = State(initialValue: Int(prefs.maxConcurrentDownloads.get()))
+        _showPlayedIndicator = State(initialValue: prefs.showPlayedIndicator.get())
+        _showBottomProgress = State(initialValue: prefs.showBottomProgress.get())
     }
 
     var body: some View {
@@ -65,7 +81,6 @@ struct SettingsView: View {
         }
         .task {
             await refreshCacheSize()
-            loadPreferences()
             refreshLogSize()
         }
     }
@@ -296,21 +311,6 @@ struct SettingsView: View {
                 Text("如果应用上次异常退出，这里会显示最后记录的异常摘要，帮助定位上次异常退出。")
             }
         }
-    }
-
-    // MARK: - Preferences
-
-    private func loadPreferences() {
-        let prefs = environment.preferences()
-        defaultVideoQuality = prefs.defaultVideoQuality.get()
-        videoLanguage = prefs.videoLanguage.get()
-        longPressSpeed = prefs.longPressSpeedTimes.get()
-        allowResumePlayback = prefs.allowResumePlayback.get()
-        forcePortraitFullscreenForVerticalVideos = prefs.forcePortraitFullscreenForVerticalVideos.get()
-        autoPlayOnEnter = prefs.autoPlayOnEnter.get()
-        maxConcurrentDownloads = Int(prefs.maxConcurrentDownloads.get())
-        showPlayedIndicator = prefs.showPlayedIndicator.get()
-        showBottomProgress = prefs.showBottomProgress.get()
     }
 
     // MARK: - Helpers
