@@ -257,18 +257,14 @@ private struct MineAccountRow: View {
             }
 
             Spacer()
-
-            // Background-check indicator lives inside the card on the right,
-            // so the login verification never blocks or reshuffles the UI.
-            if isChecking {
-                ProgressView()
-                    .controlSize(.small)
-            }
         }
         .padding(.vertical, 2)
     }
 
     private var subtitle: String {
+        if isChecking {
+            return String(localized: "mine.login.checking")
+        }
         if needsReLogin {
             return String(localized: "登录已失效，请重新登录")
         }
