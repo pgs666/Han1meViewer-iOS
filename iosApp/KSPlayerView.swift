@@ -142,6 +142,9 @@ struct KSPlayerView: View {
     @State private var isBuffering = false
     @State private var currentSpeedText: String?
     @State private var speedSampleTask: Task<Void, Never>?
+    /// Caps diagnostic log spam: only log the first few sample-failure
+    /// reasons per buffering session, then stay quiet.
+    @State private var speedDiagBudget: Int = 0
 
     private enum DragKind: Equatable {
         case none
@@ -273,6 +276,7 @@ struct KSPlayerView: View {
                         if buffering != isBuffering {
                             isBuffering = buffering
                             if buffering {
+                                speedDiagBudget = 3
                                 startSpeedSampling()
                             } else {
                                 speedSampleTask?.cancel()
@@ -505,15 +509,57 @@ struct KSPlayerView: View {
     /// `observedBitrate` from the latest access-log event. Returns nil for
     /// non-AVPlayer backends or when no events are available yet.
     private func sampleNetworkSpeed() -> String? {
-        guard let player = coordinator.playerLayer?.player else { return nil }
-        guard let avPlayer = Self.findAVPlayer(in: player) else { return nil }
-        guard
-            let item = avPlayer.currentItem,
-            let event = item.accessLog()?.events.last
-        else { return nil }
+        guard let player = coordinator.playerLayer?.player else {
+            logSpeedDiag("no playerLayer.player")
+            return nil
+        }
+        guard let avPlayer = Self.findAVPlayer(in: player) else {
+            logSpeedDiag("no AVPlayer in \(type(of: player)); children=\(Self.describeChildren(of: player))")
+            return nil
+        }
+        guard let item = avPlayer.currentItem else {
+            logSpeedDiag("no currentItem on \(type(of: avPlayer))")
+            return nil
+        }
+        guard let log = item.accessLog() else {
+            logSpeedDiag("no accessLog on currentItem")
+            return nil
+        }
+        guard let event = log.events.last else {
+            logSpeedDiag("accessLog has \(log.events.count) events")
+            return nil
+        }
         let bps = event.observedBitrate
-        guard bps > 0 else { return nil }
-        return Self.formatSpeed(bytesPerSec: bps / 8.0)
+        // Some events report 0 bitrate but have non-zero byte counts; fall
+        // back to numberOfBytesTransferred / transferDuration when possible.
+        if bps > 0 {
+            return Self.formatSpeed(bytesPerSec: bps / 8.0)
+        }
+        let bytes = event.numberOfBytesTransferred
+        let dur = event.transferDuration
+        if bytes > 0, dur > 0 {
+            return Self.formatSpeed(bytesPerSec: Double(bytes) / dur)
+        }
+        logSpeedDiag("event empty: bps=\(bps) bytes=\(bytes) dur=\(dur)")
+        return nil
+    }
+
+    private func logSpeedDiag(_ message: String) {
+        guard speedDiagBudget > 0 else { return }
+        speedDiagBudget -= 1
+        AppLogger.log("speed-sample: \(message)")
+    }
+
+    /// Compact one-line summary of an object's top-level Mirror children,
+    /// for diagnosing cases where findAVPlayer fails to traverse to the
+    /// underlying AVPlayer.
+    private static func describeChildren(of any: Any) -> String {
+        let mirror = Mirror(reflecting: any)
+        let parts = mirror.children.prefix(8).map { child -> String in
+            let label = child.label ?? "?"
+            return "\(label):\(type(of: child.value))"
+        }
+        return "[\(parts.joined(separator: ", "))]"
     }
 
     private static func findAVPlayer(in any: Any, depth: Int = 0) -> AVPlayer? {
