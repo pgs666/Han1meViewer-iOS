@@ -50,6 +50,20 @@ final class VideoDetailViewModel: ObservableObject {
         }
     }
 
+    /// Pull-to-refresh: re-fetch without flipping to `.loading`, so the
+    /// current content stays on screen (no full-screen spinner flash) while
+    /// the request runs. The system pull-to-refresh indicator covers the
+    /// wait. On success the snapshot is replaced — this DOES rebuild the
+    /// player and reload the video, which is acceptable for an explicit
+    /// refresh; the point is just to remove the jarring blank-out.
+    func refresh(videoCode: String) async {
+        loadTask?.cancel()
+        loadedVideoCode = nil
+        lastSavedPlaybackMillis = nil
+        loadingVideoCode = videoCode
+        await loadVideo(videoCode: videoCode)
+    }
+
     private func loadVideo(videoCode: String) async {
         defer {
             if loadingVideoCode == videoCode {
