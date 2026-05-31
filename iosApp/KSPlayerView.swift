@@ -136,15 +136,15 @@ struct KSPlayerView: View {
     @State private var physicalVolumeHUDHideTask: Task<Void, Never>?
 
     // MARK: - Buffering / loading feedback
-    /// True while the player is in `.buffering` (initial load or mid-playback
-    /// rebuffer). When true the body renders `loadingHUD` and a 1Hz sampler
-    /// updates `currentSpeedText` from AVPlayerItem.accessLog.
-    @State private var isBuffering = false
+    /// True while the player has not yet reached a settled state (one of
+    /// .bufferFinished / .paused / .playedToTheEnd / .error). Defaults to
+    /// true so the HUD is visible from the moment the view mounts —
+    /// otherwise the first .initialized / .readyToPlay / .preparing
+    /// window (which can be long for slow networks) leaves the user
+    /// staring at a paused-looking play button with no loading hint.
+    @State private var isLoading: Bool = true
     @State private var currentSpeedText: String?
     @State private var speedSampleTask: Task<Void, Never>?
-    /// Caps diagnostic log spam: only log the first few sample-failure
-    /// reasons per buffering session, then stay quiet.
-    @State private var speedDiagBudget: Int = 0
     /// Previous loadedTimeRanges-end and wall-clock timestamp, used to
     /// synthesise speed from buffer-fill rate × track bitrate when
     /// AVPlayerItem.accessLog is nil (typical for progressive mp4 where
@@ -317,11 +317,19 @@ struct KSPlayerView: View {
                             isPlaying = nowPlaying
                             onPlayingChanged(nowPlaying)
                         }
-                        let buffering = (state == .buffering)
-                        if buffering != isBuffering {
-                            isBuffering = buffering
-                            if buffering {
-                                speedDiagBudget = 3
+                        let nowLoading: Bool
+                        switch state {
+                        case .bufferFinished, .paused, .playedToTheEnd, .error:
+                            nowLoading = false
+                        default:
+                            // .initialized / .readyToPlay / .buffering /
+                            // any future case from KSPlayer all count as
+                            // "still working towards playback".
+                            nowLoading = true
+                        }
+                        if nowLoading != isLoading {
+                            isLoading = nowLoading
+                            if nowLoading {
                                 startSpeedSampling()
                             } else {
                                 speedSampleTask?.cancel()
@@ -447,7 +455,7 @@ struct KSPlayerView: View {
                 boostHint.transition(.opacity)
             }
 
-            if isBuffering {
+            if isLoading {
                 loadingHUD.transition(.opacity)
             }
 
@@ -467,6 +475,9 @@ struct KSPlayerView: View {
             stateLogBudget = 8
             lastLoadedEnd = 0
             lastSampleAt = nil
+            isLoading = true
+            currentSpeedText = nil
+            startSpeedSampling()
             AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
         }
         .onDisappear {
@@ -532,10 +543,11 @@ struct KSPlayerView: View {
     }
 
     private var loadingHUDText: String {
+        let label = String(localized: "加载中")
         if let speed = currentSpeedText {
-            return "缓冲中 · \(speed)"
+            return "\(label) · \(speed)"
         }
-        return "缓冲中"
+        return label
     }
 
     private var physicalVolumeHUD: some View {
@@ -591,10 +603,7 @@ struct KSPlayerView: View {
         guard
             let lastRange = item.loadedTimeRanges.last?.timeRangeValue,
             lastRange.duration.isNumeric, lastRange.start.isNumeric
-        else {
-            logSpeedDiag("no loadedTimeRanges")
-            return nil
-        }
+        else { return nil }
         let currentEnd = lastRange.start.seconds + lastRange.duration.seconds
 
         // Capture previous sample, then update for next call. Defer ensures
@@ -621,30 +630,9 @@ struct KSPlayerView: View {
         let bitrate: Float = item.tracks
             .compactMap { $0.assetTrack }
             .first { $0.mediaType == .video }?.estimatedDataRate ?? 0
-        guard bitrate > 0 else {
-            logSpeedDiag("no estimatedDataRate; fillRate=\(fillRate)")
-            return nil
-        }
+        guard bitrate > 0 else { return nil }
         let bytesPerSec = Double(bitrate) / 8.0 * fillRate
         return Self.formatSpeed(bytesPerSec: bytesPerSec)
-    }
-
-    private func logSpeedDiag(_ message: String) {
-        guard speedDiagBudget > 0 else { return }
-        speedDiagBudget -= 1
-        AppLogger.log("speed-sample: \(message)")
-    }
-
-    /// Compact one-line summary of an object's top-level Mirror children,
-    /// for diagnosing cases where findAVPlayer fails to traverse to the
-    /// underlying AVPlayer.
-    private static func describeChildren(of any: Any) -> String {
-        let mirror = Mirror(reflecting: any)
-        let parts = mirror.children.prefix(8).map { child -> String in
-            let label = child.label ?? "?"
-            return "\(label):\(type(of: child.value))"
-        }
-        return "[\(parts.joined(separator: ", "))]"
     }
 
     private static func findAVPlayer(in any: Any, depth: Int = 0) -> AVPlayer? {
