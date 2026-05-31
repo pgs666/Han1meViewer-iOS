@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Pushed sub-page of SettingsView that lets the user reorder AND hide
 /// home-page category sections. State is split across two NSUserDefaults
@@ -14,19 +13,19 @@ import UniformTypeIdentifiers
 ///   anime out of the box.
 ///
 /// UX: the page shows two big sections, "已显示" on top and "已隐藏" on
-/// the bottom. Each row carries the standard right-side reorder handle
-/// (active edit mode) and is also draggable from its content body.
+/// the bottom. Within each section, drag the right-side reorder handle
+/// to change order. To MOVE a row between sections, swipe the row left
+/// (trailing edge) and tap the revealed action button:
 ///
-/// Why this is the only shape that works: SwiftUI's `.onMove` only fires
-/// for within-section reorders — Apple confirms this in their dev forums
-/// and the modern `.draggable` + `.dropDestination` combo silently
-/// refuses to deliver drops onto a List section that also has `.onMove`.
-/// The reliable cross-section path is the older `.onDrag(NSItemProvider)`
-/// + `ForEach.onInsert(of:perform:)` pair, which coexists with
-/// `.onMove` because they handle disjoint events:
+///   - In 已显示: swipe → "隐藏" → row moves to 已隐藏 (appended)
+///   - In 已隐藏: swipe → "显示" → row moves to 已显示 (appended)
 ///
-///   - `.onMove`   → row dragged within its own ForEach
-///   - `.onInsert` → item dropped onto this ForEach from elsewhere
+/// We previously tried .draggable + .dropDestination and the older
+/// .onDrag + .onInsert combos for cross-section drag. Both were either
+/// silently swallowed by .onMove (the new combo) or fragile (the old
+/// one didn't reliably trigger when paired with edit-mode reorder
+/// handles). Swipe actions don't fight any other gesture and match the
+/// platform-standard idiom users already know from Mail / Messages.
 struct HomeSectionOrderView: View {
     @AppStorage("home_section_order") private var visibleRaw: String = ""
     @AppStorage("home_section_hidden") private var hiddenRaw: String = "aiGenerated"
@@ -74,14 +73,21 @@ struct HomeSectionOrderView: View {
                         .font(.subheadline)
                 }
                 ForEach(visibleItems) { item in
-                    row(for: item)
+                    Text(item.title)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button {
+                                hide(item.key)
+                            } label: {
+                                Label("隐藏", systemImage: "eye.slash")
+                            }
+                            .tint(.gray)
+                        }
                 }
                 .onMove(perform: moveVisibleItems)
-                .onInsert(of: [UTType.plainText.identifier], perform: insertIntoVisible)
             } header: {
                 Text("已显示")
             } footer: {
-                Text("拖动右侧把手可在本组内调整顺序;长按一行的内容并把它拖到下方「已隐藏」组以从首页隐藏(反之亦然以重新显示)。")
+                Text("拖动右侧把手在本组内调整顺序;向左滑动一行可在两组之间移动。")
                     .font(.caption)
             }
 
@@ -92,10 +98,18 @@ struct HomeSectionOrderView: View {
                         .font(.subheadline)
                 }
                 ForEach(hiddenItems) { item in
-                    row(for: item, dimmed: true)
+                    Text(item.title)
+                        .foregroundStyle(.secondary)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button {
+                                show(item.key)
+                            } label: {
+                                Label("显示", systemImage: "eye")
+                            }
+                            .tint(.accentColor)
+                        }
                 }
                 .onMove(perform: moveHiddenItems)
-                .onInsert(of: [UTType.plainText.identifier], perform: insertIntoHidden)
             } header: {
                 Text("已隐藏")
             }
@@ -115,18 +129,6 @@ struct HomeSectionOrderView: View {
             }
         }
         .onAppear(perform: loadOrder)
-    }
-
-    @ViewBuilder
-    private func row(for item: SectionItem, dimmed: Bool = false) -> some View {
-        Text(item.title)
-            .foregroundStyle(dimmed ? .secondary : .primary)
-            // .onDrag fires when the user long-presses the row content
-            // (NOT the right-side reorder handle). The handle still owns
-            // the in-section reorder gesture via .onMove. The dragged
-            // payload is just the section key as plain text — small and
-            // identity-stable across the two ForEach instances.
-            .onDrag { NSItemProvider(object: item.key as NSString) }
     }
 
     // MARK: - Loading / persistence
@@ -187,70 +189,20 @@ struct HomeSectionOrderView: View {
         save()
     }
 
-    private func insertIntoVisible(at index: Int, items: [NSItemProvider]) {
-        loadKeys(from: items) { keys in
-            self.applyCrossSectionMove(keys: keys, into: .visible, at: index)
+    private func hide(_ key: String) {
+        guard let i = visibleItems.firstIndex(where: { $0.key == key }) else { return }
+        let item = visibleItems.remove(at: i)
+        withAnimation {
+            hiddenItems.append(item)
         }
+        save()
     }
 
-    private func insertIntoHidden(at index: Int, items: [NSItemProvider]) {
-        loadKeys(from: items) { keys in
-            self.applyCrossSectionMove(keys: keys, into: .hidden, at: index)
-        }
-    }
-
-    private enum DropTarget { case visible, hidden }
-
-    /// NSItemProvider.loadObject is async + on a background queue. Collect
-    /// every successfully decoded key, then deliver them as a single batch
-    /// on the main queue so the @State mutations and `save()` happen
-    /// atomically (not interleaved if the user dropped a multi-selection).
-    private func loadKeys(from providers: [NSItemProvider], handle: @escaping ([String]) -> Void) {
-        guard !providers.isEmpty else { return }
-        let group = DispatchGroup()
-        var collected: [String] = []
-        let lock = NSLock()
-        for provider in providers {
-            group.enter()
-            _ = provider.loadObject(ofClass: NSString.self) { obj, _ in
-                if let s = obj as? String {
-                    lock.lock(); collected.append(s); lock.unlock()
-                }
-                group.leave()
-            }
-        }
-        group.notify(queue: .main) {
-            if !collected.isEmpty { handle(collected) }
-        }
-    }
-
-    private func applyCrossSectionMove(keys: [String], into target: DropTarget, at index: Int) {
-        var moved: [SectionItem] = []
-        for key in keys {
-            // Take the item out of whichever list it currently lives in.
-            // Skip silently if it's not in the OTHER list — that means
-            // the user dragged a row onto its own ForEach (which already
-            // produced an .onMove for in-section reorder, and this
-            // .onInsert is a duplicate event we should ignore).
-            switch target {
-            case .visible:
-                if let i = hiddenItems.firstIndex(where: { $0.key == key }) {
-                    moved.append(hiddenItems.remove(at: i))
-                }
-            case .hidden:
-                if let i = visibleItems.firstIndex(where: { $0.key == key }) {
-                    moved.append(visibleItems.remove(at: i))
-                }
-            }
-        }
-        guard !moved.isEmpty else { return }
-        switch target {
-        case .visible:
-            let safe = max(0, min(index, visibleItems.count))
-            visibleItems.insert(contentsOf: moved, at: safe)
-        case .hidden:
-            let safe = max(0, min(index, hiddenItems.count))
-            hiddenItems.insert(contentsOf: moved, at: safe)
+    private func show(_ key: String) {
+        guard let i = hiddenItems.firstIndex(where: { $0.key == key }) else { return }
+        let item = hiddenItems.remove(at: i)
+        withAnimation {
+            visibleItems.append(item)
         }
         save()
     }
