@@ -17,6 +17,8 @@ import io.ktor.client.request.parameter
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.ktor.http.parameters
 
 class KtorUserPlaylistRepository(
@@ -38,7 +40,8 @@ class KtorUserPlaylistRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseUserPlaylists(response.bodyAsText(), page)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseUserPlaylists(body, page) }
     }
 
     override suspend fun createPlaylist(

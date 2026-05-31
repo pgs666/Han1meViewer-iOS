@@ -3,16 +3,18 @@ package com.yenaly.han1meviewer.shared.session
 import com.yenaly.han1meviewer.shared.db.Han1meDatabase
 import com.yenaly.han1meviewer.shared.model.SessionCookie
 import com.yenaly.han1meviewer.shared.util.currentEpochMillis
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SqlDelightSessionStore(
     private val database: Han1meDatabase,
 ) : SessionStore {
-    override suspend fun loadCookies(): List<SessionCookie> {
+    override suspend fun loadCookies(): List<SessionCookie> = withContext(Dispatchers.Default) {
         database.sessionCookieQueries.deleteExpired(currentEpochMillis())
-        return database.sessionCookieQueries.selectAll(::mapCookie).executeAsList()
+        database.sessionCookieQueries.selectAll(::mapCookie).executeAsList()
     }
 
-    override suspend fun saveCookies(cookies: List<SessionCookie>) {
+    override suspend fun saveCookies(cookies: List<SessionCookie>) = withContext(Dispatchers.Default) {
         database.transaction {
             cookies.forEach { cookie ->
                 database.sessionCookieQueries.upsert(
@@ -28,12 +30,14 @@ class SqlDelightSessionStore(
         }
     }
 
-    override suspend fun clear() {
+    override suspend fun clear() = withContext(Dispatchers.Default) {
         database.sessionCookieQueries.deleteAll()
+        Unit
     }
 
-    override suspend fun clearLoginCookies() {
+    override suspend fun clearLoginCookies() = withContext(Dispatchers.Default) {
         database.sessionCookieQueries.deleteNonCloudflare()
+        Unit
     }
 
     private fun mapCookie(

@@ -15,6 +15,8 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class KtorSearchRepository(
     private val sessionStore: SessionStore,
@@ -43,6 +45,7 @@ class KtorSearchRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseSearch(response.bodyAsText(), params, page)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseSearch(body, params, page) }
     }
 }

@@ -17,6 +17,8 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.ktor.http.parameters
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
@@ -47,7 +49,8 @@ class KtorOnlineWatchHistoryRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseUserVideoList(response.bodyAsText(), page)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseUserVideoList(body, page) }
     }
 
     override suspend fun removeHistoryItem(videoCode: String, csrfToken: String?) {

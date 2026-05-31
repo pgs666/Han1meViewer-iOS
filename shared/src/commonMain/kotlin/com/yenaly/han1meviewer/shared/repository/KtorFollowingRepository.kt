@@ -13,6 +13,8 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class KtorFollowingRepository(
     private val sessionStore: SessionStore,
@@ -33,6 +35,7 @@ class KtorFollowingRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseSubscriptions(response.bodyAsText(), page)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseSubscriptions(body, page) }
     }
 }
