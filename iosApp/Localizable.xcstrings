@@ -14,6 +14,12 @@
             "state": "translated",
             "value": "Cloudflare"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare"
+          }
         }
       }
     },
@@ -26,6 +32,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motion Anime"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "Motion Anime"
@@ -46,6 +58,12 @@
             "state": "translated",
             "value": "2.5D"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2.5D"
+          }
         }
       }
     },
@@ -58,6 +76,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3D CG"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "3D CG"
@@ -78,6 +102,12 @@
             "state": "translated",
             "value": "MMD"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MMD"
+          }
         }
       }
     },
@@ -90,6 +120,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cosplay"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "Cosplay"
@@ -110,6 +146,12 @@
             "state": "translated",
             "value": "首页"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首頁"
+          }
         }
       }
     },
@@ -126,6 +168,12 @@
             "state": "translated",
             "value": "关注"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關注"
+          }
         }
       }
     },
@@ -138,6 +186,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "我的"
@@ -158,6 +212,12 @@
             "state": "translated",
             "value": "搜索"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋"
+          }
         }
       }
     },
@@ -173,6 +233,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
           }
         }
       }
@@ -190,6 +256,12 @@
             "state": "translated",
             "value": "详情"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詳情"
+          }
         }
       }
     },
@@ -202,6 +274,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "完成"
@@ -222,6 +300,12 @@
             "state": "translated",
             "value": "重试"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試"
+          }
         }
       }
     },
@@ -234,6 +318,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "更多"
@@ -254,6 +344,12 @@
             "state": "translated",
             "value": "好"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
         }
       }
     },
@@ -266,6 +362,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "取消"
@@ -286,6 +388,12 @@
             "state": "translated",
             "value": "清空"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清空"
+          }
         }
       }
     },
@@ -298,6 +406,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "清除"
@@ -318,6 +432,12 @@
             "state": "translated",
             "value": "重置"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置"
+          }
         }
       }
     },
@@ -333,6 +453,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "首页加载失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首頁載入失敗"
           }
         }
       }
@@ -350,6 +476,12 @@
             "state": "translated",
             "value": "关注加载失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關注載入失敗"
+          }
         }
       }
     },
@@ -365,6 +497,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋失敗"
           }
         }
       }
@@ -382,6 +520,12 @@
             "state": "translated",
             "value": "视频加载失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片載入失敗"
+          }
         }
       }
     },
@@ -397,6 +541,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "播放清单加载失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放清單載入失敗"
           }
         }
       }
@@ -414,6 +564,12 @@
             "state": "translated",
             "value": "在线历史加载失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "線上紀錄載入失敗"
+          }
         }
       }
     },
@@ -429,6 +585,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "历史记录加载失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歷史紀錄載入失敗"
           }
         }
       }
@@ -446,6 +608,12 @@
             "state": "translated",
             "value": "加载更多失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "載入更多失敗"
+          }
         }
       }
     },
@@ -461,6 +629,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已全部加载"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已全部載入"
           }
         }
       }
@@ -478,6 +652,12 @@
             "state": "translated",
             "value": "暂无关注更新。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無關注更新。"
+          }
         }
       }
     },
@@ -493,6 +673,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无搜索历史"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無搜尋紀錄"
           }
         }
       }
@@ -510,6 +696,12 @@
             "state": "translated",
             "value": "搜索历史"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋紀錄"
+          }
         }
       }
     },
@@ -525,6 +717,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有找到结果。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到結果。"
           }
         }
       }
@@ -542,6 +740,12 @@
             "state": "translated",
             "value": "结果"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結果"
+          }
         }
       }
     },
@@ -557,6 +761,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "筛选"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "篩選"
           }
         }
       }
@@ -574,6 +784,12 @@
             "state": "translated",
             "value": "筛选项加载失败。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "篩選項載入失敗。"
+          }
         }
       }
     },
@@ -589,6 +805,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "品牌加载失败。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品牌載入失敗。"
           }
         }
       }
@@ -606,6 +828,12 @@
             "state": "translated",
             "value": "标签加载失败。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標籤載入失敗。"
+          }
         }
       }
     },
@@ -621,6 +849,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "应用筛选"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "套用篩選"
           }
         }
       }
@@ -638,6 +872,12 @@
             "state": "translated",
             "value": "类型"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "類型"
+          }
         }
       }
     },
@@ -650,6 +890,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排序方式"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "排序方式"
@@ -670,6 +916,12 @@
             "state": "translated",
             "value": "发布日期"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "發布日期"
+          }
         }
       }
     },
@@ -686,6 +938,12 @@
             "state": "translated",
             "value": "影片时长"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片長度"
+          }
         }
       }
     },
@@ -698,6 +956,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品牌"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "品牌"
@@ -718,6 +982,12 @@
             "state": "translated",
             "value": "标签"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標籤"
+          }
         }
       }
     },
@@ -733,6 +1003,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "模糊搜索"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模糊搜尋"
           }
         }
       }
@@ -750,6 +1026,12 @@
             "state": "translated",
             "value": "匹配包含任一已选标签的影片。关闭时更接近精确组合。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "比對包含任一已選標籤的影片。關閉時更接近精確組合。"
+          }
         }
       }
     },
@@ -766,6 +1048,12 @@
             "state": "translated",
             "value": "标签选项与 Android 版 search_options 保持一致。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標籤選項與 Android 版 search_options 保持一致。"
+          }
         }
       }
     },
@@ -778,6 +1066,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主要"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "主要"
@@ -798,6 +1092,12 @@
             "state": "translated",
             "value": "我的列表"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的清單"
+          }
         }
       }
     },
@@ -813,6 +1113,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片"
           }
         }
       }
@@ -830,6 +1136,12 @@
             "state": "translated",
             "value": "账号登录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帳號登入"
+          }
         }
       }
     },
@@ -845,6 +1157,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "登录地址无效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入網址無效"
           }
         }
       }
@@ -862,6 +1180,12 @@
             "state": "translated",
             "value": "请在网页中完成登录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請在網頁中完成登入"
+          }
         }
       }
     },
@@ -877,6 +1201,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在载入登录页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入登入頁"
           }
         }
       }
@@ -894,6 +1224,12 @@
             "state": "translated",
             "value": "已同步登录 Cookie"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已同步登入 Cookie"
+          }
         }
       }
     },
@@ -909,6 +1245,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "登录成功"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入成功"
           }
         }
       }
@@ -926,6 +1268,12 @@
             "state": "translated",
             "value": "已同步网页登录状态。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已同步網頁登入狀態。"
+          }
         }
       }
     },
@@ -941,6 +1289,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登出"
           }
         }
       }
@@ -958,6 +1312,12 @@
             "state": "translated",
             "value": "确定要清除当前登录状态吗？"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要清除目前的登入狀態嗎？"
+          }
         }
       }
     },
@@ -973,6 +1333,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已退出登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已登出"
           }
         }
       }
@@ -990,6 +1356,12 @@
             "state": "translated",
             "value": "本地登录状态已清除。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機登入狀態已清除。"
+          }
         }
       }
     },
@@ -1005,6 +1377,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个功能还没有迁移到 iOS，后续会按优先级接入真实实现。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個功能尚未移植到 iOS，後續會依優先順序接入正式實作。"
           }
         }
       }
@@ -1022,6 +1400,12 @@
             "state": "translated",
             "value": "播放清单"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放清單"
+          }
         }
       }
     },
@@ -1038,6 +1422,12 @@
             "state": "translated",
             "value": "稍后观看"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後觀看"
+          }
         }
       }
     },
@@ -1050,6 +1440,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收藏影片"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "收藏影片"
@@ -1070,6 +1466,12 @@
             "state": "translated",
             "value": "在线历史"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "線上紀錄"
+          }
         }
       }
     },
@@ -1085,6 +1487,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "本地历史"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機紀錄"
           }
         }
       }
@@ -1102,6 +1510,12 @@
             "state": "translated",
             "value": "下载"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載"
+          }
         }
       }
     },
@@ -1117,6 +1531,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "观看历史"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "觀看紀錄"
           }
         }
       }
@@ -1134,6 +1554,12 @@
             "state": "translated",
             "value": "暂无观看历史"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無觀看紀錄"
+          }
         }
       }
     },
@@ -1149,6 +1575,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开视频详情后会自动记录到这里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟影片詳情後會自動記錄到這裡。"
           }
         }
       }
@@ -1166,6 +1598,12 @@
             "state": "translated",
             "value": "暂无在线历史。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無線上紀錄。"
+          }
         }
       }
     },
@@ -1181,6 +1619,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无播放清单"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無播放清單"
           }
         }
       }
@@ -1198,6 +1642,12 @@
             "state": "translated",
             "value": "网站里的播放清单会显示在这里。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網站裡的播放清單會顯示在這裡。"
+          }
         }
       }
     },
@@ -1213,6 +1663,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "登录后的网站列表会显示在这里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入後的網站清單會顯示在這裡。"
           }
         }
       }
@@ -1230,6 +1686,12 @@
             "state": "translated",
             "value": "未解析到可播放源"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未解析到可播放來源"
+          }
         }
       }
     },
@@ -1245,6 +1707,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "全屏播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全螢幕播放"
           }
         }
       }
@@ -1262,6 +1730,12 @@
             "state": "translated",
             "value": "退出全屏"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出全螢幕"
+          }
         }
       }
     },
@@ -1277,6 +1751,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "简介"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "簡介"
           }
         }
       }
@@ -1294,6 +1774,12 @@
             "state": "translated",
             "value": "评论"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留言"
+          }
         }
       }
     },
@@ -1309,6 +1795,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已订阅"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已訂閱"
           }
         }
       }
@@ -1326,6 +1818,12 @@
             "state": "translated",
             "value": "订阅"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "訂閱"
+          }
         }
       }
     },
@@ -1341,6 +1839,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消订阅该作者"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消訂閱該作者"
           }
         }
       }
@@ -1358,6 +1862,12 @@
             "state": "translated",
             "value": "取消订阅"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消訂閱"
+          }
         }
       }
     },
@@ -1370,6 +1880,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不取消"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "不取消"
@@ -1390,6 +1906,12 @@
             "state": "translated",
             "value": "确定要取消订阅吗？"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定要取消訂閱嗎？"
+          }
         }
       }
     },
@@ -1405,6 +1927,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "展开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展開"
           }
         }
       }
@@ -1422,6 +1950,12 @@
             "state": "translated",
             "value": "收起"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收合"
+          }
         }
       }
     },
@@ -1434,6 +1968,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收藏"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "收藏"
@@ -1454,6 +1994,12 @@
             "state": "translated",
             "value": "已收藏"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已收藏"
+          }
         }
       }
     },
@@ -1469,6 +2015,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已稍后"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入稍後"
           }
         }
       }
@@ -1486,6 +2038,12 @@
             "state": "translated",
             "value": "加入列表"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入清單"
+          }
         }
       }
     },
@@ -1498,6 +2056,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "分享"
@@ -1518,6 +2082,12 @@
             "state": "translated",
             "value": "原作漫画"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原作漫畫"
+          }
         }
       }
     },
@@ -1533,6 +2103,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "网页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網頁"
           }
         }
       }
@@ -1550,6 +2126,12 @@
             "state": "translated",
             "value": "相关影片"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相關影片"
+          }
         }
       }
     },
@@ -1562,6 +2144,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系列影片"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "系列影片"
@@ -1582,6 +2170,12 @@
             "state": "translated",
             "value": "正在播放"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在播放"
+          }
         }
       }
     },
@@ -1594,6 +2188,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作者"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "作者"
@@ -1614,6 +2214,12 @@
             "state": "translated",
             "value": "下载"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載"
+          }
         }
       }
     },
@@ -1629,6 +2235,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在检查登录状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在檢查登入狀態"
           }
         }
       }
@@ -1646,6 +2258,12 @@
             "state": "translated",
             "value": "点击可退出登录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點擊可登出"
+          }
         }
       }
     },
@@ -1661,6 +2279,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用网页登录并同步 Cookie"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用網頁登入並同步 Cookie"
           }
         }
       }
@@ -1678,6 +2302,12 @@
             "state": "translated",
             "value": "账户登录"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帳戶登入"
+          }
         }
       }
     },
@@ -1693,6 +2323,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已登入"
           }
         }
       }
@@ -1710,6 +2346,12 @@
             "state": "translated",
             "value": "请先登录后再查看关注更新。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先登入後再查看關注更新。"
+          }
         }
       }
     },
@@ -1725,6 +2367,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "请先登录后再查看在线历史。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先登入後再查看線上紀錄。"
           }
         }
       }
@@ -1742,6 +2390,12 @@
             "state": "translated",
             "value": "请先登录后再打开这个列表。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先登入後再開啟這個清單。"
+          }
         }
       }
     },
@@ -1757,6 +2411,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "请先登录后再打开播放清单。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先登入後再開啟播放清單。"
           }
         }
       }
@@ -1774,6 +2434,12 @@
             "state": "translated",
             "value": "最近观看"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近觀看"
+          }
         }
       }
     },
@@ -1790,6 +2456,12 @@
             "state": "translated",
             "value": "最早观看"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最早觀看"
+          }
         }
       }
     },
@@ -1802,6 +2474,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新上市"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "最新上市"
@@ -1822,6 +2500,12 @@
             "state": "translated",
             "value": "最新上传"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新上傳"
+          }
         }
       }
     },
@@ -1837,6 +2521,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "里番"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裏番"
           }
         }
       }
@@ -1854,6 +2544,12 @@
             "state": "translated",
             "value": "泡面番"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "泡麵番"
+          }
         }
       }
     },
@@ -1866,6 +2562,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motion Anime"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "Motion Anime"
@@ -1886,6 +2588,12 @@
             "state": "translated",
             "value": "3D CG"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3D CG"
+          }
         }
       }
     },
@@ -1898,6 +2606,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2.5D"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "2.5D"
@@ -1918,6 +2632,12 @@
             "state": "translated",
             "value": "2D"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2D"
+          }
         }
       }
     },
@@ -1930,6 +2650,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 生成"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "AI 生成"
@@ -1950,6 +2676,12 @@
             "state": "translated",
             "value": "MMD"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MMD"
+          }
         }
       }
     },
@@ -1962,6 +2694,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cosplay"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "Cosplay"
@@ -1982,6 +2720,12 @@
             "state": "translated",
             "value": "他们在看"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他們在看"
+          }
         }
       }
     },
@@ -1998,6 +2742,12 @@
             "state": "translated",
             "value": "类型: %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "類型: %@"
+          }
         }
       }
     },
@@ -2010,6 +2760,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排序: %@"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "排序: %@"
@@ -2030,6 +2786,12 @@
             "state": "translated",
             "value": "日期: %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日期: %@"
+          }
         }
       }
     },
@@ -2045,6 +2807,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "时长: %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長度: %@"
           }
         }
       }
@@ -2062,6 +2830,12 @@
             "state": "translated",
             "value": "标签: %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標籤: %@"
+          }
         }
       }
     },
@@ -2074,6 +2848,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品牌: %@"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "品牌: %@"
@@ -2094,6 +2874,12 @@
             "state": "translated",
             "value": "模糊"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模糊"
+          }
         }
       }
     },
@@ -2109,6 +2895,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "请求超时。请检查网络后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請求逾時。請檢查網路後重試。"
           }
         }
       }
@@ -2126,6 +2918,12 @@
             "state": "translated",
             "value": "站点拦截了这个请求。请完成浏览器验证后重试。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "站點攔截了這個請求。請完成瀏覽器驗證後重試。"
+          }
         }
       }
     },
@@ -2141,6 +2939,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "网络连接失败。请检查 Wi-Fi 或 VPN 后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路連線失敗。請檢查 Wi-Fi 或 VPN 後重試。"
           }
         }
       }
@@ -2158,6 +2962,12 @@
             "state": "translated",
             "value": "出了点问题，请重试。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出了點問題，請重試。"
+          }
         }
       }
     },
@@ -2170,6 +2980,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入收藏"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "已加入收藏"
@@ -2190,6 +3006,12 @@
             "state": "translated",
             "value": "已取消收藏"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消收藏"
+          }
         }
       }
     },
@@ -2205,6 +3027,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已加入稍后观看"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入稍後觀看"
           }
         }
       }
@@ -2222,6 +3050,12 @@
             "state": "translated",
             "value": "已移出稍后观看"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移出稍後觀看"
+          }
         }
       }
     },
@@ -2237,6 +3071,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已加入播放列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入播放清單"
           }
         }
       }
@@ -2254,6 +3094,12 @@
             "state": "translated",
             "value": "已从播放列表移除"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已從播放清單移除"
+          }
         }
       }
     },
@@ -2269,6 +3115,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无可用播放列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無可用播放清單"
           }
         }
       }
@@ -2286,6 +3138,12 @@
             "state": "translated",
             "value": "请先登录再订阅"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先登入再訂閱"
+          }
         }
       }
     },
@@ -2301,6 +3159,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已订阅"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已訂閱"
           }
         }
       }
@@ -2318,6 +3182,12 @@
             "state": "translated",
             "value": "已取消订阅"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消訂閱"
+          }
         }
       }
     },
@@ -2330,6 +3200,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "倍速"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "倍速"
@@ -2350,6 +3226,12 @@
             "state": "translated",
             "value": "%@ 次观看"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 次觀看"
+          }
         }
       }
     },
@@ -2362,6 +3244,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入 %@"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "加入 %@"
@@ -2382,6 +3270,12 @@
             "state": "translated",
             "value": "移除 %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 %@"
+          }
         }
       }
     },
@@ -2397,6 +3291,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%d 个视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d 部影片"
           }
         }
       }
@@ -2414,6 +3314,12 @@
             "state": "translated",
             "value": "%@加载失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@載入失敗"
+          }
         }
       }
     },
@@ -2429,6 +3335,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "返回搜索历史"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回搜尋紀錄"
           }
         }
       }
@@ -2446,6 +3358,12 @@
             "state": "translated",
             "value": "空关键词"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空關鍵字"
+          }
         }
       }
     },
@@ -2461,6 +3379,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在打开验证页面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在開啟驗證頁面"
           }
         }
       }
@@ -2478,6 +3402,12 @@
             "state": "translated",
             "value": "请在网页中完成验证"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請在網頁中完成驗證"
+          }
         }
       }
     },
@@ -2490,6 +3420,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步 Cloudflare Cookie"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "正在同步 Cloudflare Cookie"
@@ -2510,6 +3446,12 @@
             "state": "translated",
             "value": "Cloudflare 验证已同步"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare 驗證已同步"
+          }
         }
       }
     },
@@ -2525,6 +3467,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索影片、标签或作者"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋影片、標籤或作者"
           }
         }
       }
@@ -2542,6 +3490,12 @@
             "state": "translated",
             "value": "应用"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "應用程式"
+          }
         }
       }
     },
@@ -2557,6 +3511,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "本地数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機資料"
           }
         }
       }
@@ -2574,6 +3534,12 @@
             "state": "translated",
             "value": "这里只清除 iOS 本地数据，不会修改网站账号里的在线记录。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡只清除 iOS 本機資料，不會修改網站帳號裡的線上紀錄。"
+          }
         }
       }
     },
@@ -2589,6 +3555,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "缓存"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快取"
           }
         }
       }
@@ -2606,6 +3578,12 @@
             "state": "translated",
             "value": "缓存包含图片和网络临时文件；清除后不会退出登录，也不会删除历史记录。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快取包含圖片和網路暫存檔；清除後不會登出，也不會刪除歷史紀錄。"
+          }
         }
       }
     },
@@ -2618,6 +3596,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "品牌（%d）"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "品牌（%d）"
@@ -2638,6 +3622,12 @@
             "state": "translated",
             "value": "标签（%d）"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標籤（%d）"
+          }
         }
       }
     },
@@ -2653,6 +3643,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "请先登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先登入"
           }
         }
       }
@@ -2670,6 +3666,12 @@
             "state": "translated",
             "value": "新番预告"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新番預告"
+          }
         }
       }
     },
@@ -2682,6 +3684,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "最新"
@@ -2702,6 +3710,12 @@
             "state": "translated",
             "value": "最早"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最早"
+          }
         }
       }
     },
@@ -2717,6 +3731,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "最多回复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多回覆"
           }
         }
       }
@@ -2734,6 +3754,12 @@
             "state": "translated",
             "value": "最多赞"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多讚"
+          }
         }
       }
     },
@@ -2749,6 +3775,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "最少赞"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最少讚"
           }
         }
       }
@@ -2766,6 +3798,12 @@
             "state": "translated",
             "value": "确定清除搜索历史？"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定清除搜尋紀錄？"
+          }
         }
       }
     },
@@ -2781,6 +3819,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "确定清除本地观看历史？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定清除本機觀看紀錄？"
           }
         }
       }
@@ -2798,6 +3842,12 @@
             "state": "translated",
             "value": "确定清除缓存？"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確定清除快取？"
+          }
         }
       }
     },
@@ -2813,6 +3863,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除搜索历史"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜尋紀錄"
           }
         }
       }
@@ -2830,6 +3886,12 @@
             "state": "translated",
             "value": "清除本地观看历史"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除本機觀看紀錄"
+          }
         }
       }
     },
@@ -2845,6 +3907,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除缓存"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除快取"
           }
         }
       }
@@ -2862,6 +3930,12 @@
             "state": "translated",
             "value": "搜索历史已清除。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋紀錄已清除。"
+          }
         }
       }
     },
@@ -2877,6 +3951,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "本地观看历史已清除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機觀看紀錄已清除。"
           }
         }
       }
@@ -2894,6 +3974,12 @@
             "state": "translated",
             "value": "计算中…"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "計算中…"
+          }
         }
       }
     },
@@ -2909,6 +3995,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "排队中 · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排隊中 · %@"
           }
         }
       }
@@ -2926,6 +4018,12 @@
             "state": "translated",
             "value": "下载中 %lld%% · %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載中 %lld%% · %@"
+          }
         }
       }
     },
@@ -2942,6 +4040,12 @@
             "state": "translated",
             "value": "已暂停 %lld%% · %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暫停 %lld%% · %@"
+          }
         }
       }
     },
@@ -2954,6 +4058,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成 · %@"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "已完成 · %@"
@@ -2974,6 +4084,12 @@
             "state": "translated",
             "value": "下载失败，点击重试 · %@"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載失敗，點擊重試 · %@"
+          }
         }
       }
     },
@@ -2989,6 +4105,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已清除 %@ 缓存。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已清除 %@ 快取。"
           }
         }
       }
@@ -3006,6 +4128,12 @@
             "state": "translated",
             "value": "清除缓存（%@）"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除快取（%@）"
+          }
         }
       }
     },
@@ -3021,6 +4149,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "回复 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回覆 %@"
           }
         }
       }
@@ -3038,6 +4172,12 @@
             "state": "translated",
             "value": "查看 %lld 条回复"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看 %lld 則回覆"
+          }
         }
       }
     },
@@ -3053,6 +4193,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已选择 %lld 个品牌"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選擇 %lld 個品牌"
           }
         }
       }
@@ -3070,6 +4216,12 @@
             "state": "translated",
             "value": "选择品牌"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇品牌"
+          }
         }
       }
     },
@@ -3085,6 +4237,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "回复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回覆"
           }
         }
       }
@@ -3102,6 +4260,12 @@
             "state": "translated",
             "value": "输入回复"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入回覆"
+          }
         }
       }
     },
@@ -3117,6 +4281,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "发表评论"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "發表留言"
           }
         }
       }
@@ -3134,6 +4304,12 @@
             "state": "translated",
             "value": "输入评论"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入留言"
+          }
         }
       }
     },
@@ -3149,6 +4325,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "发送"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傳送"
           }
         }
       }
@@ -3166,6 +4348,12 @@
             "state": "translated",
             "value": "评论太短"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留言太短"
+          }
         }
       }
     },
@@ -3181,6 +4369,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "请先登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先登入"
           }
         }
       }
@@ -3198,6 +4392,12 @@
             "state": "translated",
             "value": "评论已发送"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留言已送出"
+          }
         }
       }
     },
@@ -3213,6 +4413,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "回复太短"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回覆太短"
           }
         }
       }
@@ -3230,6 +4436,12 @@
             "state": "translated",
             "value": "无法回复这条评论"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法回覆這則留言"
+          }
         }
       }
     },
@@ -3245,6 +4457,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "回复已发送"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回覆已送出"
           }
         }
       }
@@ -3262,6 +4480,12 @@
             "state": "translated",
             "value": "举报已提交"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢舉已送出"
+          }
         }
       }
     },
@@ -3277,6 +4501,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载回复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法載入回覆"
           }
         }
       }
@@ -3294,6 +4524,12 @@
             "state": "translated",
             "value": "您可能需要重新登录。"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您可能需要重新登入。"
+          }
         }
       }
     },
@@ -3306,6 +4542,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提示"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "提示"
@@ -3326,6 +4568,12 @@
             "state": "translated",
             "value": "举报原因"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢舉原因"
+          }
         }
       }
     },
@@ -3341,6 +4589,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "评论加载失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留言載入失敗"
           }
         }
       }
@@ -3358,6 +4612,12 @@
             "state": "translated",
             "value": "暂无评论"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無留言"
+          }
         }
       }
     },
@@ -3373,6 +4633,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "成为第一个评论的人。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "成為第一個留言的人。"
           }
         }
       }
@@ -3390,6 +4656,12 @@
             "state": "translated",
             "value": "举报"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢舉"
+          }
         }
       }
     },
@@ -3406,6 +4678,12 @@
             "state": "translated",
             "value": "回复加载失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回覆載入失敗"
+          }
         }
       }
     },
@@ -3418,6 +4696,12 @@
           }
         },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排序"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "排序"
@@ -3438,6 +4722,12 @@
             "state": "translated",
             "value": "暂无下载"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無下載"
+          }
         }
       }
     },
@@ -3453,6 +4743,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除"
           }
         }
       }
@@ -3470,6 +4766,12 @@
             "state": "translated",
             "value": "下载失败"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載失敗"
+          }
         }
       }
     },
@@ -3485,6 +4787,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "加载中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "載入中"
           }
         }
       }
@@ -3502,6 +4810,12 @@
             "state": "translated",
             "value": "完成浏览器验证"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成瀏覽器驗證"
+          }
         }
       }
     },
@@ -3517,6 +4831,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已显示"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已顯示"
           }
         }
       }
@@ -3534,6 +4854,12 @@
             "state": "translated",
             "value": "已隐藏"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已隱藏"
+          }
         }
       }
     },
@@ -3549,6 +4875,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无可显示栏目"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無可顯示欄目"
           }
         }
       }
@@ -3566,6 +4898,12 @@
             "state": "translated",
             "value": "无隐藏栏目"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無隱藏欄目"
+          }
         }
       }
     },
@@ -3581,6 +4919,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "隐藏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱藏"
           }
         }
       }
@@ -3598,6 +4942,12 @@
             "state": "translated",
             "value": "显示"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示"
+          }
         }
       }
     },
@@ -3613,6 +4963,1376 @@
           "stringUnit": {
             "state": "translated",
             "value": "长按一行可在本组内拖动调整顺序;向左滑动一行可在两组之间移动。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長按一列可在本組內拖曳調整順序;向左滑動一列可在兩組之間移動。"
+          }
+        }
+      }
+    },
+    "上次异常": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last crash"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次异常"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次異常"
+          }
+        }
+      }
+    },
+    "亮度": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "亮度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "亮度"
+          }
+        }
+      }
+    },
+    "全屏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fullscreen"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全屏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全螢幕"
+          }
+        }
+      }
+    },
+    "关注更新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following updates"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关注更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關注更新"
+          }
+        }
+      }
+    },
+    "关闭后，进入视频详情页不会自动开始播放，需要手动点击播放按钮。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When off, opening a video won't start playback automatically; tap play to start."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭后，进入视频详情页不会自动开始播放，需要手动点击播放按钮。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉後，進入影片詳情頁不會自動開始播放，需手動點擊播放按鈕。"
+          }
+        }
+      }
+    },
+    "刷新登录页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reload login page"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新登录页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新整理登入頁"
+          }
+        }
+      }
+    },
+    "加载失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加载失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "載入失敗"
+          }
+        }
+      }
+    },
+    "取消静音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmute"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消静音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消靜音"
+          }
+        }
+      }
+    },
+    "同时进行的下载任务数量上限，超出的会排队等待。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum number of simultaneous downloads; extras wait in the queue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同时进行的下载任务数量上限，超出的会排队等待。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同時進行的下載任務數量上限，超出的會排隊等待。"
+          }
+        }
+      }
+    },
+    "域名已切换，请完全退出并重新打开应用以生效。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Domain switched. Fully quit and reopen the app to apply."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "域名已切换，请完全退出并重新打开应用以生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網域已切換，請完全結束並重新開啟 App 以生效。"
+          }
+        }
+      }
+    },
+    "填充": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fill"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填充"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填滿"
+          }
+        }
+      }
+    },
+    "如果应用上次异常退出，这里会显示最后记录的异常摘要，帮助定位上次异常退出。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the app crashed last time, the last recorded crash summary appears here to help diagnose it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果应用上次异常退出，这里会显示最后记录的异常摘要，帮助定位上次异常退出。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "若 App 上次異常結束，這裡會顯示最後記錄的異常摘要，協助定位上次的異常結束。"
+          }
+        }
+      }
+    },
+    "字幕语言": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitle language"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字幕语言"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字幕語言"
+          }
+        }
+      }
+    },
+    "导出 / 分享日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export / Share log"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出 / 分享日志"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出 / 分享日誌"
+          }
+        }
+      }
+    },
+    "展开播放器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand player"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开播放器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展開播放器"
+          }
+        }
+      }
+    },
+    "崩溃报告": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crash report"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "崩溃报告"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當機報告"
+          }
+        }
+      }
+    },
+    "已加入下载": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to downloads"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入下载"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入下載"
+          }
+        }
+      }
+    },
+    "已完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "底部进度条": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom progress bar"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "底部进度条"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "底部進度條"
+          }
+        }
+      }
+    },
+    "当某个域名无法访问时，可切换到备用域名。切换后需重启应用生效。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If a domain is unreachable, switch to a backup. Restart the app to apply."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当某个域名无法访问时，可切换到备用域名。切换后需重启应用生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當某個網域無法存取時，可切換到備用網域。切換後需重新啟動 App 生效。"
+          }
+        }
+      }
+    },
+    "打开后，竖屏视频进入全屏时保持竖屏，不旋转设备；横屏视频不受影响。关闭则始终强制横屏。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, portrait videos stay portrait in fullscreen without rotating; landscape videos are unaffected. When off, always force landscape."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开后，竖屏视频进入全屏时保持竖屏，不旋转设备；横屏视频不受影响。关闭则始终强制横屏。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟後，直式影片進入全螢幕時保持直式，不旋轉裝置；橫式影片不受影響。關閉則一律強制橫式。"
+          }
+        }
+      }
+    },
+    "打开网站": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open website"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开网站"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟網站"
+          }
+        }
+      }
+    },
+    "打开视频时自动播放": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-play when opening a video"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开视频时自动播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟影片時自動播放"
+          }
+        }
+      }
+    },
+    "按住屏幕时切换到该倍速，松手恢复。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold the screen to switch to this speed; release to restore."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住屏幕时切换到该倍速，松手恢复。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住螢幕時切換到該倍速，放開恢復。"
+          }
+        }
+      }
+    },
+    "播放": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
+        }
+      }
+    },
+    "播放列表": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放清單"
+          }
+        }
+      }
+    },
+    "播放设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放設定"
+          }
+        }
+      }
+    },
+    "操作失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作失敗"
+          }
+        }
+      }
+    },
+    "收起播放器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse player"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起播放器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收合播放器"
+          }
+        }
+      }
+    },
+    "日志大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日志大小"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日誌大小"
+          }
+        }
+      }
+    },
+    "显示已看标记": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show watched badge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示已看标记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示已看標記"
+          }
+        }
+      }
+    },
+    "暂停": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫停"
+          }
+        }
+      }
+    },
+    "暂无收藏影片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No favorites yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无收藏影片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無收藏影片"
+          }
+        }
+      }
+    },
+    "暂无清单视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No videos in this playlist"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无清单视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無清單影片"
+          }
+        }
+      }
+    },
+    "暂无稍后观看": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing in Watch Later"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无稍后观看"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無稍後觀看"
+          }
+        }
+      }
+    },
+    "最大同时下载数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Max concurrent downloads"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最大同时下载数"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最大同時下載數"
+          }
+        }
+      }
+    },
+    "本地": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機"
+          }
+        }
+      }
+    },
+    "没有找到相关视频。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No related videos found."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有找到相关视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到相關影片。"
+          }
+        }
+      }
+    },
+    "清除日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear log"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除日志"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除日誌"
+          }
+        }
+      }
+    },
+    "版本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
+          }
+        }
+      }
+    },
+    "画质": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quality"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画质"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "畫質"
+          }
+        }
+      }
+    },
+    "界面": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interface"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "界面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "介面"
+          }
+        }
+      }
+    },
+    "登录已失效，请重新登录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session expired. Please sign in again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录已失效，请重新登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入已失效，請重新登入"
+          }
+        }
+      }
+    },
+    "竖屏视频不强制横屏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't force landscape for portrait videos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "竖屏视频不强制横屏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直式影片不強制橫式"
+          }
+        }
+      }
+    },
+    "站点域名": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Site domain"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "站点域名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "站點網域"
+          }
+        }
+      }
+    },
+    "简体中文": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simplified Chinese"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "简体中文"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "簡體中文"
+          }
+        }
+      }
+    },
+    "繁体中文": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traditional Chinese"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繁体中文"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繁體中文"
+          }
+        }
+      }
+    },
+    "网络": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路"
+          }
+        }
+      }
+    },
+    "自动恢复播放进度": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume playback position"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动恢复播放进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動回復播放進度"
+          }
+        }
+      }
+    },
+    "订阅作者": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subscribed artists"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "订阅作者"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "訂閱作者"
+          }
+        }
+      }
+    },
+    "记录诊断日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record diagnostic log"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录诊断日志"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記錄診斷日誌"
+          }
+        }
+      }
+    },
+    "记录页面跳转与关键操作（已自动脱敏，不含账号、Cookie 等敏感信息），日志按大小滚动并自动清理。日志文件也可在「文件」App → 我的 iPhone/iPad → Han1meViewer → Logs 中找到，遇到问题时可导出并附到 GitHub issue。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records screen navigation and key actions (already redacted — no account, cookies, or other sensitive info). The log rolls over by size and is pruned automatically. You can also find the log file in the Files app → On My iPhone/iPad → Han1meViewer → Logs and export it to attach to a GitHub issue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录页面跳转与关键操作（已自动脱敏，不含账号、Cookie 等敏感信息），日志按大小滚动并自动清理。日志文件也可在「文件」App → 我的 iPhone/iPad → Han1meViewer → Logs 中找到，遇到问题时可导出并附到 GitHub issue。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記錄頁面跳轉與關鍵操作（已自動去識別化，不含帳號、Cookie 等敏感資訊），日誌依大小滾動並自動清理。日誌檔案也可在「檔案」App → 我的 iPhone/iPad → Han1meViewer → Logs 中找到，遇到問題時可匯出並附到 GitHub issue。"
+          }
+        }
+      }
+    },
+    "诊断日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagnostic log"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "诊断日志"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "診斷日誌"
+          }
+        }
+      }
+    },
+    "返回": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
+          }
+        }
+      }
+    },
+    "适配": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适配"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "適配"
+          }
+        }
+      }
+    },
+    "选择下载画质": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose download quality"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择下载画质"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇下載畫質"
+          }
+        }
+      }
+    },
+    "长按倍速": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold-to-speed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长按倍速"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長按倍速"
+          }
+        }
+      }
+    },
+    "静音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "靜音"
+          }
+        }
+      }
+    },
+    "音量": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
+          }
+        }
+      }
+    },
+    "项目仓库": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repository"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目仓库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "專案儲存庫"
+          }
+        }
+      }
+    },
+    "首页栏目排序": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Home section order"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首页栏目排序"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首頁欄目排序"
+          }
+        }
+      }
+    },
+    "默认画质": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default quality"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认画质"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設畫質"
           }
         }
       }
