@@ -70,7 +70,7 @@ struct UserVideoListView: View {
                 Image(systemName: "tray")
                     .font(.largeTitle)
                     .foregroundStyle(.secondary)
-                Text(String(format: String(localized: "user_list.load_failed"), title))
+                Text("加载失败")
                     .font(.headline)
                 Text(message)
                     .font(.subheadline)
