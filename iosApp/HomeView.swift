@@ -50,6 +50,12 @@ struct HomeView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .logScreen("Home")
                 .task {
+                    // [ISOLATION TEST] delay the home load by 5s so the
+                    // startup network+parse work is NOT happening during the
+                    // window where the user switches to Mine and pushes a
+                    // sub-page. If the Mine push animates during these 5s,
+                    // the lost-animation window IS the home startup load.
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
                     viewModel.loadIfNeeded()
                 }
                 .refreshable {
