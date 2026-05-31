@@ -3,6 +3,7 @@ import KSPlayer
 import Han1meShared
 import SwiftUI
 import UIKit
+import AVFoundation
 
 /// SwiftUI 包装 KSPlayer 的底层 `KSVideoPlayer`（仅显示视频内容，无内置 UI），控件层完全
 /// 自己拼装但都通过 `KSVideoPlayer.Coordinator` 的 **public API** 操作（`seek(time:)` /
@@ -121,6 +122,26 @@ struct KSPlayerView: View {
     /// 导致 longPress timer 触发 boost 后 endBoost() 永远不调 → boost 卡住。
     /// 这个 flag 让 pinch 一开始就 cancel/退出 boost，并且 timer fire 前 double-check。
     @State private var isPinching = false
+
+    // MARK: - Hardware volume key feedback
+    /// SystemVolumeController suppresses iOS's own volume HUD while the
+    /// player is on screen — without a replacement, hardware volume key
+    /// presses would have no visible feedback. This observer + HUD pair
+    /// fills that gap: KVO on AVAudioSession.outputVolume fires whenever
+    /// the system volume changes, and we show our own bar (skipping the
+    /// case where the change came from our own swipe-volume gesture,
+    /// which already shows the same bar via swipeHUD).
+    @StateObject private var volumeObserver = SystemVolumeObserver()
+    @State private var physicalVolumeHUDActive = false
+    @State private var physicalVolumeHUDHideTask: Task<Void, Never>?
+
+    // MARK: - Buffering / loading feedback
+    /// True while the player is in `.buffering` (initial load or mid-playback
+    /// rebuffer). When true the body renders `loadingHUD` and a 1Hz sampler
+    /// updates `currentSpeedText` from AVPlayerItem.accessLog.
+    @State private var isBuffering = false
+    @State private var currentSpeedText: String?
+    @State private var speedSampleTask: Task<Void, Never>?
 
     private enum DragKind: Equatable {
         case none
@@ -248,6 +269,17 @@ struct KSPlayerView: View {
                             isPlaying = nowPlaying
                             onPlayingChanged(nowPlaying)
                         }
+                        let buffering = (state == .buffering)
+                        if buffering != isBuffering {
+                            isBuffering = buffering
+                            if buffering {
+                                startSpeedSampling()
+                            } else {
+                                speedSampleTask?.cancel()
+                                speedSampleTask = nil
+                                currentSpeedText = nil
+                            }
+                        }
                         if !naturalSizeReported {
                             let size = layer.player.naturalSize
                             if size.width > 0 && size.height > 0 {
@@ -362,6 +394,14 @@ struct KSPlayerView: View {
             if isBoosted {
                 boostHint.transition(.opacity)
             }
+
+            if isBuffering {
+                loadingHUD.transition(.opacity)
+            }
+
+            if physicalVolumeHUDActive {
+                physicalVolumeHUD.transition(.opacity)
+            }
         }
         .onAppear {
             scheduleAutoHide()
@@ -369,10 +409,16 @@ struct KSPlayerView: View {
             // system output volume. Released on disappear so iOS's own
             // volume HUD works everywhere else in the app.
             SystemVolumeController.acquire()
+            volumeObserver.start()
         }
         .onDisappear {
             hideControlsTask?.cancel()
             SystemVolumeController.release()
+            volumeObserver.stop()
+            physicalVolumeHUDHideTask?.cancel()
+            physicalVolumeHUDHideTask = nil
+            speedSampleTask?.cancel()
+            speedSampleTask = nil
             // Pause the player when this view is no longer on-screen.
             // Necessary because pushing another VideoDetailView (e.g. via a
             // related-video tap) keeps the previous player alive in the
@@ -392,6 +438,102 @@ struct KSPlayerView: View {
             onControlsVisibilityChanged(false)
             hideControlsTask?.cancel()
         }
+        .onReceive(volumeObserver.$changeTick) { _ in
+            // Skip if the change came from our swipe-volume gesture —
+            // swipeHUD is already visible for that case. Otherwise pop
+            // the physical-key HUD and auto-hide after 1.5s.
+            guard dragState != .volume else { return }
+            physicalVolumeHUDActive = true
+            physicalVolumeHUDHideTask?.cancel()
+            physicalVolumeHUDHideTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                if !Task.isCancelled {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        physicalVolumeHUDActive = false
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Loading / volume HUDs
+
+    private var loadingHUD: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(.white)
+                .scaleEffect(1.4)
+            Text(loadingHUDText)
+                .font(.subheadline.weight(.medium).monospacedDigit())
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
+        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var loadingHUDText: String {
+        if let speed = currentSpeedText {
+            return "缓冲中 · \(speed)"
+        }
+        return "缓冲中"
+    }
+
+    private var physicalVolumeHUD: some View {
+        hudBar(
+            systemImage: volumeObserver.outputVolume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill",
+            label: "音量",
+            value: volumeObserver.outputVolume
+        )
+    }
+
+    // MARK: - Network speed sampling
+
+    private func startSpeedSampling() {
+        speedSampleTask?.cancel()
+        speedSampleTask = Task { @MainActor in
+            while !Task.isCancelled {
+                currentSpeedText = sampleNetworkSpeed()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+    }
+
+    /// Reach the underlying AVPlayer through KSPlayer's MediaPlayerProtocol
+    /// (KSAVPlayer wraps an AVPlayer; KSMEPlayer/FFmpeg has none) and read
+    /// `observedBitrate` from the latest access-log event. Returns nil for
+    /// non-AVPlayer backends or when no events are available yet.
+    private func sampleNetworkSpeed() -> String? {
+        guard let player = coordinator.playerLayer?.player else { return nil }
+        guard let avPlayer = Self.findAVPlayer(in: player) else { return nil }
+        guard
+            let item = avPlayer.currentItem,
+            let event = item.accessLog()?.events.last
+        else { return nil }
+        let bps = event.observedBitrate
+        guard bps > 0 else { return nil }
+        return Self.formatSpeed(bytesPerSec: bps / 8.0)
+    }
+
+    private static func findAVPlayer(in any: Any, depth: Int = 0) -> AVPlayer? {
+        guard depth < 4 else { return nil }
+        if let p = any as? AVPlayer { return p }
+        let mirror = Mirror(reflecting: any)
+        for child in mirror.children {
+            if let p = findAVPlayer(in: child.value, depth: depth + 1) { return p }
+        }
+        return nil
+    }
+
+    private static func formatSpeed(bytesPerSec: Double) -> String {
+        if bytesPerSec >= 1_000_000 {
+            return String(format: "%.1f MB/s", bytesPerSec / 1_000_000)
+        }
+        if bytesPerSec >= 1_000 {
+            return String(format: "%.0f KB/s", bytesPerSec / 1_000)
+        }
+        return String(format: "%.0f B/s", bytesPerSec)
     }
 
     private var controlsOverlay: some View {
