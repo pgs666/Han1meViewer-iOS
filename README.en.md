@@ -31,10 +31,21 @@ Special thanks:
 
 ## 📚 Documentation
 
-- [✨ Feature list](docs/FEATURES.md) — full feature inventory + roadmap
+- [✨ Feature list](docs/FEATURES.md) — full feature inventory
 - [🏗️ Architecture](docs/ARCHITECTURE.md) — tech stack, architecture diagram, directory structure
 - [🛠️ Building from source](docs/BUILDING.md) — dev environment, setup, CI
 - [⚠️ Known issues](docs/known-issues/README.md)
+
+## 🗺️ Roadmap
+
+Planned ports relative to the Android upstream (features not yet implemented):
+
+- [ ] Manual / QR-code cookie import
+- [ ] Playlist write operations (create / rename / delete, add / remove videos)
+- [ ] User account page (profile details)
+- [ ] Monthly preview (monthly release calendar)
+
+> Daily check-in, HKeyframe, etc. are intentionally excluded (see ROADMAP for reasons). Full roadmap: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## 📲 Installation
 
