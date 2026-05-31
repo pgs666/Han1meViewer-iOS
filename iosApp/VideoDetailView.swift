@@ -183,6 +183,7 @@ struct VideoDetailView: View {
                     viewModel.load(videoCode: videoCode)
                 }
                 .buttonStyle(.borderedProminent)
+                CloudflareVerifyButton(errorMessage: message)
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

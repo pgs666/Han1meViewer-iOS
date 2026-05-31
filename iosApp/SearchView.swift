@@ -101,6 +101,7 @@ struct SearchView: View {
                     viewModel.search(keyword: keyword)
                 }
                 .buttonStyle(.borderedProminent)
+                CloudflareVerifyButton(errorMessage: message)
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

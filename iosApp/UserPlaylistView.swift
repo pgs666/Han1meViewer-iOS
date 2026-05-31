@@ -49,6 +49,7 @@ struct UserPlaylistView: View {
                     viewModel.load()
                 }
                 .buttonStyle(.borderedProminent)
+                CloudflareVerifyButton(errorMessage: message)
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
