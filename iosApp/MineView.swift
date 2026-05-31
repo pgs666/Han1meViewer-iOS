@@ -163,6 +163,15 @@ private struct MineAccountSection: View {
         .padding(.bottom, 4)
         .background(Color(.systemGroupedBackground))
         .task {
+            // Delay the first login check so it cannot fire its state
+            // updates while the user is navigating away right after Mine
+            // appears. If the check's objectWillChange lands in the same
+            // update cycle as a NavigationLink push, SwiftUI applies the
+            // push without animation. Giving the navigation a moment to
+            // settle first avoids that. The check is silent, so the delay
+            // is invisible.
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
             viewModel.refreshLoginState()
         }
         .onDisappear {
