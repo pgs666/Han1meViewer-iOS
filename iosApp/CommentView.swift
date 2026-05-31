@@ -145,6 +145,7 @@ struct CommentView: View {
                     viewModel.load()
                 }
                 .buttonStyle(.borderedProminent)
+                CloudflareVerifyButton(errorMessage: message)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 60)
@@ -327,6 +328,7 @@ private struct CommentRepliesSheet: View {
                 Button("重试") {
                     Task { await load() }
                 }
+                CloudflareVerifyButton(errorMessage: message)
             }
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)

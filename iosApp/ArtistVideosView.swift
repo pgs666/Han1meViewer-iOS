@@ -97,6 +97,7 @@ struct ArtistVideosView: View {
                     load()
                 }
                 .buttonStyle(.borderedProminent)
+                CloudflareVerifyButton(errorMessage: message)
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
