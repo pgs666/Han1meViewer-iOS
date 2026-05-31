@@ -15,10 +15,18 @@ import UniformTypeIdentifiers
 ///
 /// UX: the page shows two big sections, "已显示" on top and "已隐藏" on
 /// the bottom. Each row carries the standard right-side reorder handle
-/// (active edit mode), so dragging the handle reorders within its
-/// section. To move a row to the OTHER section, long-press anywhere on
-/// the row and drop it onto the explicit "拖动到这里…" footer row of
-/// the destination section.
+/// (active edit mode) and is also draggable from its content body.
+///
+/// Why this is the only shape that works: SwiftUI's `.onMove` only fires
+/// for within-section reorders — Apple confirms this in their dev forums
+/// and the modern `.draggable` + `.dropDestination` combo silently
+/// refuses to deliver drops onto a List section that also has `.onMove`.
+/// The reliable cross-section path is the older `.onDrag(NSItemProvider)`
+/// + `ForEach.onInsert(of:perform:)` pair, which coexists with
+/// `.onMove` because they handle disjoint events:
+///
+///   - `.onMove`   → row dragged within its own ForEach
+///   - `.onInsert` → item dropped onto this ForEach from elsewhere
 struct HomeSectionOrderView: View {
     @AppStorage("home_section_order") private var visibleRaw: String = ""
     @AppStorage("home_section_hidden") private var hiddenRaw: String = "aiGenerated"
@@ -66,15 +74,14 @@ struct HomeSectionOrderView: View {
                         .font(.subheadline)
                 }
                 ForEach(visibleItems) { item in
-                    Text(item.title)
-                        .draggable(item.key)
+                    row(for: item)
                 }
                 .onMove(perform: moveVisibleItems)
-                dropFooter(label: "拖动到这里以显示", into: .visible)
+                .onInsert(of: [UTType.plainText.identifier], perform: insertIntoVisible)
             } header: {
                 Text("已显示")
             } footer: {
-                Text("拖动右侧把手调整顺序，或把行拖到下方「已隐藏」区域以从首页隐藏。")
+                Text("拖动右侧把手可在本组内调整顺序;长按一行的内容并把它拖到下方「已隐藏」组以从首页隐藏(反之亦然以重新显示)。")
                     .font(.caption)
             }
 
@@ -85,12 +92,10 @@ struct HomeSectionOrderView: View {
                         .font(.subheadline)
                 }
                 ForEach(hiddenItems) { item in
-                    Text(item.title)
-                        .foregroundStyle(.secondary)
-                        .draggable(item.key)
+                    row(for: item, dimmed: true)
                 }
                 .onMove(perform: moveHiddenItems)
-                dropFooter(label: "拖动到这里以隐藏", into: .hidden)
+                .onInsert(of: [UTType.plainText.identifier], perform: insertIntoHidden)
             } header: {
                 Text("已隐藏")
             }
@@ -112,30 +117,16 @@ struct HomeSectionOrderView: View {
         .onAppear(perform: loadOrder)
     }
 
-    private enum DropTarget {
-        case visible
-        case hidden
-    }
-
     @ViewBuilder
-    private func dropFooter(label: LocalizedStringKey, into target: DropTarget) -> some View {
-        Text(label)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, minHeight: 36, alignment: .center)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4]))
-                    .foregroundStyle(.secondary.opacity(0.4))
-            )
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .moveDisabled(true)
-            .dropDestination(for: String.self) { keys, _ in
-                applyDrop(keys: keys, into: target)
-                return true
-            }
+    private func row(for item: SectionItem, dimmed: Bool = false) -> some View {
+        Text(item.title)
+            .foregroundStyle(dimmed ? .secondary : .primary)
+            // .onDrag fires when the user long-presses the row content
+            // (NOT the right-side reorder handle). The handle still owns
+            // the in-section reorder gesture via .onMove. The dragged
+            // payload is just the section key as plain text — small and
+            // identity-stable across the two ForEach instances.
+            .onDrag { NSItemProvider(object: item.key as NSString) }
     }
 
     // MARK: - Loading / persistence
@@ -196,25 +187,72 @@ struct HomeSectionOrderView: View {
         save()
     }
 
-    private func applyDrop(keys: [String], into target: DropTarget) {
-        var changed = false
+    private func insertIntoVisible(at index: Int, items: [NSItemProvider]) {
+        loadKeys(from: items) { keys in
+            self.applyCrossSectionMove(keys: keys, into: .visible, at: index)
+        }
+    }
+
+    private func insertIntoHidden(at index: Int, items: [NSItemProvider]) {
+        loadKeys(from: items) { keys in
+            self.applyCrossSectionMove(keys: keys, into: .hidden, at: index)
+        }
+    }
+
+    private enum DropTarget { case visible, hidden }
+
+    /// NSItemProvider.loadObject is async + on a background queue. Collect
+    /// every successfully decoded key, then deliver them as a single batch
+    /// on the main queue so the @State mutations and `save()` happen
+    /// atomically (not interleaved if the user dropped a multi-selection).
+    private func loadKeys(from providers: [NSItemProvider], handle: @escaping ([String]) -> Void) {
+        guard !providers.isEmpty else { return }
+        let group = DispatchGroup()
+        var collected: [String] = []
+        let lock = NSLock()
+        for provider in providers {
+            group.enter()
+            _ = provider.loadObject(ofClass: NSString.self) { obj, _ in
+                if let s = obj as? String {
+                    lock.lock(); collected.append(s); lock.unlock()
+                }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            if !collected.isEmpty { handle(collected) }
+        }
+    }
+
+    private func applyCrossSectionMove(keys: [String], into target: DropTarget, at index: Int) {
+        var moved: [SectionItem] = []
         for key in keys {
+            // Take the item out of whichever list it currently lives in.
+            // Skip silently if it's not in the OTHER list — that means
+            // the user dragged a row onto its own ForEach (which already
+            // produced an .onMove for in-section reorder, and this
+            // .onInsert is a duplicate event we should ignore).
             switch target {
             case .visible:
-                if let idx = hiddenItems.firstIndex(where: { $0.key == key }) {
-                    let item = hiddenItems.remove(at: idx)
-                    visibleItems.append(item)
-                    changed = true
+                if let i = hiddenItems.firstIndex(where: { $0.key == key }) {
+                    moved.append(hiddenItems.remove(at: i))
                 }
             case .hidden:
-                if let idx = visibleItems.firstIndex(where: { $0.key == key }) {
-                    let item = visibleItems.remove(at: idx)
-                    hiddenItems.append(item)
-                    changed = true
+                if let i = visibleItems.firstIndex(where: { $0.key == key }) {
+                    moved.append(visibleItems.remove(at: i))
                 }
             }
         }
-        if changed { save() }
+        guard !moved.isEmpty else { return }
+        switch target {
+        case .visible:
+            let safe = max(0, min(index, visibleItems.count))
+            visibleItems.insert(contentsOf: moved, at: safe)
+        case .hidden:
+            let safe = max(0, min(index, hiddenItems.count))
+            hiddenItems.insert(contentsOf: moved, at: safe)
+        }
+        save()
     }
 
     private func resetToDefaults() {
