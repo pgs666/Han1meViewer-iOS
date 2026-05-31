@@ -83,9 +83,12 @@ struct MineView: View {
             // NavigationLinks. A List-row re-render coinciding with a push
             // makes SwiftUI apply the push without animation (the reported
             // "destination appears instantly while the check runs" bug).
-            .safeAreaInset(edge: .top, spacing: 0) {
-                MineAccountSection(environment: environment)
-            }
+            // [ISOLATION TEST] account card temporarily removed to confirm
+            // whether it (avatar async load / observation) is what kills the
+            // push animation, vs CompatibleNavigationStack itself.
+            // .safeAreaInset(edge: .top, spacing: 0) {
+            //     MineAccountSection(environment: environment)
+            // }
             .navigationTitle("我的")
             .logScreen("Mine")
         }
