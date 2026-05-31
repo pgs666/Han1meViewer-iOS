@@ -136,13 +136,13 @@ struct KSPlayerView: View {
     @State private var physicalVolumeHUDHideTask: Task<Void, Never>?
 
     // MARK: - Buffering / loading feedback
-    /// True while the player has not yet reached a settled state (one of
-    /// .bufferFinished / .paused / .playedToTheEnd / .error). Defaults to
-    /// true so the HUD is visible from the moment the view mounts —
-    /// otherwise the first .initialized / .readyToPlay / .preparing
-    /// window (which can be long for slow networks) leaves the user
-    /// staring at a paused-looking play button with no loading hint.
-    @State private var isLoading: Bool = true
+    /// Observes the underlying AVPlayer's `timeControlStatus` — the
+    /// canonical AVFoundation signal for "is the player currently
+    /// buffering / loading?". This drives the loading HUD instead of
+    /// trying to derive it from KSPlayerState transitions, which were
+    /// fragile across navigation re-mounts (HUD stuck on after popping
+    /// back from a tag/artist sub-page).
+    @StateObject private var statusObserver = AVPlayerStatusObserver()
     @State private var currentSpeedText: String?
     @State private var speedSampleTask: Task<Void, Never>?
     /// Previous loadedTimeRanges-end and wall-clock timestamp, used to
@@ -317,26 +317,11 @@ struct KSPlayerView: View {
                             isPlaying = nowPlaying
                             onPlayingChanged(nowPlaying)
                         }
-                        let nowLoading: Bool
-                        switch state {
-                        case .bufferFinished, .paused, .playedToTheEnd, .error:
-                            nowLoading = false
-                        default:
-                            // .initialized / .readyToPlay / .buffering /
-                            // any future case from KSPlayer all count as
-                            // "still working towards playback".
-                            nowLoading = true
-                        }
-                        if nowLoading != isLoading {
-                            isLoading = nowLoading
-                            if nowLoading {
-                                startSpeedSampling()
-                            } else {
-                                speedSampleTask?.cancel()
-                                speedSampleTask = nil
-                                currentSpeedText = nil
-                            }
-                        }
+                        // Wire / re-wire the timeControlStatus observer
+                        // any time KSPlayer's state ticks, so we always have
+                        // the up-to-date AVPlayer reference (it can be
+                        // recreated when the URL or codec changes).
+                        statusObserver.observe(Self.findAVPlayer(in: layer.player))
                         if !naturalSizeReported {
                             let size = layer.player.naturalSize
                             if size.width > 0 && size.height > 0 {
@@ -455,7 +440,7 @@ struct KSPlayerView: View {
                 boostHint.transition(.opacity)
             }
 
-            if isLoading {
+            if statusObserver.timeControlStatus == .waitingToPlayAtSpecifiedRate {
                 loadingHUD.transition(.opacity)
             }
 
@@ -470,28 +455,19 @@ struct KSPlayerView: View {
             // volume HUD works everywhere else in the app.
             SystemVolumeController.acquire()
             volumeObserver.start()
-            // Reset per-mount autoplay/sampling/log-budget state.
+            // Reset per-mount autoplay/log-budget state. Loading state is
+            // now derived from AVPlayer.timeControlStatus so we don't
+            // need to seed it manually here.
             autoPlayApplied = false
             stateLogBudget = 8
             lastLoadedEnd = 0
             lastSampleAt = nil
-            // Initialize isLoading from the player's CURRENT state if a
-            // layer is already attached, so a re-appearance (e.g. user
-            // pushed an artist / tag sub-page and returned) doesn't
-            // wrongly flash the loading HUD over an already-paused or
-            // already-ready player. KSPlayer doesn't re-fire onStateChanged
-            // when the state hasn't actually changed across the navigation,
-            // so unconditional isLoading=true here would stay true forever.
-            // Fresh mounts (no layer yet) keep the default-true behaviour
-            // so the HUD covers the gap before the first state callback.
-            switch coordinator.playerLayer?.state {
-            case .bufferFinished?, .paused?, .playedToTheEnd?, .error?:
-                isLoading = false
-            default:
-                isLoading = true
-            }
             currentSpeedText = nil
-            if isLoading { startSpeedSampling() }
+            // Bind the status observer eagerly if a layer already exists
+            // (re-appear after navigation pop); fresh mounts will pick
+            // it up via the onStateChanged callback once the layer is
+            // created.
+            statusObserver.observe(Self.findAVPlayer(in: coordinator.playerLayer?.player))
             AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
         }
         .onDisappear {
@@ -520,6 +496,18 @@ struct KSPlayerView: View {
             }
             onControlsVisibilityChanged(false)
             hideControlsTask?.cancel()
+        }
+        .onValueChange(of: statusObserver.timeControlStatus) { newStatus in
+            // Speed sampler only runs while the player is actually waiting
+            // on the network for more data. .playing means we're consuming
+            // already-buffered bytes; .paused means user/app stopped it.
+            if newStatus == .waitingToPlayAtSpecifiedRate {
+                startSpeedSampling()
+            } else {
+                speedSampleTask?.cancel()
+                speedSampleTask = nil
+                currentSpeedText = nil
+            }
         }
         .onReceive(volumeObserver.$changeTick) { _ in
             // Skip if the change came from our swipe-volume gesture —
