@@ -20,8 +20,6 @@ struct MineView: View {
     var body: some View {
         CompatibleNavigationStack {
             List {
-                MineAccountSection(environment: environment)
-
                 Section("主要") {
                     NavigationLink {
                         SettingsView(environment: environment)
@@ -79,6 +77,15 @@ struct MineView: View {
                     }
                 }
             }
+            // The account card lives OUTSIDE the List (pinned above it) so
+            // its background login check — which re-renders the card on
+            // completion — never re-renders the List that owns the
+            // NavigationLinks. A List-row re-render coinciding with a push
+            // makes SwiftUI apply the push without animation (the reported
+            // "destination appears instantly while the check runs" bug).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                MineAccountSection(environment: environment)
+            }
             .navigationTitle("我的")
             .logScreen("Mine")
         }
@@ -108,8 +115,8 @@ private struct MineAccountSection: View {
     }
 
     var body: some View {
-        Group {
-            Section {
+        VStack(spacing: 8) {
+            Group {
                 if viewModel.isLoggedIn {
                     Button {
                         activeAlert = .confirmLogout
@@ -137,20 +144,24 @@ private struct MineAccountSection: View {
                             profile: viewModel.profile
                         )
                     }
+                    .buttonStyle(.plain)
                 }
-            }
 
-            // Only show the generic error banner for errors that the
-            // account card isn't already surfacing (the card shows its own
-            // re-login hint when needsReLogin is set).
-            if let message = viewModel.errorMessage, !viewModel.needsReLogin {
-                Section {
+                if let message = viewModel.errorMessage, !viewModel.needsReLogin {
                     Label(message, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .background(Color(.systemGroupedBackground))
         .task {
             viewModel.refreshLoginState()
         }
