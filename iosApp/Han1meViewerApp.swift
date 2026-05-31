@@ -94,7 +94,7 @@ struct Han1meViewerApp: App {
 
     @available(iOS 26.0, *)
     private var modernTabView: some View {
-        TabView(selection: tabSelection) {
+        TabView(selection: $selectedTab) {
             Tab("首页", systemImage: "house.fill", value: MainTab.home) {
                 HomeView(environment: sharedEnvironment)
                     .popsToRootWhen(signal: homeTabPopSignal)
@@ -128,7 +128,7 @@ struct Han1meViewerApp: App {
     }
 
     private var legacyTabView: some View {
-        TabView(selection: tabSelection) {
+        TabView(selection: $selectedTab) {
             HomeView(environment: sharedEnvironment)
                 .popsToRootWhen(signal: homeTabPopSignal)
                 .tabItem {
