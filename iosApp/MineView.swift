@@ -21,26 +21,7 @@ struct MineView: View {
         )
     }
 
-    // [ISOLATION TEST] Minimal Mine body: a single NavigationLink to
-    // Settings, no List, no account card, no .task. If pushing this still
-    // loses the animation when entering Mine and tapping immediately, the
-    // cause is the navigation container (CompatibleNavigationStack /
-    // ObservedNavigationStack), not Mine's content. If it animates, the
-    // cause is Mine's List/content settling.
     var body: some View {
-        CompatibleNavigationStack {
-            List {
-                NavigationLink {
-                    SettingsView(environment: environment)
-                } label: {
-                    Text("设置 (test)")
-                }
-            }
-            .navigationTitle("我的")
-        }
-    }
-
-    private var originalBody: some View {
         CompatibleNavigationStack {
             List {
                 Section {
