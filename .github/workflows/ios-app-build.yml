@@ -35,7 +35,7 @@ jobs:
         # cold run. setup-gradle only caches ~/.gradle, not ~/.konan, so we
         # cache it explicitly here. Key on Kotlin/AGP/library versions because
         # konan is tied to the kotlin compiler version.
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/build.gradle.kts', 'gradle.properties') }}
@@ -43,7 +43,7 @@ jobs:
             konan-${{ runner.os }}-
 
       - name: Cache SPM packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
