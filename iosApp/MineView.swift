@@ -116,7 +116,6 @@ private struct MineAccountSection: View {
                     } label: {
                         MineAccountRow(
                             isLoggedIn: true,
-                            isChecking: viewModel.isCheckingLogin,
                             needsReLogin: viewModel.needsReLogin,
                             profile: viewModel.profile
                         )
@@ -134,7 +133,6 @@ private struct MineAccountSection: View {
                     } label: {
                         MineAccountRow(
                             isLoggedIn: false,
-                            isChecking: viewModel.isCheckingLogin,
                             needsReLogin: viewModel.needsReLogin,
                             profile: viewModel.profile
                         )
@@ -259,7 +257,6 @@ private enum MineAlert: Identifiable {
 
 private struct MineAccountRow: View {
     let isLoggedIn: Bool
-    let isChecking: Bool
     let needsReLogin: Bool
     let profile: MineProfileSnapshot
 
@@ -283,9 +280,6 @@ private struct MineAccountRow: View {
     }
 
     private var subtitle: String {
-        if isChecking {
-            return String(localized: "mine.login.checking")
-        }
         if needsReLogin {
             return String(localized: "登录已失效，请重新登录")
         }
