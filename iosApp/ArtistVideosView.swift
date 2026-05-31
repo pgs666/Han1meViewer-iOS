@@ -163,17 +163,49 @@ struct ArtistVideosView: View {
     }
 }
 
-/// Grid-style card for `SearchVideoRow`. Same vertical layout the related-
-/// videos grid uses on the video detail page, so both screens read as
-/// part of the same family of "tap a tile to play".
+/// Grid-style card for `SearchVideoRow`. Matches the home-page card
+/// layout: duration + view count overlaid on the cover, title below,
+/// then a footer row with artist (left, auto-scrolls when too long) +
+/// upload time (right). Same shape is used by the related-videos grid
+/// on the video detail page so all the "tap a tile to play" surfaces
+/// read as one family.
 struct SearchVideoCard: View {
     let video: SearchVideoRow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
-                .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            ZStack(alignment: .bottom) {
+                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
+                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
+
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color(.secondarySystemBackground).opacity(0.94)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+
+                HStack(spacing: 5) {
+                    if let views = video.views, !views.isEmpty {
+                        Label(views, systemImage: "play.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    Spacer(minLength: 8)
+                    if let duration = video.duration, !duration.isEmpty {
+                        Label(duration, systemImage: "clock")
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.bottom, 5)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             // Reserve a fixed two-line slot for the title so cards with
             // a single-line title still occupy the same vertical space
@@ -196,20 +228,27 @@ struct SearchVideoCard: View {
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Same trick for the metadata line so cards with empty /
-            // single-line metadata don't shrink relative to neighbours.
-            Group {
-                if #available(iOS 17.0, *) {
-                    Text(video.metadata.isEmpty ? " " : video.metadata)
-                        .lineLimit(2, reservesSpace: true)
-                } else {
-                    Text(video.metadata.isEmpty ? " " : video.metadata)
-                        .lineLimit(2)
+            // Footer row: artist on the left (auto-scrolls if too long),
+            // upload time on the right.
+            HStack(spacing: 6) {
+                MarqueeText(text: video.artistLabel)
+                if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
+                    Text(uploadTime)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+private extension SearchVideoRow {
+    var artistLabel: String {
+        guard let artist, !artist.isEmpty else {
+            return String(localized: "common.artist")
+        }
+        return artist
     }
 }

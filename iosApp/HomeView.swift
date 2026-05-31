@@ -401,16 +401,18 @@ private struct HomeVideoCard: View {
                 .lineLimit(2)
                 .frame(minHeight: 36, alignment: .topLeading)
 
-            Text(video.artistLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            if !video.footerMetadata.isEmpty {
-                Text(video.footerMetadata)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            // Footer row: artist on the left (auto-scrolls if too long),
+            // upload time on the right with fixed layout priority so it
+            // always shows in full and the marquee gets the remainder.
+            HStack(spacing: 6) {
+                MarqueeText(text: video.artistLabel)
+                if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
+                    Text(uploadTime)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
             }
         }
         .frame(width: 184, alignment: .leading)
