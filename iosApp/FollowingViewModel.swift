@@ -99,7 +99,7 @@ struct FollowingScreenSnapshot: PaginatedSnapshot {
     }
 }
 
-struct FollowingArtistRow: Identifiable {
+struct FollowingArtistRow: Identifiable, Hashable {
     let name: String
     let avatarUrl: String
 
