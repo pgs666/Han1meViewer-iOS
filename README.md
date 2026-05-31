@@ -29,10 +29,21 @@
 
 ## 📚 文档
 
-- [✨ 功能列表](docs/FEATURES.md) — 完整功能清单 + 路线图
+- [✨ 功能列表](docs/FEATURES.md) — 完整功能清单
 - [🏗️ 技术架构](docs/ARCHITECTURE.md) — 技术栈、架构图、目录结构
 - [🛠️ 从源码构建](docs/BUILDING.md) — 开发环境、启动流程、CI
 - [⚠️ 已知问题](docs/known-issues/README.md)
+
+## 🗺️ 路线图
+
+相对 Android 上游，后续计划移植（功能本身待实现）：
+
+- [ ] 手动 / 扫码 Cookie 导入
+- [ ] 播放清单写操作（新建 / 改名 / 删除、视频移入移出）
+- [ ] 用户账户页（个人资料详情）
+- [ ] 月度预览（月度新番日历）
+
+> 已排除每日签到、H 关键帧等（原因见 ROADMAP）。完整路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 📲 安装
 
