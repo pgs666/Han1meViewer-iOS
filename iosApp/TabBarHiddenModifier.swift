@@ -19,7 +19,7 @@ final class TabBarVisibilityController: ObservableObject {
     /// the tab bar hidden until the whole chain pops.
     private var hiddenRequesters: Int = 0
 
-    func acquireHidden(animated: Bool = false) {
+    func acquireHidden(animated: Bool = true) {
         hiddenRequesters += 1
         let target: Visibility = .hidden
         if animated {
@@ -27,13 +27,6 @@ final class TabBarVisibilityController: ObservableObject {
                 visibility = target
             }
         } else {
-            // Hide WITHOUT a withAnimation transaction on push. The hide is
-            // triggered from the destination's .onAppear, which fires right
-            // as the NavigationStack push transition begins. A withAnimation
-            // here starts a competing animation transaction that SwiftUI
-            // merges with the in-flight push, and the push slide-in gets
-            // dropped. An instant hide removes that competition; the tab bar
-            // simply isn't there for the pushed page, which looks correct.
             visibility = target
         }
     }
@@ -80,7 +73,7 @@ private struct HidesTabBarModifier: ViewModifier {
                 // Animate BOTH directions. NavigationStack's push transition
                 // does NOT carry a tab-bar slide for free, so we drive it
                 // explicitly via withAnimation in the controller.
-                .onAppear { controller.acquireHidden(animated: false) }
+                .onAppear { controller.acquireHidden(animated: true) }
                 .onDisappear { controller.release(animated: true) }
         } else {
             // iPadOS 16: the controller-driven container approach corrupts
