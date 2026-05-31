@@ -52,7 +52,7 @@ struct Han1meViewerApp: App {
     var body: some Scene {
         WindowGroup {
             rootView
-                .environmentObject(tabBarVisibility)
+                .environment(\.tabBarVisibility, tabBarVisibility)
                 .environment(\.searchFeature, sharedEnvironment.searchFeature())
                 .onAppear {
                     DownloadManager.shared.configure(environment: sharedEnvironment)

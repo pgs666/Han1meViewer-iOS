@@ -9,6 +9,15 @@ struct FollowingView: View {
     /// artist at once. Animated via withAnimation so the transition is
     /// smooth instead of snapping.
     @State private var isArtistsExpanded = false
+    /// State-driven push for ArtistVideosView. We deliberately avoid
+    /// NavigationLink here: SwiftUI's List + LazyVGrid combination has a
+    /// long-standing auto-link-detection bug (every NavigationLink within
+    /// a single List row activates when any cell is tapped — observed
+    /// even with iOS 16+ value-based NavigationLink(value:) on iOS 26
+    /// beta). Driving the push through Button + @State + .navigation
+    /// Destination(isPresented:) gives each cell its own one-shot trigger
+    /// that no auto-detection can multiplex.
+    @State private var pushedArtist: FollowingArtistRow?
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
     private let searchFeature: SearchFeature
@@ -81,14 +90,9 @@ struct FollowingView: View {
                                 spacing: 14
                             ) {
                                 ForEach(snapshot.artists) { artist in
-                                    // value-based navigation: works around
-                                    // the SwiftUI bug where multiple
-                                    // NavigationLink { dest } inside a
-                                    // LazyVGrid embedded in a List Section
-                                    // all fire at once when any cell is
-                                    // tapped (the user reported tapping one
-                                    // artist pushed every artist).
-                                    NavigationLink(value: artist) {
+                                    Button {
+                                        pushedArtist = artist
+                                    } label: {
                                         FollowingArtistCell(artist: artist)
                                     }
                                     .buttonStyle(.plain)
@@ -99,7 +103,9 @@ struct FollowingView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 14) {
                                     ForEach(snapshot.artists) { artist in
-                                        NavigationLink(value: artist) {
+                                        Button {
+                                            pushedArtist = artist
+                                        } label: {
                                             FollowingArtistCell(artist: artist)
                                         }
                                         .buttonStyle(.plain)
@@ -158,13 +164,20 @@ struct FollowingView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationDestination(for: FollowingArtistRow.self) { artist in
-                ArtistVideosView(
-                    artistName: artist.name,
-                    searchFeature: searchFeature,
-                    videoFeature: videoFeature,
-                    commentFeature: commentFeature
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { pushedArtist != nil },
+                    set: { if !$0 { pushedArtist = nil } }
                 )
+            ) {
+                if let pushedArtist {
+                    ArtistVideosView(
+                        artistName: pushedArtist.name,
+                        searchFeature: searchFeature,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature
+                    )
+                }
             }
         }
     }
