@@ -145,6 +145,18 @@ struct KSPlayerView: View {
     /// Caps diagnostic log spam: only log the first few sample-failure
     /// reasons per buffering session, then stay quiet.
     @State private var speedDiagBudget: Int = 0
+    /// Previous loadedTimeRanges-end and wall-clock timestamp, used to
+    /// synthesise speed from buffer-fill rate × track bitrate when
+    /// AVPlayerItem.accessLog is nil (typical for progressive mp4 where
+    /// AVFoundation does not generate access-log events).
+    @State private var lastLoadedEnd: Double = 0
+    @State private var lastSampleAt: Date?
+
+    /// One-shot pause asserted when autoPlayOnEnter is false, on the first
+    /// transition into `.bufferFinished`. KSOptions.isAutoPlay is honoured
+    /// inconsistently across KSPlayer versions, so this is a belt-and-
+    /// braces enforcement that works regardless of the library's reading.
+    @State private var noAutoplayEnforced = false
 
     private enum DragKind: Equatable {
         case none
@@ -266,6 +278,17 @@ struct KSPlayerView: View {
                         // downloaded file won't play. Not a fix — pure signal.
                         if state == .error {
                             AppLogger.log("player error state url=\(url.absoluteString) isFile=\(url.isFileURL) state=\(state)")
+                        }
+                        // If the user has disabled auto-play, force a
+                        // pause on the first time the player actually
+                        // reaches a playing state. KSOptions.isAutoPlay
+                        // alone has been observed not to take effect in the
+                        // current KSPlayer version.
+                        if !autoPlayOnEnter,
+                           !noAutoplayEnforced,
+                           state == .bufferFinished {
+                            layer.pause()
+                            noAutoplayEnforced = true
                         }
                         let nowPlaying = state.isPlaying
                         if nowPlaying != isPlaying {
@@ -414,6 +437,10 @@ struct KSPlayerView: View {
             // volume HUD works everywhere else in the app.
             SystemVolumeController.acquire()
             volumeObserver.start()
+            // Reset per-mount autoplay/sampling state.
+            noAutoplayEnforced = false
+            lastLoadedEnd = 0
+            lastSampleAt = nil
         }
         .onDisappear {
             hideControlsTask?.cancel()
@@ -509,39 +536,70 @@ struct KSPlayerView: View {
     /// `observedBitrate` from the latest access-log event. Returns nil for
     /// non-AVPlayer backends or when no events are available yet.
     private func sampleNetworkSpeed() -> String? {
-        guard let player = coordinator.playerLayer?.player else {
-            logSpeedDiag("no playerLayer.player")
+        guard let player = coordinator.playerLayer?.player else { return nil }
+        guard let avPlayer = Self.findAVPlayer(in: player) else { return nil }
+        guard let item = avPlayer.currentItem else { return nil }
+
+        // Path 1: AVPlayerItem.accessLog (works for HLS / network streams
+        // AVFoundation chooses to log; usually empty for progressive mp4).
+        if let event = item.accessLog()?.events.last {
+            let bps = event.observedBitrate
+            if bps > 0 {
+                return Self.formatSpeed(bytesPerSec: bps / 8.0)
+            }
+            let bytes = event.numberOfBytesTransferred
+            let dur = event.transferDuration
+            if bytes > 0, dur > 0 {
+                return Self.formatSpeed(bytesPerSec: Double(bytes) / dur)
+            }
+        }
+
+        // Path 2: synthesise from buffer fill-rate × track bitrate, which
+        // works for progressive mp4 where accessLog stays nil.
+        return synthesiseSpeed(from: item)
+    }
+
+    private func synthesiseSpeed(from item: AVPlayerItem) -> String? {
+        let now = Date()
+        guard
+            let lastRange = item.loadedTimeRanges.last?.timeRangeValue,
+            lastRange.duration.isNumeric, lastRange.start.isNumeric
+        else {
+            logSpeedDiag("no loadedTimeRanges")
             return nil
         }
-        guard let avPlayer = Self.findAVPlayer(in: player) else {
-            logSpeedDiag("no AVPlayer in \(type(of: player)); children=\(Self.describeChildren(of: player))")
+        let currentEnd = lastRange.start.seconds + lastRange.duration.seconds
+
+        // Capture previous sample, then update for next call. Defer ensures
+        // the update happens regardless of which return path we take.
+        let prevEnd = lastLoadedEnd
+        let prevTime = lastSampleAt
+        lastLoadedEnd = currentEnd
+        lastSampleAt = now
+
+        guard let prevTime else { return nil }   // first sample, no delta
+        let wallDelta = now.timeIntervalSince(prevTime)
+        guard wallDelta > 0.1 else { return nil }
+        let bufferDelta = currentEnd - prevEnd
+        guard bufferDelta > 0 else {
+            // No new buffer this tick — speed is effectively zero, but
+            // showing "0 B/s" is misleading for a transient stall.
             return nil
         }
-        guard let item = avPlayer.currentItem else {
-            logSpeedDiag("no currentItem on \(type(of: avPlayer))")
+        let fillRate = bufferDelta / wallDelta
+
+        // estimatedDataRate is in bits/sec; comes from the asset metadata
+        // and is populated as soon as the track loads (typically before
+        // playback can start).
+        let bitrate: Float = item.tracks
+            .compactMap { $0.assetTrack }
+            .first { $0.mediaType == .video }?.estimatedDataRate ?? 0
+        guard bitrate > 0 else {
+            logSpeedDiag("no estimatedDataRate; fillRate=\(fillRate)")
             return nil
         }
-        guard let log = item.accessLog() else {
-            logSpeedDiag("no accessLog on currentItem")
-            return nil
-        }
-        guard let event = log.events.last else {
-            logSpeedDiag("accessLog has \(log.events.count) events")
-            return nil
-        }
-        let bps = event.observedBitrate
-        // Some events report 0 bitrate but have non-zero byte counts; fall
-        // back to numberOfBytesTransferred / transferDuration when possible.
-        if bps > 0 {
-            return Self.formatSpeed(bytesPerSec: bps / 8.0)
-        }
-        let bytes = event.numberOfBytesTransferred
-        let dur = event.transferDuration
-        if bytes > 0, dur > 0 {
-            return Self.formatSpeed(bytesPerSec: Double(bytes) / dur)
-        }
-        logSpeedDiag("event empty: bps=\(bps) bytes=\(bytes) dur=\(dur)")
-        return nil
+        let bytesPerSec = Double(bitrate) / 8.0 * fillRate
+        return Self.formatSpeed(bytesPerSec: bytesPerSec)
     }
 
     private func logSpeedDiag(_ message: String) {
