@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Han1meShared
 
 @main
@@ -55,7 +56,7 @@ struct Han1meViewerApp: App {
                 .environment(\.searchFeature, sharedEnvironment.searchFeature())
                 .onAppear {
                     DownloadManager.shared.configure(environment: sharedEnvironment)
-                    AppLogger.log("app launched")
+                    AppLogger.log("app launched ios=\(UIDevice.current.systemVersion)")
                 }
                 .onReceive(NotificationCenter.default.publisher(for: SearchNavigationCenter.requestNotification)) { notification in
                     if let keyword = notification.userInfo?[SearchNavigationCenter.keywordKey] as? String {
