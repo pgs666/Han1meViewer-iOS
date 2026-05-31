@@ -152,11 +152,18 @@ struct KSPlayerView: View {
     @State private var lastLoadedEnd: Double = 0
     @State private var lastSampleAt: Date?
 
-    /// One-shot pause asserted when autoPlayOnEnter is false, on the first
-    /// transition into `.bufferFinished`. KSOptions.isAutoPlay is honoured
-    /// inconsistently across KSPlayer versions, so this is a belt-and-
-    /// braces enforcement that works regardless of the library's reading.
-    @State private var noAutoplayEnforced = false
+    /// Belt-and-braces enforcement of the autoPlayOnEnter preference,
+    /// fired exactly once on the first transition into `.bufferFinished`.
+    /// KSOptions.isAutoPlay is honoured inconsistently across KSPlayer
+    /// versions: in some configurations the layer reaches bufferFinished
+    /// but never starts playing, in others it would play even when off.
+    /// We intervene once with the user-intended action (play or pause)
+    /// and then leave manual control to the user.
+    @State private var autoPlayApplied = false
+    /// Caps onStateChanged log spam to the first few transitions per view
+    /// mount, so we can see what KSPlayer actually does without burying
+    /// the rest of AppLogger output.
+    @State private var stateLogBudget: Int = 0
 
     private enum DragKind: Equatable {
         case none
@@ -279,16 +286,22 @@ struct KSPlayerView: View {
                         if state == .error {
                             AppLogger.log("player error state url=\(url.absoluteString) isFile=\(url.isFileURL) state=\(state)")
                         }
-                        // If the user has disabled auto-play, force a
-                        // pause on the first time the player actually
-                        // reaches a playing state. KSOptions.isAutoPlay
-                        // alone has been observed not to take effect in the
-                        // current KSPlayer version.
-                        if !autoPlayOnEnter,
-                           !noAutoplayEnforced,
-                           state == .bufferFinished {
-                            layer.pause()
-                            noAutoplayEnforced = true
+                        if stateLogBudget > 0 {
+                            stateLogBudget -= 1
+                            AppLogger.log("player state=\(state) isPlaying=\(state.isPlaying)")
+                        }
+                        // Belt-and-braces enforcement of the autoplay
+                        // preference. Fire once on the first .bufferFinished
+                        // — by that point the player is fully ready and
+                        // honours play()/pause() reliably.
+                        if !autoPlayApplied, state == .bufferFinished {
+                            if autoPlayOnEnter {
+                                layer.play()
+                            } else {
+                                layer.pause()
+                            }
+                            autoPlayApplied = true
+                            AppLogger.log("autoplay enforced: \(autoPlayOnEnter ? "play" : "pause")")
                         }
                         let nowPlaying = state.isPlaying
                         if nowPlaying != isPlaying {
@@ -437,10 +450,12 @@ struct KSPlayerView: View {
             // volume HUD works everywhere else in the app.
             SystemVolumeController.acquire()
             volumeObserver.start()
-            // Reset per-mount autoplay/sampling state.
-            noAutoplayEnforced = false
+            // Reset per-mount autoplay/sampling/log-budget state.
+            autoPlayApplied = false
+            stateLogBudget = 8
             lastLoadedEnd = 0
             lastSampleAt = nil
+            AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
         }
         .onDisappear {
             hideControlsTask?.cancel()
