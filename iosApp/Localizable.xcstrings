@@ -3569,18 +3569,50 @@
         }
       }
     },
-    "拖动右侧把手可在本组内调整顺序;长按一行的内容并把它拖到下方「已隐藏」组以从首页隐藏(反之亦然以重新显示)。": {
+    "拖动右侧把手在本组内调整顺序;向左滑动一行可在两组之间移动。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drag the right-side handle to reorder within this group; long-press a row's content and drag it into the Hidden group below to remove it from Home (or back into Visible to restore)."
+            "value": "Drag the right-side handle to reorder within this group; swipe a row left to move it to the other group."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "拖动右侧把手可在本组内调整顺序;长按一行的内容并把它拖到下方「已隐藏」组以从首页隐藏(反之亦然以重新显示)。"
+            "value": "拖动右侧把手在本组内调整顺序;向左滑动一行可在两组之间移动。"
+          }
+        }
+      }
+    },
+    "隐藏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏"
+          }
+        }
+      }
+    },
+    "显示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示"
           }
         }
       }
