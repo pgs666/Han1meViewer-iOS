@@ -13,17 +13,15 @@ struct CompatibleNavigationStack<Content: View>: View {
 
     var body: some View {
         if #available(iOS 17.0, *) {
-            // iOS 17+: container-level toolbar binding drives animated
-            // tab-bar slide via TabBarVisibilityController. Verified working
-            // on iOS 26.5; the modifier composition does NOT trigger the
-            // navigation-layout race seen on iPadOS 16.
-            //
-            // Routed through ObservedNavigationStack so changes to the
-            // controller's @Published `visibility` actually re-render the
-            // toolbar binding — @Environment-injected ObservableObjects
-            // don't auto-track @Published the way @EnvironmentObject would,
-            // so we re-establish reactivity via @ObservedObject inside.
-            ObservedNavigationStack(controller: controller, content: content)
+            // [ISOLATION TEST] Bypass ObservedNavigationStack entirely — no
+            // observation of the shared tabBarVisibility controller, no
+            // .toolbar(_, for: .tabBar) binding. Pure NavigationStack. If the
+            // Mine push animates now (even when switching to Mine and tapping
+            // immediately), the cause is the container observing the shared
+            // controller; the tab bar just won't hide on push in this build.
+            NavigationStack {
+                content()
+            }
         } else if #available(iOS 16.0, *) {
             // iPadOS 16: applying .toolbar(_:for: .tabBar) on the
             // NavigationStack root content causes severe layout corruption
