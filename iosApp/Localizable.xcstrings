@@ -3569,50 +3569,18 @@
         }
       }
     },
-    "拖动到这里以显示": {
+    "拖动右侧把手可在本组内调整顺序;长按一行的内容并把它拖到下方「已隐藏」组以从首页隐藏(反之亦然以重新显示)。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drop here to show"
+            "value": "Drag the right-side handle to reorder within this group; long-press a row's content and drag it into the Hidden group below to remove it from Home (or back into Visible to restore)."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "拖动到这里以显示"
-          }
-        }
-      }
-    },
-    "拖动到这里以隐藏": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Drop here to hide"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "拖动到这里以隐藏"
-          }
-        }
-      }
-    },
-    "拖动右侧把手调整顺序，或把行拖到下方「已隐藏」区域以从首页隐藏。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Drag the right-side handle to reorder, or drag a row into the Hidden area below to remove it from Home."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "拖动右侧把手调整顺序，或把行拖到下方「已隐藏」区域以从首页隐藏。"
+            "value": "拖动右侧把手可在本组内调整顺序;长按一行的内容并把它拖到下方「已隐藏」组以从首页隐藏(反之亦然以重新显示)。"
           }
         }
       }
