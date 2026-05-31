@@ -81,14 +81,14 @@ struct FollowingView: View {
                                 spacing: 14
                             ) {
                                 ForEach(snapshot.artists) { artist in
-                                    NavigationLink {
-                                        ArtistVideosView(
-                                            artistName: artist.name,
-                                            searchFeature: searchFeature,
-                                            videoFeature: videoFeature,
-                                            commentFeature: commentFeature
-                                        )
-                                    } label: {
+                                    // value-based navigation: works around
+                                    // the SwiftUI bug where multiple
+                                    // NavigationLink { dest } inside a
+                                    // LazyVGrid embedded in a List Section
+                                    // all fire at once when any cell is
+                                    // tapped (the user reported tapping one
+                                    // artist pushed every artist).
+                                    NavigationLink(value: artist) {
                                         FollowingArtistCell(artist: artist)
                                     }
                                     .buttonStyle(.plain)
@@ -99,14 +99,7 @@ struct FollowingView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 14) {
                                     ForEach(snapshot.artists) { artist in
-                                        NavigationLink {
-                                            ArtistVideosView(
-                                                artistName: artist.name,
-                                                searchFeature: searchFeature,
-                                                videoFeature: videoFeature,
-                                                commentFeature: commentFeature
-                                            )
-                                        } label: {
+                                        NavigationLink(value: artist) {
                                             FollowingArtistCell(artist: artist)
                                         }
                                         .buttonStyle(.plain)
@@ -165,6 +158,14 @@ struct FollowingView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .navigationDestination(for: FollowingArtistRow.self) { artist in
+                ArtistVideosView(
+                    artistName: artist.name,
+                    searchFeature: searchFeature,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+            }
         }
     }
 
