@@ -22,6 +22,12 @@ struct HomeView: View {
     /// added server sections still surface).
     @AppStorage("home_section_order") private var homeSectionOrderRaw: String = ""
 
+    /// Comma-separated list of section keys the user has hidden from the
+    /// home page. Defaults to `aiGenerated` so a fresh install hides AI-
+    /// generated anime out of the box; the user can drag it into "已显示"
+    /// in the section-order page to bring it back.
+    @AppStorage("home_section_hidden") private var homeSectionHiddenRaw: String = "aiGenerated"
+
     /// Vertical scroll offset of the loaded home content, used to fade the
     /// self-drawn large "首页" title into a compact inline header on scroll.
     /// See docs/known-issues/nav-bar-title-crossfade-over-player.md for why
@@ -172,12 +178,23 @@ struct HomeView: View {
     /// keep their original relative order at the end. Saved keys that
     /// no longer correspond to any current snapshot section are
     /// silently ignored.
+    /// Apply the user's home-section preferences to the snapshot's
+    /// sections. Two-step:
+    /// 1. Drop any section listed in `home_section_hidden` (defaults to
+    ///    `aiGenerated`).
+    /// 2. Reorder the remaining sections by `home_section_order`. Sections
+    ///    in the snapshot but absent from the saved order are appended at
+    ///    the end (so newly added server sections still surface).
+    /// Saved keys that don't correspond to any section in the snapshot
+    /// are silently ignored.
     private func orderedSections(_ sections: [HomeSectionRow]) -> [HomeSectionRow] {
+        let hidden = Set(homeSectionHiddenRaw.split(separator: ",").map(String.init))
+        let filtered = sections.filter { !hidden.contains($0.key) }
         let preferred = homeSectionOrderRaw
             .split(separator: ",")
             .map(String.init)
-        guard !preferred.isEmpty else { return sections }
-        let bySectionKey = Dictionary(uniqueKeysWithValues: sections.map { ($0.key, $0) })
+        guard !preferred.isEmpty else { return filtered }
+        let bySectionKey = Dictionary(uniqueKeysWithValues: filtered.map { ($0.key, $0) })
         var seen = Set<String>()
         var result: [HomeSectionRow] = []
         for key in preferred {
@@ -186,7 +203,7 @@ struct HomeView: View {
                 seen.insert(key)
             }
         }
-        for section in sections where !seen.contains(section.key) {
+        for section in filtered where !seen.contains(section.key) {
             result.append(section)
         }
         return result
