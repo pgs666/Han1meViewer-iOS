@@ -68,19 +68,15 @@ private struct HidesTabBarModifier: ViewModifier {
     private var controller: TabBarVisibilityController { injected ?? fallback }
 
     func body(content: Content) -> some View {
-        if #available(iOS 17.0, *) {
-            content
-                // Animate BOTH directions. NavigationStack's push transition
-                // does NOT carry a tab-bar slide for free, so we drive it
-                // explicitly via withAnimation in the controller.
-                .onAppear { controller.acquireHidden(animated: true) }
-                .onDisappear { controller.release(animated: true) }
-        } else {
-            // iPadOS 16: the controller-driven container approach corrupts
-            // layout. Fall back to direct destination-level hide.
-            content
-                .toolbar(.hidden, for: .tabBar)
-        }
+        // [ISOLATION TEST] All versions now use the destination-level
+        // .toolbar(.hidden, for: .tabBar) that iPadOS 16 already used —
+        // iPadOS 16.6.1 does NOT exhibit the lost-push-animation bug, and
+        // the only difference was that iOS 17+ instead mutated the
+        // App-level @StateObject tabBarVisibility on .onAppear, which
+        // re-evaluates the whole App body right as the just-switched-to
+        // tab's NavigationStack is appearing — breaking its first push.
+        content
+            .toolbar(.hidden, for: .tabBar)
     }
 }
 
