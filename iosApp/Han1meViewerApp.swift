@@ -30,8 +30,19 @@ struct Han1meViewerApp: App {
         Binding(
             get: { selectedTab },
             set: { newValue in
-                bumpPopSignal(for: newValue)
-                selectedTab = newValue
+                // Only bump the pop-to-root signal when the user RE-TAPS the
+                // already-selected tab. Bumping on a real tab switch mutates
+                // a @State right as the destination tab's NavigationStack is
+                // appearing, and that state change breaks the first push
+                // animation on the newly shown tab until it settles (most
+                // visible on Mine, whose static list is tappable immediately
+                // — other tabs only become tappable after their content
+                // loads, by which point the stack has settled).
+                if newValue == selectedTab {
+                    bumpPopSignal(for: newValue)
+                } else {
+                    selectedTab = newValue
+                }
             }
         )
     }
