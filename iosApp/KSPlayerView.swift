@@ -294,14 +294,23 @@ struct KSPlayerView: View {
                         // preference. Fire once on the first .bufferFinished
                         // — by that point the player is fully ready and
                         // honours play()/pause() reliably.
+                        //
+                        // CRITICAL: set the flag BEFORE calling play()/
+                        // pause(). KSPlayerLayer.play() ends with
+                        //   state = ... ? .bufferFinished : .buffering
+                        // whose willSet re-enters this very closure
+                        // synchronously through the delegate. If the flag
+                        // is set after, the recursive call sees it false
+                        // and calls play() again — unbounded recursion
+                        // until the stack guard kills the process.
                         if !autoPlayApplied, state == .bufferFinished {
+                            autoPlayApplied = true
+                            AppLogger.log("autoplay enforced: \(autoPlayOnEnter ? "play" : "pause")")
                             if autoPlayOnEnter {
                                 layer.play()
                             } else {
                                 layer.pause()
                             }
-                            autoPlayApplied = true
-                            AppLogger.log("autoplay enforced: \(autoPlayOnEnter ? "play" : "pause")")
                         }
                         let nowPlaying = state.isPlaying
                         if nowPlaying != isPlaying {
