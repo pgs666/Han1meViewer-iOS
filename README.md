@@ -1,5 +1,7 @@
 # Han1meViewer iOS
 
+**简体中文** | [English](README.en.md)
+
 > 基于 Kotlin Multiplatform + SwiftUI 的 iOS 移植版本
 
 [![Stars](https://img.shields.io/github/stars/pgs666/Han1meViewer-iOS?style=flat&logo=github&color=yellow)](https://github.com/pgs666/Han1meViewer-iOS/stargazers)
