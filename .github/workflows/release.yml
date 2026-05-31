@@ -140,7 +140,7 @@ jobs:
 
             下方 `Han1meViewer-${{ steps.ver.outputs.version }}-unsigned.ipa` 是未签名 IPA。
             自行重签后安装到设备即可（推荐 Impactor / AltStore / Sideloadly 等任一自签工具）。
-            构建/安装详细说明见 [docs/BUILDING.md](https://github.com/pgs666/Han1meViewer-iOS/blob/${{ steps.ver.outputs.tag }}/docs/BUILDING.md)。
+            详细的下载、自签与安装步骤见 [README 的「安装」章节](https://github.com/pgs666/Han1meViewer-iOS/blob/${{ steps.ver.outputs.tag }}/README.md#-安装)。
 
             ## 许可证（GPL-3.0）
 
