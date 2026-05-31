@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct CompatibleNavigationStack<Content: View>: View {
-    @EnvironmentObject private var tabBarVisibility: TabBarVisibilityController
+    @Environment(\.tabBarVisibility) private var injected: TabBarVisibilityController?
+    @StateObject private var fallback = TabBarVisibilityController()
     private let content: () -> Content
 
     init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content
     }
+
+    private var controller: TabBarVisibilityController { injected ?? fallback }
 
     var body: some View {
         if #available(iOS 17.0, *) {
@@ -14,10 +17,13 @@ struct CompatibleNavigationStack<Content: View>: View {
             // tab-bar slide via TabBarVisibilityController. Verified working
             // on iOS 26.5; the modifier composition does NOT trigger the
             // navigation-layout race seen on iPadOS 16.
-            NavigationStack {
-                content()
-                    .toolbar(tabBarVisibility.visibility, for: .tabBar)
-            }
+            //
+            // Routed through ObservedNavigationStack so changes to the
+            // controller's @Published `visibility` actually re-render the
+            // toolbar binding — @Environment-injected ObservableObjects
+            // don't auto-track @Published the way @EnvironmentObject would,
+            // so we re-establish reactivity via @ObservedObject inside.
+            ObservedNavigationStack(controller: controller, content: content)
         } else if #available(iOS 16.0, *) {
             // iPadOS 16: applying .toolbar(_:for: .tabBar) on the
             // NavigationStack root content causes severe layout corruption
@@ -36,6 +42,19 @@ struct CompatibleNavigationStack<Content: View>: View {
                 content()
             }
             .navigationViewStyle(.stack)
+        }
+    }
+}
+
+@available(iOS 17.0, *)
+private struct ObservedNavigationStack<Content: View>: View {
+    @ObservedObject var controller: TabBarVisibilityController
+    let content: () -> Content
+
+    var body: some View {
+        NavigationStack {
+            content()
+                .toolbar(controller.visibility, for: .tabBar)
         }
     }
 }

@@ -62,7 +62,10 @@ extension View {
 }
 
 private struct HidesTabBarModifier: ViewModifier {
-    @EnvironmentObject private var controller: TabBarVisibilityController
+    @Environment(\.tabBarVisibility) private var injected: TabBarVisibilityController?
+    @StateObject private var fallback = TabBarVisibilityController()
+
+    private var controller: TabBarVisibilityController { injected ?? fallback }
 
     func body(content: Content) -> some View {
         if #available(iOS 17.0, *) {
@@ -78,5 +81,33 @@ private struct HidesTabBarModifier: ViewModifier {
             content
                 .toolbar(.hidden, for: .tabBar)
         }
+    }
+}
+
+/// Optional environment slot for the shared TabBarVisibilityController.
+///
+/// Why optional + custom EnvironmentKey instead of @EnvironmentObject:
+/// SwiftUI's @EnvironmentObject crashes with "missing EnvironmentObject"
+/// in any view rendered without that object having been injected. On
+/// iOS 26 beta, sheet/.fullScreenCover content does NOT automatically
+/// inherit @EnvironmentObject from its presenting view — so views like
+/// CompatibleNavigationStack that read this controller would crash when
+/// used inside such modal content (observed via crash trace where
+/// SheetBridge.preferencesDidChange → CompatibleNavigationStack.body
+/// → EnvironmentObject.error()).
+///
+/// With this optional Environment slot, those views read via
+/// @Environment(\.tabBarVisibility) + a private @StateObject fallback,
+/// so they degrade gracefully to a per-instance controller when nothing
+/// has been injected. The app root injects the real shared one via
+/// `.environment(\.tabBarVisibility, ...)` for the main UI tree.
+private struct TabBarVisibilityKey: EnvironmentKey {
+    static let defaultValue: TabBarVisibilityController? = nil
+}
+
+extension EnvironmentValues {
+    var tabBarVisibility: TabBarVisibilityController? {
+        get { self[TabBarVisibilityKey.self] }
+        set { self[TabBarVisibilityKey.self] = newValue }
     }
 }
