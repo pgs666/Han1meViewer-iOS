@@ -20,6 +20,8 @@ import io.ktor.client.request.parameter
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.ktor.http.parameters
 
 class KtorCommentRepository(
@@ -43,7 +45,8 @@ class KtorCommentRepository(
         }
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to load comments.")
-        return parser.parseComments(response.bodyAsText())
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseComments(body) }
     }
 
     override suspend fun getCommentReplies(commentId: String): VideoComments {
@@ -56,7 +59,8 @@ class KtorCommentRepository(
         }
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to load replies.")
-        return parser.parseCommentReplies(response.bodyAsText())
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseCommentReplies(body) }
     }
 
     override suspend fun postComment(

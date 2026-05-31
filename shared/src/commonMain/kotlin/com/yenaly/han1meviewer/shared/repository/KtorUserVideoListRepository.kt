@@ -16,6 +16,8 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.ktor.http.parameters
 
 class KtorUserVideoListRepository(
@@ -41,7 +43,8 @@ class KtorUserVideoListRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseUserVideoList(response.bodyAsText(), page)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseUserVideoList(body, page) }
     }
 
     override suspend fun getPlaylistVideos(listCode: String, page: Int): UserVideoListPage {
@@ -54,7 +57,8 @@ class KtorUserVideoListRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        return parser.parseUserVideoList(response.bodyAsText(), page)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseUserVideoList(body, page) }
     }
 
     override suspend fun removeUserVideoListItem(

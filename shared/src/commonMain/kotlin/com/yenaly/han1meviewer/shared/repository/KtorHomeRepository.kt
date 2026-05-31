@@ -11,6 +11,8 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class KtorHomeRepository(
     private val sessionStore: SessionStore,
@@ -31,6 +33,7 @@ class KtorHomeRepository(
         cookieBridge.saveResponseCookies(response)
 
         val isAlreadyLogin = sessionStore.loadCookies().hasConfirmedLogin()
-        return parser.parseHome(response.bodyAsText(), isAlreadyLogin)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseHome(body, isAlreadyLogin) }
     }
 }

@@ -14,6 +14,8 @@ import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.ktor.http.parameters
 
 class KtorVideoRepository(
@@ -35,7 +37,8 @@ class KtorVideoRepository(
         cookieBridge.saveResponseCookies(response)
         requireSuccessfulMutation(response, "Failed to load video.")
 
-        return parser.parseVideo(response.bodyAsText(), videoCode)
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) { parser.parseVideo(body, videoCode) }
     }
 
     override suspend fun setFavorite(
