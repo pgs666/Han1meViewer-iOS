@@ -43,6 +43,8 @@
 
 任何能给 IPA 重签的工具都可以使用：[Impactor](https://github.com/claration/Impactor)、AltStore、Sideloadly、原生 Xcode 开发者签名等。配上自己的 Apple ID 重签后即可安装到设备。
 
+> 如果你的设备支持 [TrollStore](https://github.com/opa334/TrollStore)，也可以直接用它安装未签名 IPA，免重签、永久有效。
+
 > 想从源码自己构建的开发者请看 [docs/BUILDING.md](docs/BUILDING.md)。
 
 ## 🐛 问题反馈
