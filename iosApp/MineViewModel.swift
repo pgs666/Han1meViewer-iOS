@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Han1meShared
 
 @MainActor
@@ -32,6 +33,20 @@ final class MineViewModel: ObservableObject {
     private var profileTask: Task<Void, Never>?
     private var logoutTask: Task<Void, Never>?
     private var requestGeneration = 0
+
+    /// Applies a batch of @Published mutations WITHOUT animation. The login
+    /// check completes asynchronously and can land while the user is in the
+    /// middle of a NavigationLink push (e.g. tapping 设置 while the trailing
+    /// spinner is still visible). If that completion animates — the spinner
+    /// disappearing, the card relaying out — its animation competes with the
+    /// in-flight push transition and SwiftUI drops the push animation. Wrapping
+    /// these commits in a disablesAnimations transaction makes them instant, so
+    /// they never fight the navigation transition.
+    private func commitWithoutAnimation(_ body: () -> Void) {
+        var tx = Transaction()
+        tx.disablesAnimations = true
+        withTransaction(tx, body)
+    }
 
     init(webLoginFeature: WebLoginFeature, homeFeature: HomeFeature) {
         self.webLoginFeature = webLoginFeature
@@ -81,15 +96,17 @@ final class MineViewModel: ObservableObject {
             defer {
                 timeoutTask.cancel()
                 if generation == requestGeneration {
-                    isCheckingLogin = false
+                    commitWithoutAnimation { isCheckingLogin = false }
                 }
             }
             do {
                 let session = try await webLoginFeature.currentSessionSnapshot()
                 guard !Task.isCancelled, generation == requestGeneration else { return }
                 if session.isLoggedIn {
-                    isLoggedIn = true
-                    needsReLogin = false
+                    commitWithoutAnimation {
+                        isLoggedIn = true
+                        needsReLogin = false
+                    }
                     AppLogger.log("login check: logged in")
                     await loadProfile(generation: generation)
                 } else {
@@ -97,9 +114,11 @@ final class MineViewModel: ObservableObject {
                     // in, surface the in-card re-login hint instead of a
                     // silent flip.
                     let wasLoggedIn = isLoggedIn
-                    isLoggedIn = false
-                    profile = MineProfileSnapshot()
-                    needsReLogin = wasLoggedIn
+                    commitWithoutAnimation {
+                        isLoggedIn = false
+                        profile = MineProfileSnapshot()
+                        needsReLogin = wasLoggedIn
+                    }
                     AppLogger.log("login check: not logged in (wasLoggedIn=\(wasLoggedIn))")
                     clearPersistedProfile()
                 }
@@ -110,10 +129,12 @@ final class MineViewModel: ObservableObject {
                 CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
                 // Keep the cached logged-in card visible but mark that a
                 // re-login may be needed; don't blow away the saved profile.
-                if isLoggedIn {
-                    needsReLogin = true
+                commitWithoutAnimation {
+                    if isLoggedIn {
+                        needsReLogin = true
+                    }
+                    errorMessage = ErrorMessage.userFriendly(error)
                 }
-                errorMessage = ErrorMessage.userFriendly(error)
             }
         }
     }
@@ -181,23 +202,28 @@ final class MineViewModel: ObservableObject {
         requestGeneration += 1
         sessionTask?.cancel()
         profileTask?.cancel()
-        isCheckingLogin = false
-        // Don't tear down the cached card on a slow check — just hint that
-        // a re-login may be needed if we were showing a logged-in state.
-        if isLoggedIn {
-            needsReLogin = true
+        commitWithoutAnimation {
+            isCheckingLogin = false
+            // Don't tear down the cached card on a slow check — just hint
+            // that a re-login may be needed if we were showing a logged-in
+            // state.
+            if isLoggedIn {
+                needsReLogin = true
+            }
+            errorMessage = String(localized: "error.timeout")
         }
-        errorMessage = String(localized: "error.timeout")
     }
 
     private func loadProfile(generation: Int) async {
         do {
             let home = try await homeFeature.loadHome()
             guard !Task.isCancelled, generation == requestGeneration else { return }
-            profile = MineProfileSnapshot(
-                username: home.username,
-                avatarUrl: home.avatarUrl
-            )
+            commitWithoutAnimation {
+                profile = MineProfileSnapshot(
+                    username: home.username,
+                    avatarUrl: home.avatarUrl
+                )
+            }
             persistProfile()
         } catch is CancellationError {
             return
