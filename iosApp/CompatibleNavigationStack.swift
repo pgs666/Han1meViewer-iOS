@@ -52,12 +52,9 @@ private struct ObservedNavigationStack<Content: View>: View {
     let content: () -> Content
 
     var body: some View {
-        // [ISOLATION TEST] toolbar(visibility, for: .tabBar) binding removed
-        // to check whether observing the shared tabBarVisibility controller
-        // is what makes an early push (before the stack settles) skip its
-        // animation. If the push animates now, this binding is the cause.
         NavigationStack {
             content()
+                .toolbar(controller.visibility, for: .tabBar)
         }
     }
 }
