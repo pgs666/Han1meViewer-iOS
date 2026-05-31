@@ -94,7 +94,7 @@ struct Han1meViewerApp: App {
 
     @available(iOS 26.0, *)
     private var modernTabView: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabSelection) {
             Tab("首页", systemImage: "house.fill", value: MainTab.home) {
                 HomeView(environment: sharedEnvironment)
                     .popsToRootWhen(signal: homeTabPopSignal)
@@ -106,10 +106,8 @@ struct Han1meViewerApp: App {
             }
 
             Tab("我的", systemImage: "person.crop.circle.fill", value: MainTab.mine) {
-                // [ISOLATION TEST] popsToRootWhen removed on Mine to check if
-                // the PopToRootOnSignal UIViewControllerRepresentable (inserted
-                // as the tab first appears) is what breaks the first push.
                 MineView(environment: sharedEnvironment)
+                    .popsToRootWhen(signal: mineTabPopSignal)
             }
 
             Tab("搜索", systemImage: "magnifyingglass", value: MainTab.search, role: .search) {
@@ -128,7 +126,7 @@ struct Han1meViewerApp: App {
     }
 
     private var legacyTabView: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabSelection) {
             HomeView(environment: sharedEnvironment)
                 .popsToRootWhen(signal: homeTabPopSignal)
                 .tabItem {
@@ -144,6 +142,7 @@ struct Han1meViewerApp: App {
                 .tag(MainTab.following)
 
             MineView(environment: sharedEnvironment)
+                .popsToRootWhen(signal: mineTabPopSignal)
                 .tabItem {
                     Label("我的", systemImage: "person.crop.circle")
                 }
