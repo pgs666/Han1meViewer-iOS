@@ -195,8 +195,14 @@ struct HomeSectionOrderView: View {
 
     private func hide(_ key: String) {
         guard let i = visibleItems.firstIndex(where: { $0.key == key }) else { return }
-        let item = visibleItems.remove(at: i)
-        withAnimation {
+        // Wrap BOTH the source removal and the destination insert in a
+        // single withAnimation transaction. If the remove is left outside
+        // the block, that side mutates synchronously (row pops out without
+        // animation) while only the destination animates, producing the
+        // jarring "snap then slide" the user reported. save() stays outside
+        // — it's just persistence and doesn't need an animation context.
+        withAnimation(Self.moveAnimation) {
+            let item = visibleItems.remove(at: i)
             hiddenItems.append(item)
         }
         save()
@@ -204,12 +210,18 @@ struct HomeSectionOrderView: View {
 
     private func show(_ key: String) {
         guard let i = hiddenItems.firstIndex(where: { $0.key == key }) else { return }
-        let item = hiddenItems.remove(at: i)
-        withAnimation {
+        withAnimation(Self.moveAnimation) {
+            let item = hiddenItems.remove(at: i)
             visibleItems.append(item)
         }
         save()
     }
+
+    /// Spring tuned to feel close to iOS list defaults — short response so
+    /// the row commits quickly after the user dismisses the swipe action,
+    /// high damping so it settles without a visible bounce.
+    private static let moveAnimation: Animation =
+        .spring(response: 0.35, dampingFraction: 0.85)
 
     private func resetToDefaults() {
         visibleItems = Self.allSectionKeys
