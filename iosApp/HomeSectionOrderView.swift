@@ -87,7 +87,7 @@ struct HomeSectionOrderView: View {
             } header: {
                 Text("已显示")
             } footer: {
-                Text("拖动右侧把手在本组内调整顺序;向左滑动一行可在两组之间移动。")
+                Text("长按一行可在本组内拖动调整顺序;向左滑动一行可在两组之间移动。")
                     .font(.caption)
             }
 
@@ -117,9 +117,13 @@ struct HomeSectionOrderView: View {
         .navigationTitle("首页栏目排序")
         .navigationBarTitleDisplayMode(.inline)
         .hidesTabBarOnAppear()
-        // Edit mode active so the right-side reorder handles are always
-        // visible — no manual "Edit" toolbar button.
-        .environment(\.editMode, .constant(.active))
+        // NOTE: do NOT force editMode to .active here. With editMode
+        // active, SwiftUI reserves the trailing edge for the reorder
+        // handle and silently disables `.swipeActions`, so the user
+        // can't swipe to hide/show. iOS 15+ supports `.onMove` without
+        // edit mode — the user long-presses any row, gets a haptic,
+        // and drags to reorder within the section. Swipe-left then
+        // works as expected for the cross-section move.
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("重置") {
