@@ -158,7 +158,9 @@ struct ArtistVideosView: View {
             }
         }
         .refreshable {
-            load()
+            // Refresh in place instead of load(), which blanks the grid to a
+            // spinner (state=.loading) before refilling — the jarring jump.
+            await viewModel.refresh()
         }
     }
 }

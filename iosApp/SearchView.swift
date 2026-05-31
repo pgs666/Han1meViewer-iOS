@@ -245,7 +245,12 @@ struct SearchView: View {
             }
         }
         .refreshable {
-            viewModel.search(keyword: keyword)
+            // Refresh in place (keeps the current results visible and
+            // re-runs with the active keyword/filters) instead of search(),
+            // which goes through load() → state=.loading and blanks the list
+            // to a spinner — the abrupt "list → blank → list" was the janky
+            // pull-to-refresh the user saw.
+            await viewModel.refresh()
         }
         .listStyle(.insetGrouped)
     }
