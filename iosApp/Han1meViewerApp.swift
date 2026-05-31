@@ -106,8 +106,10 @@ struct Han1meViewerApp: App {
             }
 
             Tab("我的", systemImage: "person.crop.circle.fill", value: MainTab.mine) {
+                // [ISOLATION TEST] popsToRootWhen removed on Mine to check if
+                // the PopToRootOnSignal UIViewControllerRepresentable (inserted
+                // as the tab first appears) is what breaks the first push.
                 MineView(environment: sharedEnvironment)
-                    .popsToRootWhen(signal: mineTabPopSignal)
             }
 
             Tab("搜索", systemImage: "magnifyingglass", value: MainTab.search, role: .search) {
@@ -142,7 +144,6 @@ struct Han1meViewerApp: App {
                 .tag(MainTab.following)
 
             MineView(environment: sharedEnvironment)
-                .popsToRootWhen(signal: mineTabPopSignal)
                 .tabItem {
                     Label("我的", systemImage: "person.crop.circle")
                 }
