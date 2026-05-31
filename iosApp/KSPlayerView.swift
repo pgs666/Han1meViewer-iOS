@@ -371,6 +371,7 @@ struct KSPlayerView: View {
                             return
                         }
                         withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
+                        AppLogger.log("gesture: tap controls=\(showsControls ? "show" : "hide")")
                         onControlsVisibilityChanged(showsControls)
                         if showsControls { scheduleAutoHide() }
                     }
@@ -395,8 +396,10 @@ struct KSPlayerView: View {
                                 // Final defensive cleanup in case state slipped through.
                                 if isBoosted { endBoost() }
                                 if !isFullscreen, value > 1.15 {
+                                    AppLogger.log("gesture: pinch fullscreen=on")
                                     withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
                                 } else if isFullscreen, value < 0.85 {
+                                    AppLogger.log("gesture: pinch fullscreen=off")
                                     withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
                                 }
                             }
@@ -1201,6 +1204,7 @@ struct KSPlayerView: View {
 
     private func togglePlayPause() {
         guard let layer = coordinator.playerLayer else { return }
+        AppLogger.log("gesture: toggle play/pause was=\(isPlaying ? "playing" : "paused")")
         if isPlaying { layer.pause() } else { layer.play() }
     }
 
@@ -1208,12 +1212,14 @@ struct KSPlayerView: View {
         guard !isBoosted else { return }
         savedPlaybackRate = coordinator.playbackRate
         coordinator.playbackRate = effectiveBoostRate
+        AppLogger.log("gesture: long-press boost start x\(effectiveBoostRate)")
         withAnimation(.easeInOut(duration: 0.15)) { isBoosted = true }
     }
 
     private func endBoost() {
         guard isBoosted else { return }
         coordinator.playbackRate = savedPlaybackRate
+        AppLogger.log("gesture: long-press boost end")
         withAnimation(.easeInOut(duration: 0.15)) { isBoosted = false }
     }
 
