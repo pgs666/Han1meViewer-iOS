@@ -4,62 +4,23 @@ import Han1meShared
 
 struct MineView: View {
     private let environment: SharedAppEnvironment
-    private let webLoginFeature: WebLoginFeature
-
-    @StateObject private var viewModel: MineViewModel
-    @State private var activeAlert: MineAlert?
 
     init(environment: SharedAppEnvironment) {
         self.environment = environment
-        let webLoginFeature = environment.webLoginFeature()
-        self.webLoginFeature = webLoginFeature
-        _viewModel = StateObject(
-            wrappedValue: MineViewModel(
-                webLoginFeature: webLoginFeature,
-                homeFeature: environment.homeFeature()
-            )
-        )
     }
 
+    // IMPORTANT: MineView must NOT own or reference the MineViewModel.
+    // It hosts the List whose NavigationLinks drive push transitions. If
+    // MineView observed the view model, the async login check completing
+    // mid-push (e.g. tapping 设置 right after opening Mine) would
+    // invalidate MineView's whole body — rebuilding the navigating List
+    // during the transition, which makes SwiftUI drop the push animation.
+    // The view model lives entirely inside MineAccountSection, so the
+    // check only re-renders that leaf row, never the navigating list.
     var body: some View {
         CompatibleNavigationStack {
             List {
-                Section {
-                    if viewModel.isLoggedIn {
-                        // Logged-in (or cached-as-logged-in): tapping the
-                        // card logs out. The background check runs silently;
-                        // only a small trailing spinner / re-login hint
-                        // appears inside the card.
-                        Button {
-                            activeAlert = .confirmLogout
-                        } label: {
-                            MineAccountRow(
-                                isLoggedIn: true,
-                                isChecking: viewModel.isCheckingLogin,
-                                needsReLogin: viewModel.needsReLogin,
-                                profile: viewModel.profile
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        NavigationLink {
-                            LoginView(
-                                webLoginFeature: webLoginFeature,
-                                onLoginSuccess: {
-                                    viewModel.markLoggedIn()
-                                    activeAlert = .loginSuccess
-                                }
-                            )
-                        } label: {
-                            MineAccountRow(
-                                isLoggedIn: false,
-                                isChecking: viewModel.isCheckingLogin,
-                                needsReLogin: viewModel.needsReLogin,
-                                profile: viewModel.profile
-                            )
-                        }
-                    }
-                }
+                MineAccountSection(environment: environment)
 
                 Section("主要") {
                     NavigationLink {
@@ -117,56 +78,116 @@ struct MineView: View {
                         MineMenuRow(title: "下载", systemImage: "arrow.down.circle")
                     }
                 }
-
-                // Only show the generic error banner for errors that the
-                // account card isn't already surfacing (the card shows its
-                // own "请重新登录" hint when needsReLogin is set).
-                if let message = viewModel.errorMessage, !viewModel.needsReLogin {
-                    Section {
-                        Label(message, systemImage: "exclamationmark.triangle")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
             }
             .navigationTitle("我的")
             .logScreen("Mine")
-            .task {
-                viewModel.refreshLoginState()
-            }
-            .onDisappear {
-                viewModel.cancelSessionRefresh()
-            }
-            .alert(item: $activeAlert) { alert in
-                switch alert {
-                case .loginSuccess:
-                    return Alert(
-                        title: Text("登录成功"),
-                        message: Text("已同步网页登录状态。"),
-                        dismissButton: .default(Text("好"))
-                    )
-                case .confirmLogout:
-                    return Alert(
-                        title: Text("退出登录"),
-                        message: Text("确定要清除当前登录状态吗？"),
-                        primaryButton: .destructive(Text("退出登录")) {
-                            logout()
-                        },
-                        secondaryButton: .cancel(Text("取消"))
-                    )
-                case .loggedOut:
-                    return Alert(
-                        title: Text("已退出登录"),
-                        message: Text("本地登录状态已清除。"),
-                        dismissButton: .default(Text("好"))
-                    )
-                case .notMigrated(let title):
-                    return Alert(
-                        title: Text(title),
-                        message: Text("这个功能还没有迁移到 iOS，后续会按优先级接入真实实现。"),
-                        dismissButton: .default(Text("好"))
-                    )
+        }
+    }
+}
+
+/// Owns the MineViewModel and renders the account card + its alerts. Kept
+/// separate from MineView so the login check (which mutates the view
+/// model asynchronously) only re-renders this row, not the navigating
+/// List — preserving NavigationLink push animations.
+private struct MineAccountSection: View {
+    private let environment: SharedAppEnvironment
+    private let webLoginFeature: WebLoginFeature
+    @StateObject private var viewModel: MineViewModel
+    @State private var activeAlert: MineAlert?
+
+    init(environment: SharedAppEnvironment) {
+        self.environment = environment
+        let webLoginFeature = environment.webLoginFeature()
+        self.webLoginFeature = webLoginFeature
+        _viewModel = StateObject(
+            wrappedValue: MineViewModel(
+                webLoginFeature: webLoginFeature,
+                homeFeature: environment.homeFeature()
+            )
+        )
+    }
+
+    var body: some View {
+        Group {
+            Section {
+                if viewModel.isLoggedIn {
+                    Button {
+                        activeAlert = .confirmLogout
+                    } label: {
+                        MineAccountRow(
+                            isLoggedIn: true,
+                            isChecking: viewModel.isCheckingLogin,
+                            needsReLogin: viewModel.needsReLogin,
+                            profile: viewModel.profile
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    NavigationLink {
+                        LoginView(
+                            webLoginFeature: webLoginFeature,
+                            onLoginSuccess: {
+                                viewModel.markLoggedIn()
+                                activeAlert = .loginSuccess
+                            }
+                        )
+                    } label: {
+                        MineAccountRow(
+                            isLoggedIn: false,
+                            isChecking: viewModel.isCheckingLogin,
+                            needsReLogin: viewModel.needsReLogin,
+                            profile: viewModel.profile
+                        )
+                    }
                 }
+            }
+
+            // Only show the generic error banner for errors that the
+            // account card isn't already surfacing (the card shows its own
+            // re-login hint when needsReLogin is set).
+            if let message = viewModel.errorMessage, !viewModel.needsReLogin {
+                Section {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task {
+            viewModel.refreshLoginState()
+        }
+        .onDisappear {
+            viewModel.cancelSessionRefresh()
+        }
+        .alert(item: $activeAlert) { alert in
+            switch alert {
+            case .loginSuccess:
+                return Alert(
+                    title: Text("登录成功"),
+                    message: Text("已同步网页登录状态。"),
+                    dismissButton: .default(Text("好"))
+                )
+            case .confirmLogout:
+                return Alert(
+                    title: Text("退出登录"),
+                    message: Text("确定要清除当前登录状态吗？"),
+                    primaryButton: .destructive(Text("退出登录")) {
+                        logout()
+                    },
+                    secondaryButton: .cancel(Text("取消"))
+                )
+            case .loggedOut:
+                return Alert(
+                    title: Text("已退出登录"),
+                    message: Text("本地登录状态已清除。"),
+                    dismissButton: .default(Text("好"))
+                )
+            case .notMigrated(let title):
+                return Alert(
+                    title: Text(title),
+                    message: Text("这个功能还没有迁移到 iOS，后续会按优先级接入真实实现。"),
+                    dismissButton: .default(Text("好"))
+                )
             }
         }
     }
