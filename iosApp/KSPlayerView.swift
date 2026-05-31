@@ -440,7 +440,7 @@ struct KSPlayerView: View {
                 boostHint.transition(.opacity)
             }
 
-            if statusObserver.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+            if statusObserver.isWaitingForPlayback {
                 loadingHUD.transition(.opacity)
             }
 
@@ -497,11 +497,13 @@ struct KSPlayerView: View {
             onControlsVisibilityChanged(false)
             hideControlsTask?.cancel()
         }
-        .onValueChange(of: statusObserver.timeControlStatus) { newStatus in
-            // Speed sampler only runs while the player is actually waiting
-            // on the network for more data. .playing means we're consuming
-            // already-buffered bytes; .paused means user/app stopped it.
-            if newStatus == .waitingToPlayAtSpecifiedRate {
+        .onValueChange(of: statusObserver.isWaitingForPlayback) { waiting in
+            // Speed sampler only runs while the player is genuinely waiting
+            // for data. Covers both initial asset-loading (currentItem
+            // status .unknown) AND mid-playback rebuffers (tcs ==
+            // .waitingToPlayAtSpecifiedRate). When playback settles into
+            // .playing or user-explicit .paused, the sampler stops.
+            if waiting {
                 startSpeedSampling()
             } else {
                 speedSampleTask?.cancel()
