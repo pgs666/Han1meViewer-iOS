@@ -10,6 +10,7 @@ struct HorizontalVideoSection: View {
     let showPlaying: Bool
 
     @State private var selectedVideo: VideoRelatedRow?
+    @State private var isShowingVideoList = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -24,14 +25,8 @@ struct HorizontalVideoSection: View {
                     }
                 }
                 Spacer()
-                NavigationLink {
-                    RelatedVideoListView(
-                        title: title,
-                        videos: videos,
-                        videoFeature: videoFeature,
-                        commentFeature: commentFeature,
-                        showPlaying: showPlaying
-                    )
+                TapOnlyControl {
+                    isShowingVideoList = true
                 } label: {
                     Text("更多")
                         .font(.caption.weight(.semibold))
@@ -49,6 +44,15 @@ struct HorizontalVideoSection: View {
                     }
                 }
             }
+        }
+        .navigationDestination(isPresented: $isShowingVideoList) {
+            RelatedVideoListView(
+                title: title,
+                videos: videos,
+                videoFeature: videoFeature,
+                commentFeature: commentFeature,
+                showPlaying: showPlaying
+            )
         }
         .navigationDestination(
             isPresented: Binding(

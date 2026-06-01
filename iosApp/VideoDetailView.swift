@@ -641,39 +641,67 @@ private final class VideoDetailGestureCoordinator {
 }
 
 private struct VideoDetailScrollBounceDisabler: UIViewRepresentable {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
         view.isUserInteractionEnabled = false
-        DispatchQueue.main.async {
-            disableBounce(near: view)
-        }
+        context.coordinator.scheduleDisableBounce(near: view)
         return view
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        DispatchQueue.main.async {
-            disableBounce(near: uiView)
-        }
+        context.coordinator.scheduleDisableBounce(near: uiView)
     }
 
-    private func disableBounce(near view: UIView) {
-        guard let scrollView = view.firstSuperview(of: UIScrollView.self) else { return }
-        scrollView.bounces = false
-        scrollView.alwaysBounceVertical = false
-        scrollView.isDirectionalLockEnabled = true
+    final class Coordinator {
+        private var generation = 0
+        private var scheduledRetryCount = 0
+
+        func scheduleDisableBounce(near view: UIView) {
+            generation += 1
+            scheduledRetryCount = 0
+            disableBounce(near: view)
+            retryDisableBounce(near: view, generation: generation)
+        }
+
+        private func retryDisableBounce(near view: UIView, generation: Int) {
+            guard scheduledRetryCount < 8 else { return }
+            scheduledRetryCount += 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak view] in
+                guard generation == self.generation else { return }
+                guard let view else { return }
+                self.disableBounce(near: view)
+                self.retryDisableBounce(near: view, generation: generation)
+            }
+        }
+
+        private func disableBounce(near view: UIView) {
+            let scrollViews = view.enclosingScrollViews()
+            guard !scrollViews.isEmpty else { return }
+            for scrollView in scrollViews {
+                scrollView.bounces = false
+                scrollView.alwaysBounceVertical = false
+                scrollView.alwaysBounceHorizontal = false
+                scrollView.isDirectionalLockEnabled = true
+            }
+        }
     }
 }
 
 private extension UIView {
-    func firstSuperview<T: UIView>(of type: T.Type) -> T? {
+    func enclosingScrollViews() -> [UIScrollView] {
+        var scrollViews: [UIScrollView] = []
         var view = superview
         while let current = view {
-            if let match = current as? T {
-                return match
+            if let scrollView = current as? UIScrollView {
+                scrollViews.append(scrollView)
             }
             view = current.superview
         }
-        return nil
+        return scrollViews
     }
 }
 
@@ -696,6 +724,43 @@ private struct HorizontalPagerExclusionFrameReader: View {
                 value: [proxy.frame(in: .named(VideoDetailPagerCoordinateSpace.name))]
             )
         }
+    }
+}
+
+extension View {
+    func horizontalPagerExclusionArea() -> some View {
+        background(HorizontalPagerExclusionFrameReader())
+    }
+}
+
+struct TapOnlyControl<Label: View>: View {
+    let isDisabled: Bool
+    let action: () -> Void
+    let label: () -> Label
+
+    init(
+        isDisabled: Bool = false,
+        action: @escaping () -> Void,
+        @ViewBuilder label: @escaping () -> Label
+    ) {
+        self.isDisabled = isDisabled
+        self.action = action
+        self.label = label
+    }
+
+    var body: some View {
+        label()
+            .opacity(isDisabled ? 0.45 : 1)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !isDisabled else { return }
+                action()
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                guard !isDisabled else { return }
+                action()
+            }
     }
 }
 
@@ -807,7 +872,7 @@ private struct AndroidStyleIntroduction: View {
                     commentFeature: commentFeature,
                     showPlaying: true
                 )
-                .background(HorizontalPagerExclusionFrameReader())
+                .horizontalPagerExclusionArea()
             }
 
             if showsRelated && !snapshot.relatedVideos.isEmpty {
@@ -830,6 +895,7 @@ private struct ArtistCard: View {
     let commentFeature: CommentFeature
     @Environment(\.searchFeature) private var searchFeature
     @State private var isConfirmingUnsubscribe = false
+    @State private var isShowingArtistVideos = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -841,7 +907,7 @@ private struct ArtistCard: View {
 
             Spacer()
 
-            Button {
+            TapOnlyControl(isDisabled: isRunning) {
                 if artist.isSubscribed {
                     isConfirmingUnsubscribe = true
                 } else {
@@ -855,8 +921,6 @@ private struct ArtistCard: View {
                     .padding(.vertical, 7)
                     .background(Color.accentColor.opacity(0.14), in: Capsule())
             }
-            .disabled(isRunning)
-            .buttonStyle(.plain)
         }
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -868,6 +932,16 @@ private struct ArtistCard: View {
         } message: {
             Text("确定要取消订阅吗？")
         }
+        .navigationDestination(isPresented: $isShowingArtistVideos) {
+            if let searchFeature {
+                ArtistVideosView(
+                    artistName: artist.name,
+                    searchFeature: searchFeature,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+            }
+        }
     }
 
     /// Wraps the avatar + name + genre block in a NavigationLink that pushes
@@ -876,18 +950,12 @@ private struct ArtistCard: View {
     /// production but keeps the view robust during previews / testing).
     @ViewBuilder
     private var artistInfoTappable: some View {
-        if let searchFeature {
-            NavigationLink {
-                ArtistVideosView(
-                    artistName: artist.name,
-                    searchFeature: searchFeature,
-                    videoFeature: videoFeature,
-                    commentFeature: commentFeature
-                )
+        if searchFeature != nil {
+            TapOnlyControl {
+                isShowingArtistVideos = true
             } label: {
                 artistInfoLabel
             }
-            .buttonStyle(.plain)
         } else {
             artistInfoLabel
         }
@@ -972,10 +1040,12 @@ private struct ExpandableDescription: View {
                 .lineLimit(expanded ? nil : 4)
                 .textSelection(.enabled)
 
-            Button(expanded ? String(localized: "收起") : String(localized: "展开")) {
+            TapOnlyControl {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     expanded.toggle()
                 }
+            } label: {
+                Text(expanded ? String(localized: "收起") : String(localized: "展开"))
             }
             .font(.caption.weight(.semibold))
         }
@@ -992,6 +1062,7 @@ private struct ActionButtonRow: View {
     let onDownload: (VideoPlaybackSourceRow) -> Void
     @Environment(\.openURL) private var openURL
     @State private var isShowingMyList = false
+    @State private var isShowingMoreActions = false
     @State private var isShowingShareSheet = false
     @State private var isShowingDownloadQuality = false
 
@@ -1012,80 +1083,72 @@ private struct ActionButtonRow: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                LabelButton(
-                    title: snapshot.isFav ? "已收藏" : "收藏",
-                    systemImage: snapshot.isFav ? "heart.fill" : "heart",
-                    action: onToggleFavorite
-                )
+        HStack(spacing: 6) {
+            LabelButton(
+                title: snapshot.isFav ? "已收藏" : "收藏",
+                systemImage: snapshot.isFav ? "heart.fill" : "heart",
+                action: onToggleFavorite
+            )
 
-                LabelButton(
-                    title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
-                    systemImage: "text.badge.plus",
-                    action: onToggleWatchLater
-                )
+            LabelButton(
+                title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
+                systemImage: "text.badge.plus",
+                action: onToggleWatchLater
+            )
 
-                LabelButton(
-                    title: "加入列表",
-                    systemImage: "list.bullet",
-                    action: {
-                        if snapshot.myListItems.isEmpty {
-                            onShowMessage(String(localized: "video.action.playlist.empty"))
-                        } else {
-                            isShowingMyList = true
-                        }
-                    }
-                )
-
-                LabelButton(
-                    title: "下载",
-                    systemImage: "arrow.down.circle",
-                    action: {
-                        if downloadableSources.isEmpty {
-                            // No selectable resolutions parsed — defer to the
-                            // site's official download page in the browser.
-                            if let downloadURL { openURL(downloadURL) }
-                        } else {
-                            isShowingDownloadQuality = true
-                        }
-                    }
-                )
-
-                LabelButton(
-                    title: "分享",
-                    systemImage: "square.and.arrow.up",
-                    action: {
-                        if videoURL != nil {
-                            isShowingShareSheet = true
-                        }
-                    }
-                )
-
-                if snapshot.originalComic?.isEmpty == false {
-                    LabelButton(
-                        title: "原作漫画",
-                        systemImage: "book",
-                        action: {
-                            if let originalComic = snapshot.originalComic,
-                               let url = URL(string: originalComic) {
-                                openURL(url)
-                            }
-                        }
-                    )
+            LabelButton(
+                title: "更多",
+                systemImage: "ellipsis.circle",
+                action: {
+                    isShowingMoreActions = true
                 }
+            )
 
-                LabelButton(
-                    title: "网页",
-                    systemImage: "safari",
-                    action: {
-                        if let videoURL {
-                            openURL(videoURL)
-                        }
+            LabelButton(
+                title: "分享",
+                systemImage: "square.and.arrow.up",
+                action: {
+                    if videoURL != nil {
+                        isShowingShareSheet = true
                     }
-                )
+                }
+            )
+        }
+        .confirmationDialog("更多操作", isPresented: $isShowingMoreActions, titleVisibility: .visible) {
+            Button("加入列表") {
+                if snapshot.myListItems.isEmpty {
+                    onShowMessage(String(localized: "video.action.playlist.empty"))
+                } else {
+                    isShowingMyList = true
+                }
             }
-            .padding(.horizontal, 2)
+
+            Button("下载") {
+                if downloadableSources.isEmpty {
+                    // No selectable resolutions parsed — defer to the
+                    // site's official download page in the browser.
+                    if let downloadURL { openURL(downloadURL) }
+                } else {
+                    isShowingDownloadQuality = true
+                }
+            }
+
+            if snapshot.originalComic?.isEmpty == false {
+                Button("原作漫画") {
+                    if let originalComic = snapshot.originalComic,
+                       let url = URL(string: originalComic) {
+                        openURL(url)
+                    }
+                }
+            }
+
+            Button("网页") {
+                if let videoURL {
+                    openURL(videoURL)
+                }
+            }
+
+            Button("取消", role: .cancel) {}
         }
         .confirmationDialog("播放列表", isPresented: $isShowingMyList) {
             ForEach(snapshot.myListItems) { item in
@@ -1133,10 +1196,10 @@ private struct LabelButton: View {
     var action: () -> Void = {}
 
     var body: some View {
-        Button(action: action) {
+        TapOnlyControl(action: action) {
             LabelButtonContent(title: title, systemImage: systemImage)
         }
-        .buttonStyle(.borderless)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -1152,8 +1215,7 @@ private struct LabelButtonContent: View {
                 .font(.caption)
                 .lineLimit(1)
         }
-        .frame(minWidth: 76)
-        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
     }
 }
@@ -1163,6 +1225,7 @@ private struct TagFlow: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     @Environment(\.searchFeature) private var searchFeature
+    @State private var selectedTag: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1174,30 +1237,50 @@ private struct TagFlow: View {
             // same column width.
             FlowLayout(spacing: 8, lineSpacing: 8) {
                 ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
-                    if let searchFeature {
-                        NavigationLink {
-                            ArtistVideosView(
-                                title: "#\(tag)",
-                                mode: .keyword(tag),
-                                searchFeature: searchFeature,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature
-                            )
+                    if searchFeature != nil {
+                        TapOnlyControl {
+                            selectedTag = tag
                         } label: {
                             Text(tag).font(.caption)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(
+                                    Capsule()
+                                        .strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 1)
+                                )
                         }
-                        .buttonStyle(.bordered)
                     } else {
                         // Defensive: if the search feature isn't injected (
                         // which shouldn't happen in production) the tag still
                         // renders as a disabled bordered chip rather than
                         // disappearing entirely.
-                        Button(tag) { /* no-op */ }
+                        Text(tag)
                             .font(.caption)
-                            .buttonStyle(.bordered)
-                            .disabled(true)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(.secondary)
+                            .background(
+                                Capsule()
+                                    .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+                            )
                     }
                 }
+            }
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedTag != nil },
+                set: { if !$0 { selectedTag = nil } }
+            )
+        ) {
+            if let selectedTag, let searchFeature {
+                ArtistVideosView(
+                    title: "#\(selectedTag)",
+                    mode: .keyword(selectedTag),
+                    searchFeature: searchFeature,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
             }
         }
     }
