@@ -2,7 +2,7 @@ import SwiftUI
 import Han1meShared
 
 struct CommentView: View {
-    @StateObject private var viewModel: CommentViewModel
+    @ObservedObject private var viewModel: CommentViewModel
     @State private var composeText = ""
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
@@ -10,10 +10,8 @@ struct CommentView: View {
     @State private var repliesTarget: CommentRow?
     @State private var isShowingComposer = false
 
-    init(videoCode: String, commentFeature: CommentFeature) {
-        _viewModel = StateObject(
-            wrappedValue: CommentViewModel(feature: commentFeature, videoCode: videoCode)
-        )
+    init(viewModel: CommentViewModel) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -22,9 +20,6 @@ struct CommentView: View {
             content
         }
         .padding(.horizontal, 16)
-        .refreshable {
-            await viewModel.refresh()
-        }
         .task {
             viewModel.loadIfNeeded()
         }
