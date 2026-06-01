@@ -211,13 +211,14 @@ struct VideoDetailView: View {
 
                 HStack(alignment: .top, spacing: 0) {
                     VStack(spacing: 0) {
+                        let currentPlayerHeight = playerHeight(
+                            panelWidth: leftWidth,
+                            parentHeight: proxy.size.height
+                        )
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
-                                height: playerHeight(
-                                    panelWidth: leftWidth,
-                                    parentHeight: proxy.size.height
-                                )
+                                height: currentPlayerHeight
                             )
 
                         if !isPlayerFullscreen {
@@ -225,6 +226,7 @@ struct VideoDetailView: View {
                             // dedicated right sidebar already shows related videos —
                             // duplicating them in the bottom scroll would be redundant.
                             belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
+                                .frame(height: max(0, proxy.size.height - currentPlayerHeight))
                         }
                     }
                     .frame(width: leftWidth)
@@ -364,6 +366,7 @@ struct VideoDetailView: View {
             .padding(.bottom, 24)
         }
         .coordinateSpace(name: tab.scrollCoordinateSpaceName)
+        .id(tab)
     }
 }
 
@@ -433,10 +436,9 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
             comments()
         }
         .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
-        .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.9), value: dragTranslation)
         .contentShape(Rectangle())
         .clipped()
-        .gesture(horizontalPagingGesture)
+        .simultaneousGesture(horizontalPagingGesture)
     }
 
     private var horizontalPagingGesture: some Gesture {
@@ -446,7 +448,11 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
                     dragTranslation = 0
                     return
                 }
-                dragTranslation = rubberBandedTranslation(value.translation.width)
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    dragTranslation = rubberBandedTranslation(value.translation.width)
+                }
             }
             .onEnded { value in
                 defer {
