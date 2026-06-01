@@ -420,9 +420,12 @@ struct VideoDetailView: View {
         collapseDistance: @escaping () -> CGFloat = { 0 }
     ) -> some View {
         GeometryReader { proxy in
-            let minScrollableContentHeight = proxy.size.height + collapseDistance() + 1
+            let collapseScrollInset = collapseDistance() + 1
             ScrollView {
-                BounceDisabledScrollViewConfigurator(gestureCoordinator: gestureCoordinator)
+                BounceDisabledScrollViewConfigurator(
+                    gestureCoordinator: gestureCoordinator,
+                    bottomInset: collapseScrollInset
+                )
                     .frame(width: 0, height: 0)
 
                 GeometryReader { proxy in
@@ -434,10 +437,9 @@ struct VideoDetailView: View {
                 .frame(height: 0)
 
                 content()
-                    .frame(maxWidth: .infinity, minHeight: minScrollableContentHeight, alignment: .top)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
                     .padding(.bottom, 24)
                     .offset(y: collapseCompensation())
-                    .padding(.bottom, collapseCompensation())
             }
             .coordinateSpace(name: tab.scrollCoordinateSpaceName)
             .id(tab)
@@ -451,24 +453,31 @@ struct VideoDetailView: View {
 
 private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
     let gestureCoordinator: VideoDetailGestureCoordinator
+    let bottomInset: CGFloat
 
     func makeUIView(context: Context) -> ConfiguringView {
-        let view = ConfiguringView(gestureCoordinator: gestureCoordinator)
+        let view = ConfiguringView(
+            gestureCoordinator: gestureCoordinator,
+            bottomInset: bottomInset
+        )
         view.isUserInteractionEnabled = false
         return view
     }
 
     func updateUIView(_ uiView: ConfiguringView, context: Context) {
+        uiView.updateBottomInset(bottomInset)
         uiView.scheduleConfiguration()
     }
 
     final class ConfiguringView: UIView {
         private let gestureCoordinator: VideoDetailGestureCoordinator
+        private var bottomInset: CGFloat
         private var isConfigurationScheduled = false
         private var remainingRetries = 12
 
-        init(gestureCoordinator: VideoDetailGestureCoordinator) {
+        init(gestureCoordinator: VideoDetailGestureCoordinator, bottomInset: CGFloat) {
             self.gestureCoordinator = gestureCoordinator
+            self.bottomInset = bottomInset
             super.init(frame: .zero)
         }
 
@@ -492,6 +501,10 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
         override func layoutSubviews() {
             super.layoutSubviews()
             scheduleConfiguration()
+        }
+
+        func updateBottomInset(_ bottomInset: CGFloat) {
+            self.bottomInset = bottomInset
         }
 
         func scheduleConfiguration() {
@@ -518,12 +531,23 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
                     scrollView.alwaysBounceVertical = false
                     scrollView.alwaysBounceHorizontal = false
                     scrollView.isDirectionalLockEnabled = true
+                    applyBottomInset(to: scrollView)
                     gestureCoordinator.registerVerticalScrollView(scrollView)
                     return true
                 }
                 current = view.superview
             }
             return false
+        }
+
+        private func applyBottomInset(to scrollView: UIScrollView) {
+            var contentInset = scrollView.contentInset
+            contentInset.bottom = bottomInset
+            scrollView.contentInset = contentInset
+
+            var indicatorInsets = scrollView.verticalScrollIndicatorInsets
+            indicatorInsets.bottom = bottomInset
+            scrollView.verticalScrollIndicatorInsets = indicatorInsets
         }
     }
 }
