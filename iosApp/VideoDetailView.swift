@@ -464,30 +464,19 @@ private enum VideoPlayerCollapseModel {
         switchedTabsRecently: Bool
     ) -> CGFloat {
         let clampedCurrent = clamp(currentCollapseOffset, upperBound: collapseDistance)
-        let nonnegativeActiveOffset = max(0, activeTabOffset)
 
         if switchedTabsRecently {
             return clampedCurrent
         }
 
         guard let previousActiveTabOffset else {
+            let nonnegativeActiveOffset = max(0, activeTabOffset)
             return min(collapseDistance, max(clampedCurrent, nonnegativeActiveOffset))
         }
 
         let delta = activeTabOffset - previousActiveTabOffset
-        if delta > 0.5 {
-            if nonnegativeActiveOffset >= clampedCurrent {
-                return min(collapseDistance, nonnegativeActiveOffset)
-            }
-            return clampedCurrent
-        }
-
-        if delta < -0.5 && activeTabOffset <= 0 {
-            return min(collapseDistance, max(0, clampedCurrent + delta))
-        }
-
-        if delta < -0.5 && !switchedTabsRecently {
-            return min(collapseDistance, nonnegativeActiveOffset)
+        if abs(delta) > 0.5 {
+            return clamp(clampedCurrent + delta, upperBound: collapseDistance)
         }
 
         return clampedCurrent
