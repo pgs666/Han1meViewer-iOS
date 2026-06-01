@@ -361,9 +361,6 @@ struct VideoDetailView: View {
                     tabCollapseCompensation(for: .introduction, collapseCompensation: collapseCompensation)
                 } collapseDistance: {
                     collapseDistance
-                } refreshAction: {
-                    guard !gestureCoordinator.isHorizontalPagingActive else { return }
-                    await viewModel.refresh(videoCode: videoCode)
                 }
             } comments: {
                 tabScroll(.comments) {
@@ -373,9 +370,6 @@ struct VideoDetailView: View {
                     tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
                 } collapseDistance: {
                     collapseDistance
-                } refreshAction: {
-                    guard !gestureCoordinator.isHorizontalPagingActive else { return }
-                    await commentViewModel.refresh()
                 }
             }
             .frame(maxHeight: .infinity)
@@ -423,12 +417,11 @@ struct VideoDetailView: View {
         _ tab: VideoPageTab,
         @ViewBuilder content: @escaping () -> Content,
         collapseCompensation: @escaping () -> CGFloat = { 0 },
-        collapseDistance: @escaping () -> CGFloat = { 0 },
-        refreshAction: (() async -> Void)? = nil
+        collapseDistance: @escaping () -> CGFloat = { 0 }
     ) -> some View {
         GeometryReader { proxy in
             let minScrollableContentHeight = proxy.size.height + collapseDistance() + 1
-            let scrollView = ScrollView {
+            ScrollView {
                 GeometryReader { proxy in
                     Color.clear.preference(
                         key: BottomScrollOffsetPreferenceKey.self,
@@ -444,16 +437,7 @@ struct VideoDetailView: View {
                     .padding(.bottom, collapseCompensation())
             }
             .coordinateSpace(name: tab.scrollCoordinateSpaceName)
-            .background(VideoDetailScrollViewConfigurator(coordinator: gestureCoordinator))
             .id(tab)
-
-            if let refreshAction {
-                scrollView.refreshable {
-                    await refreshAction()
-                }
-            } else {
-                scrollView
-            }
         }
     }
 
@@ -659,58 +643,10 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
 }
 
 private final class VideoDetailGestureCoordinator {
-    private var scrollViews = NSHashTable<UIScrollView>.weakObjects()
     private(set) var isHorizontalPagingActive = false
 
-    func register(scrollView: UIScrollView) {
-        scrollViews.add(scrollView)
-        scrollView.isDirectionalLockEnabled = true
-        scrollView.refreshControl?.isEnabled = !isHorizontalPagingActive
-    }
-
     func setHorizontalPagingActive(_ isActive: Bool) {
-        guard isHorizontalPagingActive != isActive else { return }
         isHorizontalPagingActive = isActive
-        for scrollView in scrollViews.allObjects {
-            scrollView.refreshControl?.isEnabled = !isActive
-        }
-    }
-}
-
-private struct VideoDetailScrollViewConfigurator: UIViewRepresentable {
-    let coordinator: VideoDetailGestureCoordinator
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.isUserInteractionEnabled = false
-        DispatchQueue.main.async {
-            configureScrollView(near: view)
-        }
-        return view
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        DispatchQueue.main.async {
-            configureScrollView(near: uiView)
-        }
-    }
-
-    private func configureScrollView(near view: UIView) {
-        guard let scrollView = view.firstSuperview(of: UIScrollView.self) else { return }
-        coordinator.register(scrollView: scrollView)
-    }
-}
-
-private extension UIView {
-    func firstSuperview<T: UIView>(of type: T.Type) -> T? {
-        var view = superview
-        while let current = view {
-            if let match = current as? T {
-                return match
-            }
-            view = current.superview
-        }
-        return nil
     }
 }
 
