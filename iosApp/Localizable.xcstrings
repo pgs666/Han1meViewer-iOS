@@ -6380,6 +6380,28 @@
           }
         }
       }
+    },
+    "comment.no_more": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No more comments"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有更多了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有更多了"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
