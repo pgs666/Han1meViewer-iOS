@@ -16,15 +16,16 @@ struct VideoDetailView: View {
     /// player at full 16:9 height while playing — only paused state lets the
     /// scroll-driven shrink behaviour engage.
     @State private var isPlayerPlaying = false
-    /// Vertical scroll offset of the inline content area below the player,
-    /// measured from the natural top (>= 0). When the user scrolls UP (so
-    /// the offset grows), and the player is paused, the player shrinks
-    /// proportionally — Bilibili-style "follow finger" collapse.
+    /// Global collapse offset for the inline player, decoupled from any
+    /// single tab's ScrollView offset. If one tab has already collapsed the
+    /// player, switching to another tab must not snap it back open just
+    /// because that tab's own content is still at the top.
     @State private var bottomScrollOffset: CGFloat = 0
     /// Each tab owns an independent vertical ScrollView below the player, so
     /// switching between intro / comments preserves their separate scroll
     /// positions instead of sharing one outer ScrollView offset.
     @State private var bottomScrollOffsetsByTab: [VideoPageTab: CGFloat] = [:]
+    @State private var lastSelectedTabChangeAt = Date.distantPast
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -263,7 +264,13 @@ struct VideoDetailView: View {
         // below playerCollapsedFollowMinHeight so its overlay controls
         // remain at least partly visible.
         let minHeight: CGFloat = max(baseHeight * 0.32, 80)
-        let shrink = max(0, min(baseHeight - minHeight, bottomScrollOffset))
+        let collapseDistance = max(baseHeight - minHeight, 1)
+        let progress = max(0, min(1, bottomScrollOffset / collapseDistance))
+        // Ease out instead of subtracting scroll offset linearly. This keeps
+        // the player responsive at the start while avoiding a rigid
+        // one-pixel-scroll == one-pixel-height feedback loop near collapse.
+        let easedProgress = progress * (2 - progress)
+        let shrink = collapseDistance * easedProgress
         return baseHeight - shrink
     }
 
@@ -343,16 +350,55 @@ struct VideoDetailView: View {
         }
         .frame(maxHeight: .infinity)
         .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { offsets in
+            let previousActiveOffset = bottomScrollOffsetsByTab[selectedTab]
             for (tab, offset) in offsets {
                 bottomScrollOffsetsByTab[tab] = max(0, offset)
             }
-            bottomScrollOffset = bottomScrollOffsetsByTab[selectedTab] ?? 0
+            let activeOffset = bottomScrollOffsetsByTab[selectedTab] ?? 0
+            updatePlayerCollapseOffset(
+                activeTabOffset: activeOffset,
+                previousActiveTabOffset: previousActiveOffset
+            )
         }
         .onValueChange(of: selectedTab) { newTab in
-            bottomScrollOffset = bottomScrollOffsetsByTab[newTab] ?? 0
+            lastSelectedTabChangeAt = Date()
+            let newTabOffset = bottomScrollOffsetsByTab[newTab] ?? 0
+            // Keep the player collapsed across horizontal tab switches. If
+            // the destination tab is already scrolled farther, collapse more;
+            // never expand merely because the destination tab is at offset 0.
+            let targetOffset = max(bottomScrollOffset, newTabOffset)
+            if targetOffset != bottomScrollOffset {
+                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+                    bottomScrollOffset = targetOffset
+                }
+            }
         }
         .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
             horizontalPagerExclusionFrames = frames
+        }
+    }
+
+    private func updatePlayerCollapseOffset(
+        activeTabOffset: CGFloat,
+        previousActiveTabOffset: CGFloat?
+    ) {
+        let tabSwitchGracePeriod: TimeInterval = 0.35
+        let justSwitchedTabs = Date().timeIntervalSince(lastSelectedTabChangeAt) < tabSwitchGracePeriod
+        guard let previousActiveTabOffset else {
+            bottomScrollOffset = max(bottomScrollOffset, activeTabOffset)
+            return
+        }
+
+        if activeTabOffset >= previousActiveTabOffset {
+            // User is scrolling upward in the active tab. Collapse more only
+            // after this tab catches up to the current global collapse amount;
+            // do not expand a previously collapsed player just because the
+            // destination tab starts near offset 0.
+            bottomScrollOffset = max(bottomScrollOffset, activeTabOffset)
+        } else if !justSwitchedTabs {
+            // User is scrolling downward in the active tab. This is an
+            // intentional expansion gesture, so let the player follow it.
+            bottomScrollOffset = activeTabOffset
         }
     }
 
