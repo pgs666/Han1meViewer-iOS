@@ -199,6 +199,12 @@ struct CommentView: View {
                             }
                         )
                     }
+
+                    Text("comment.no_more")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                 }
             }
         }
