@@ -422,6 +422,9 @@ struct VideoDetailView: View {
         GeometryReader { proxy in
             let minScrollableContentHeight = proxy.size.height + collapseDistance() + 1
             ScrollView {
+                BounceDisabledScrollViewConfigurator()
+                    .frame(width: 0, height: 0)
+
                 GeometryReader { proxy in
                     Color.clear.preference(
                         key: BottomScrollOffsetPreferenceKey.self,
@@ -443,6 +446,71 @@ struct VideoDetailView: View {
 
     private func tabCollapseCompensation(for tab: VideoPageTab, collapseCompensation: CGFloat) -> CGFloat {
         min(max(bottomScrollOffsetsByTab[tab] ?? 0, 0), collapseCompensation)
+    }
+}
+
+private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
+    func makeUIView(context: Context) -> ConfiguringView {
+        let view = ConfiguringView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: ConfiguringView, context: Context) {
+        uiView.scheduleConfiguration()
+    }
+
+    final class ConfiguringView: UIView {
+        private var isConfigurationScheduled = false
+        private var remainingRetries = 12
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            remainingRetries = 12
+            scheduleConfiguration()
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            remainingRetries = 12
+            scheduleConfiguration()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            scheduleConfiguration()
+        }
+
+        func scheduleConfiguration() {
+            guard !isConfigurationScheduled else { return }
+            isConfigurationScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isConfigurationScheduled = false
+                if !self.configureNearestScrollView(), self.window != nil, self.remainingRetries > 0 {
+                    self.remainingRetries -= 1
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                        self?.scheduleConfiguration()
+                    }
+                }
+            }
+        }
+
+        @discardableResult
+        private func configureNearestScrollView() -> Bool {
+            var current = superview
+            while let view = current {
+                if let scrollView = view as? UIScrollView {
+                    scrollView.bounces = false
+                    scrollView.alwaysBounceVertical = false
+                    scrollView.alwaysBounceHorizontal = false
+                    scrollView.isDirectionalLockEnabled = true
+                    return true
+                }
+                current = view.superview
+            }
+            return false
+        }
     }
 }
 
@@ -542,25 +610,27 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
     }
 
     var body: some View {
-        VideoDetailPagerLayout(
-            selectedIndex: selectedTab.pageIndex,
-            dragTranslation: dragTranslation
-        ) {
-            introduction()
-            comments()
+        GeometryReader { proxy in
+            let pagerGlobalOrigin = proxy.frame(in: .global).origin
+            VideoDetailPagerLayout(
+                selectedIndex: selectedTab.pageIndex,
+                dragTranslation: dragTranslation
+            ) {
+                introduction()
+                comments()
+            }
+            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
+            .contentShape(Rectangle())
+            .clipped()
+            .simultaneousGesture(horizontalPagingGesture(pagerGlobalOrigin: pagerGlobalOrigin))
         }
-        .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
-        .contentShape(Rectangle())
-        .clipped()
-        .coordinateSpace(name: VideoDetailPagerCoordinateSpace.name)
-        .simultaneousGesture(horizontalPagingGesture)
     }
 
-    private var horizontalPagingGesture: some Gesture {
+    private func horizontalPagingGesture(pagerGlobalOrigin: CGPoint) -> some Gesture {
         DragGesture(minimumDistance: 28, coordinateSpace: .local)
             .onChanged { value in
-                updateHorizontalPagingState(value)
-                guard isHorizontalPagingDrag(value) else {
+                updateHorizontalPagingState(value, pagerGlobalOrigin: pagerGlobalOrigin)
+                guard isHorizontalPagingDrag(value, pagerGlobalOrigin: pagerGlobalOrigin) else {
                     dragTranslation = 0
                     return
                 }
@@ -578,7 +648,7 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
                     gestureCoordinator.setHorizontalPagingActive(false)
                 }
 
-                guard isHorizontalPagingDrag(value) else { return }
+                guard isHorizontalPagingDrag(value, pagerGlobalOrigin: pagerGlobalOrigin) else { return }
                 let threshold: CGFloat = 72
                 let projected = value.predictedEndTranslation.width
                 let currentIndex = selectedTab.pageIndex
@@ -599,25 +669,34 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
             }
     }
 
-    private func isHorizontalPagingDrag(_ value: DragGesture.Value) -> Bool {
+    private func isHorizontalPagingDrag(_ value: DragGesture.Value, pagerGlobalOrigin: CGPoint) -> Bool {
         let dx = value.translation.width
         let dy = value.translation.height
         guard value.startLocation.x > 24 else { return false }
-        guard !excludedDragStartFrames.contains(where: { $0.contains(value.startLocation) }) else {
+        let globalStartLocation = globalStartLocation(value.startLocation, pagerGlobalOrigin: pagerGlobalOrigin)
+        guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
             return false
         }
         return abs(dx) > 36 && abs(dx) > abs(dy) * 2.0
     }
 
-    private func updateHorizontalPagingState(_ value: DragGesture.Value) {
+    private func updateHorizontalPagingState(_ value: DragGesture.Value, pagerGlobalOrigin: CGPoint) {
         let dx = value.translation.width
         let dy = value.translation.height
         guard abs(dx) > 10 && abs(dx) > abs(dy) * 1.35 else { return }
         guard value.startLocation.x > 24 else { return }
-        guard !excludedDragStartFrames.contains(where: { $0.contains(value.startLocation) }) else {
+        let globalStartLocation = globalStartLocation(value.startLocation, pagerGlobalOrigin: pagerGlobalOrigin)
+        guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
             return
         }
         gestureCoordinator.setHorizontalPagingActive(true)
+    }
+
+    private func globalStartLocation(_ startLocation: CGPoint, pagerGlobalOrigin: CGPoint) -> CGPoint {
+        CGPoint(
+            x: pagerGlobalOrigin.x + startLocation.x,
+            y: pagerGlobalOrigin.y + startLocation.y
+        )
     }
 
     private func rubberBandedTranslation(_ translation: CGFloat) -> CGFloat {
@@ -639,10 +718,6 @@ private final class VideoDetailGestureCoordinator {
     }
 }
 
-private enum VideoDetailPagerCoordinateSpace {
-    static let name = "videoDetailPager"
-}
-
 private struct HorizontalPagerExclusionFramePreferenceKey: PreferenceKey {
     static var defaultValue: [CGRect] = []
     static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
@@ -655,7 +730,7 @@ private struct HorizontalPagerExclusionFrameReader: View {
         GeometryReader { proxy in
             Color.clear.preference(
                 key: HorizontalPagerExclusionFramePreferenceKey.self,
-                value: [proxy.frame(in: .named(VideoDetailPagerCoordinateSpace.name))]
+                value: [proxy.frame(in: .global)]
             )
         }
     }
