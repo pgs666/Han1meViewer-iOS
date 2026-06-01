@@ -9,6 +9,8 @@ struct HorizontalVideoSection: View {
     let commentFeature: CommentFeature
     let showPlaying: Bool
 
+    @State private var selectedVideo: VideoRelatedRow?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -39,14 +41,27 @@ struct HorizontalVideoSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(videos) { video in
-                        NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                        DragAwareNavigationButton {
+                            selectedVideo = video
                         } label: {
-                            RelatedVideoCard(video: video, showPlaying: showPlaying)
+                            RelatedVideoCard(video: video, showPlaying: showPlaying, width: 172)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
+            }
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVideo != nil },
+                set: { if !$0 { selectedVideo = nil } }
+            )
+        ) {
+            if let selectedVideo {
+                VideoDetailView(
+                    videoCode: selectedVideo.videoCode,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
             }
         }
     }
@@ -92,6 +107,8 @@ struct RelatedVideoGrid: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
 
+    @State private var selectedVideo: VideoRelatedRow?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("相关影片")
@@ -99,15 +116,63 @@ struct RelatedVideoGrid: View {
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 12)], spacing: 12) {
                 ForEach(videos) { video in
-                    NavigationLink {
-                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                    DragAwareNavigationButton {
+                        selectedVideo = video
                     } label: {
                         RelatedVideoCard(video: video, showPlaying: false)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVideo != nil },
+                set: { if !$0 { selectedVideo = nil } }
+            )
+        ) {
+            if let selectedVideo {
+                VideoDetailView(
+                    videoCode: selectedVideo.videoCode,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+            }
+        }
+    }
+}
+
+private struct DragAwareNavigationButton<Label: View>: View {
+    let action: () -> Void
+    let label: () -> Label
+
+    @State private var suppressTap = false
+
+    init(action: @escaping () -> Void, @ViewBuilder label: @escaping () -> Label) {
+        self.action = action
+        self.label = label
+    }
+
+    var body: some View {
+        Button {
+            guard !suppressTap else { return }
+            action()
+        } label: {
+            label()
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 4, coordinateSpace: .local)
+                .onChanged { value in
+                    if abs(value.translation.width) > 4 || abs(value.translation.height) > 4 {
+                        suppressTap = true
+                    }
+                }
+                .onEnded { _ in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) {
+                        suppressTap = false
+                    }
+                }
+        )
     }
 }
 
@@ -188,38 +253,96 @@ struct TabletRelatedVideoRow: View {
 struct RelatedVideoCard: View {
     let video: VideoRelatedRow
     let showPlaying: Bool
+    let width: CGFloat?
+
+    init(video: VideoRelatedRow, showPlaying: Bool, width: CGFloat? = nil) {
+        self.video = video
+        self.showPlaying = showPlaying
+        self.width = width
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottomLeading) {
+            ZStack(alignment: .bottom) {
                 CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
-                .frame(height: 96)
-                .clipped()
+                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
+
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color(.secondarySystemBackground).opacity(0.94)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+
+                HStack(spacing: 5) {
+                    if let views = video.views, !views.isEmpty {
+                        Label(views, systemImage: "play.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if let duration = video.duration, !duration.isEmpty {
+                        Label(duration, systemImage: "clock")
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.bottom, 5)
 
                 if showPlaying && video.isPlaying {
                     Text("正在播放")
                         .font(.caption2.weight(.bold))
+                        .foregroundStyle(.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(.regularMaterial, in: Capsule())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .padding(6)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            Text(video.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
+            Group {
+                if #available(iOS 17.0, *) {
+                    Text(video.title)
+                        .lineLimit(2, reservesSpace: true)
+                } else {
+                    Text(video.title)
+                        .lineLimit(2)
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            if !video.metadata.isEmpty {
-                Text(video.metadata)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+            HStack(spacing: 6) {
+                MarqueeText(text: video.artistLabel)
+                if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
+                    Text(uploadTime)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
             }
         }
-        .frame(width: 172, alignment: .leading)
+        .frame(width: width, alignment: .leading)
+    }
+}
+
+private extension VideoRelatedRow {
+    var artistLabel: String {
+        guard let artist, !artist.isEmpty else {
+            return String(localized: "common.artist")
+        }
+        return artist
     }
 }
 
