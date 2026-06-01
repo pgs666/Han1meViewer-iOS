@@ -96,22 +96,31 @@ struct CommentView: View {
                 }
             }
             .pickerStyle(.menu)
+            .horizontalPagerExclusionArea()
 
             Spacer()
 
-            Button {
+            TapOnlyControl {
                 isShowingComposer = true
             } label: {
                 Label("评论", systemImage: "square.and.pencil")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .buttonStyle(.borderedProminent)
 
-            Button {
+            TapOnlyControl {
                 viewModel.load()
             } label: {
                 Image(systemName: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .buttonStyle(.bordered)
         }
     }
 
@@ -136,11 +145,18 @@ struct CommentView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("重试") {
+                TapOnlyControl {
                     viewModel.load()
+                } label: {
+                    Text("重试")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .buttonStyle(.borderedProminent)
                 CloudflareVerifyButton(errorMessage: message)
+                    .horizontalPagerExclusionArea()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 60)
@@ -226,9 +242,7 @@ private struct CommentRowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Menu {
-                        Button("举报", role: .destructive, action: onReport)
-                    } label: {
+                    TapOnlyControl(action: onReport) {
                         Image(systemName: "ellipsis")
                             .foregroundStyle(.secondary)
                     }
@@ -239,24 +253,29 @@ private struct CommentRowView: View {
                     .textSelection(.enabled)
 
                 HStack(spacing: 14) {
-                    Button(action: onLike) {
+                    TapOnlyControl(isDisabled: isRunningLike) {
+                        onLike()
+                    } label: {
                         Label("\(comment.thumbUp ?? 0)", systemImage: comment.likeCommentStatus ? "hand.thumbsup.fill" : "hand.thumbsup")
                     }
-                    .disabled(isRunningLike)
 
-                    Button(action: onDislike) {
+                    TapOnlyControl(isDisabled: isRunningLike) {
+                        onDislike()
+                    } label: {
                         Image(systemName: comment.unlikeCommentStatus ? "hand.thumbsdown.fill" : "hand.thumbsdown")
                     }
-                    .disabled(isRunningLike)
 
-                    Button("回复", action: onReply)
+                    TapOnlyControl(action: onReply) {
+                        Text("回复")
+                    }
 
                     if comment.hasMoreReplies {
-                        Button("查看 \(comment.replyCount ?? 0) 条回复", action: onShowReplies)
+                        TapOnlyControl(action: onShowReplies) {
+                            Text("查看 \(comment.replyCount ?? 0) 条回复")
+                        }
                     }
                 }
                 .font(.caption)
-                .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
             }
         }
