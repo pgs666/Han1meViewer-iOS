@@ -113,7 +113,7 @@ struct KSPlayerView: View {
     @State private var dragCurrentBrightness: CGFloat = 0
     @State private var dragStartVolume: Float = 0
     @State private var dragCurrentVolume: Float = 0
-    @State private var swipeHUDCleanupTask: Task<Void, Never>?
+    @GestureState private var isPlayerDragGestureActive = false
     /// 长按 timer。finger 落下后启动；移动 > 12pt 或 finger 抬起时 cancel。
     @State private var longPressTask: Task<Void, Never>?
     /// 当前手势是否已经决定走 swipe 路径（以避免长按 timer 重复 schedule）。
@@ -417,6 +417,9 @@ struct KSPlayerView: View {
                     // the tap / double-tap / pinch gestures.
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 0)
+                            .updating($isPlayerDragGestureActive) { _, isActive, _ in
+                                isActive = true
+                            }
                             .onChanged { value in
                                 handlePressOrSwipe(value, in: proxy.size)
                             }
@@ -481,8 +484,6 @@ struct KSPlayerView: View {
             physicalVolumeHUDHideTask?.cancel()
             physicalVolumeHUDHideTask = nil
             physicalVolumeHUDActive = false
-            swipeHUDCleanupTask?.cancel()
-            swipeHUDCleanupTask = nil
             resetSwipeHUDState()
             speedSampleTask?.cancel()
             speedSampleTask = nil
@@ -504,6 +505,14 @@ struct KSPlayerView: View {
             }
             onControlsVisibilityChanged(false)
             hideControlsTask?.cancel()
+        }
+        .onValueChange(of: isPlayerDragGestureActive) { isActive in
+            guard !isActive else { return }
+            let shouldResumeAutoHide = hasMovedToSwipe || dragState != .none || isBoosted
+            resetSwipeHUDState()
+            if shouldResumeAutoHide {
+                scheduleAutoHide()
+            }
         }
         .onValueChange(of: statusObserver.isWaitingForPlayback) { waiting in
             // Speed sampler only runs while the player is genuinely waiting
@@ -1135,7 +1144,6 @@ struct KSPlayerView: View {
     /// based on dominant axis & start location. Subsequent calls update the
     /// active dimension only.
     private func handleSwipeChanged(_ value: DragGesture.Value, in size: CGSize) {
-        scheduleSwipeHUDCleanup()
         if dragState == .none {
             // Decide direction: vertical vs horizontal based on dominant axis.
             let dx = value.translation.width
@@ -1197,30 +1205,19 @@ struct KSPlayerView: View {
             sliderValue = dragTargetProgressSeconds
         }
         // Hide HUD with a small fade.
-        swipeHUDCleanupTask?.cancel()
-        swipeHUDCleanupTask = nil
         withAnimation(.easeOut(duration: 0.2)) {
             dragState = .none
         }
         scheduleAutoHide()
     }
 
-    private func scheduleSwipeHUDCleanup() {
-        swipeHUDCleanupTask?.cancel()
-        swipeHUDCleanupTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled else { return }
-            resetSwipeHUDState()
-            scheduleAutoHide()
-        }
-    }
-
     private func resetSwipeHUDState() {
-        swipeHUDCleanupTask?.cancel()
-        swipeHUDCleanupTask = nil
         longPressTask?.cancel()
         longPressTask = nil
         hasMovedToSwipe = false
+        if isBoosted {
+            endBoost()
+        }
         if dragState != .none {
             withAnimation(.easeOut(duration: 0.18)) {
                 dragState = .none
