@@ -398,36 +398,13 @@ struct VideoDetailView: View {
         previousActiveTabOffset: CGFloat?,
         collapseDistance: CGFloat
     ) {
-        let tabSwitchGracePeriod: TimeInterval = 0.35
-        let justSwitchedTabs = Date().timeIntervalSince(lastSelectedTabChangeAt) < tabSwitchGracePeriod
-        let currentCollapseOffset = min(max(bottomScrollOffset, 0), collapseDistance)
-        let nonnegativeActiveOffset = max(0, activeTabOffset)
-
-        guard let previousActiveTabOffset else {
-            bottomScrollOffset = min(collapseDistance, max(currentCollapseOffset, nonnegativeActiveOffset))
-            return
-        }
-
-        let delta = activeTabOffset - previousActiveTabOffset
-        if delta > 0.5 {
-            // User is scrolling upward in the active tab. Collapse more only
-            // after this tab catches up to the current global collapse amount;
-            // do not expand a previously collapsed player just because the
-            // destination tab starts near offset 0.
-            if nonnegativeActiveOffset >= currentCollapseOffset {
-                bottomScrollOffset = min(collapseDistance, nonnegativeActiveOffset)
-            }
-        } else if delta < -0.5 && activeTabOffset <= 0 {
-            // At the top of a newly selected tab, a downward rubber-band drag
-            // should still expand the shared player instead of feeling stuck.
-            bottomScrollOffset = min(collapseDistance, max(0, currentCollapseOffset + delta))
-        } else if delta < -0.5 && !justSwitchedTabs {
-            // User is scrolling downward in the active tab. This is an
-            // intentional expansion gesture, so let the player follow it.
-            bottomScrollOffset = min(collapseDistance, nonnegativeActiveOffset)
-        } else if currentCollapseOffset != bottomScrollOffset {
-            bottomScrollOffset = currentCollapseOffset
-        }
+        bottomScrollOffset = VideoPlayerCollapseModel.nextCollapseOffset(
+            currentCollapseOffset: bottomScrollOffset,
+            activeTabOffset: activeTabOffset,
+            previousActiveTabOffset: previousActiveTabOffset,
+            collapseDistance: collapseDistance,
+            switchedTabsRecently: Date().timeIntervalSince(lastSelectedTabChangeAt) < 0.35
+        )
     }
 
     private func tabScroll<Content: View>(
@@ -457,6 +434,45 @@ private struct BottomScrollOffsetPreferenceKey: PreferenceKey {
     static var defaultValue: [VideoPageTab: CGFloat] = [:]
     static func reduce(value: inout [VideoPageTab: CGFloat], nextValue: () -> [VideoPageTab: CGFloat]) {
         value.merge(nextValue()) { _, new in new }
+    }
+}
+
+private enum VideoPlayerCollapseModel {
+    static func nextCollapseOffset(
+        currentCollapseOffset: CGFloat,
+        activeTabOffset: CGFloat,
+        previousActiveTabOffset: CGFloat?,
+        collapseDistance: CGFloat,
+        switchedTabsRecently: Bool
+    ) -> CGFloat {
+        let clampedCurrent = clamp(currentCollapseOffset, upperBound: collapseDistance)
+        let nonnegativeActiveOffset = max(0, activeTabOffset)
+
+        guard let previousActiveTabOffset else {
+            return min(collapseDistance, max(clampedCurrent, nonnegativeActiveOffset))
+        }
+
+        let delta = activeTabOffset - previousActiveTabOffset
+        if delta > 0.5 {
+            if nonnegativeActiveOffset >= clampedCurrent {
+                return min(collapseDistance, nonnegativeActiveOffset)
+            }
+            return clampedCurrent
+        }
+
+        if delta < -0.5 && activeTabOffset <= 0 {
+            return min(collapseDistance, max(0, clampedCurrent + delta))
+        }
+
+        if delta < -0.5 && !switchedTabsRecently {
+            return min(collapseDistance, nonnegativeActiveOffset)
+        }
+
+        return clampedCurrent
+    }
+
+    private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
+        min(max(value, 0), max(upperBound, 0))
     }
 }
 
