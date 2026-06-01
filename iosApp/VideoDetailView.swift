@@ -10,6 +10,7 @@ struct VideoDetailView: View {
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
     @State private var isPlayerCollapsed = false
+    @State private var horizontalPagerExclusionFrames: [CGRect] = []
     /// True iff the player is currently playing (not paused / buffering).
     /// Driven from KSPlayerView via the @Binding below. Used to lock the
     /// player at full 16:9 height while playing — only paused state lets the
@@ -313,7 +314,10 @@ struct VideoDetailView: View {
             .padding(.vertical, 8)
             .background(.background)
 
-            VideoDetailTabPager(selectedTab: $selectedTab) {
+            VideoDetailTabPager(
+                selectedTab: $selectedTab,
+                excludedDragStartFrames: horizontalPagerExclusionFrames
+            ) {
                 tabScroll(.introduction) {
                     AndroidStyleIntroduction(
                         snapshot: snapshot,
@@ -346,6 +350,9 @@ struct VideoDetailView: View {
         }
         .onValueChange(of: selectedTab) { newTab in
             bottomScrollOffset = bottomScrollOffsetsByTab[newTab] ?? 0
+        }
+        .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
+            horizontalPagerExclusionFrames = frames
         }
     }
 
@@ -412,6 +419,7 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
 
 private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
     @Binding var selectedTab: VideoPageTab
+    let excludedDragStartFrames: [CGRect]
     let introduction: () -> Introduction
     let comments: () -> Comments
 
@@ -419,10 +427,12 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
 
     init(
         selectedTab: Binding<VideoPageTab>,
+        excludedDragStartFrames: [CGRect],
         @ViewBuilder introduction: @escaping () -> Introduction,
         @ViewBuilder comments: @escaping () -> Comments
     ) {
         _selectedTab = selectedTab
+        self.excludedDragStartFrames = excludedDragStartFrames
         self.introduction = introduction
         self.comments = comments
     }
@@ -438,6 +448,7 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
         .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
         .contentShape(Rectangle())
         .clipped()
+        .coordinateSpace(name: VideoDetailPagerCoordinateSpace.name)
         .simultaneousGesture(horizontalPagingGesture)
     }
 
@@ -486,6 +497,9 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
         let dx = value.translation.width
         let dy = value.translation.height
         guard value.startLocation.x > 24 else { return false }
+        guard !excludedDragStartFrames.contains(where: { $0.contains(value.startLocation) }) else {
+            return false
+        }
         return abs(dx) > 24 && abs(dx) > abs(dy) * 1.35
     }
 
@@ -497,6 +511,28 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
             return translation * 0.28
         }
         return translation
+    }
+}
+
+private enum VideoDetailPagerCoordinateSpace {
+    static let name = "videoDetailPager"
+}
+
+private struct HorizontalPagerExclusionFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+private struct HorizontalPagerExclusionFrameReader: View {
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: HorizontalPagerExclusionFramePreferenceKey.self,
+                value: [proxy.frame(in: .named(VideoDetailPagerCoordinateSpace.name))]
+            )
+        }
     }
 }
 
@@ -608,6 +644,7 @@ private struct AndroidStyleIntroduction: View {
                     commentFeature: commentFeature,
                     showPlaying: true
                 )
+                .background(HorizontalPagerExclusionFrameReader())
             }
 
             if showsRelated && !snapshot.relatedVideos.isEmpty {
