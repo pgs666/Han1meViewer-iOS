@@ -7,10 +7,12 @@ struct VideoDetailView: View {
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
     @StateObject private var viewModel: VideoDetailViewModel
+    @StateObject private var commentViewModel: CommentViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
     @State private var isPlayerCollapsed = false
     @State private var horizontalPagerExclusionFrames: [CGRect] = []
+    @State private var gestureCoordinator = VideoDetailGestureCoordinator()
     /// True iff the player is currently playing (not paused / buffering).
     /// Driven from KSPlayerView via the @Binding below. Used to lock the
     /// player at full 16:9 height while playing — only paused state lets the
@@ -45,6 +47,9 @@ struct VideoDetailView: View {
         self.videoFeature = videoFeature
         self.commentFeature = commentFeature
         _viewModel = StateObject(wrappedValue: VideoDetailViewModel(videoFeature: videoFeature))
+        _commentViewModel = StateObject(
+            wrappedValue: CommentViewModel(feature: commentFeature, videoCode: videoCode)
+        )
     }
 
     var body: some View {
@@ -74,13 +79,6 @@ struct VideoDetailView: View {
             .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
-            }
-            .refreshable {
-                // Refresh without the full-screen .loading spinner flash:
-                // keep the current content visible while re-fetching. The
-                // player is rebuilt on success (acceptable for an explicit
-                // refresh); this just removes the abrupt blank-out.
-                await viewModel.refresh(videoCode: videoCode)
             }
             .onDisappear {
                 // KSPlayer pauses itself in its own .onDisappear; the
@@ -342,6 +340,7 @@ struct VideoDetailView: View {
 
             VideoDetailTabPager(
                 selectedTab: $selectedTab,
+                gestureCoordinator: gestureCoordinator,
                 excludedDragStartFrames: horizontalPagerExclusionFrames
             ) {
                 tabScroll(.introduction) {
@@ -359,14 +358,24 @@ struct VideoDetailView: View {
                     )
                     .padding(.top, 16)
                 } collapseCompensation: {
-                    collapseCompensation
+                    tabCollapseCompensation(for: .introduction, collapseCompensation: collapseCompensation)
+                } collapseDistance: {
+                    collapseDistance
+                } refreshAction: {
+                    guard !gestureCoordinator.isHorizontalPagingActive else { return }
+                    await viewModel.refresh(videoCode: videoCode)
                 }
             } comments: {
                 tabScroll(.comments) {
-                    CommentView(videoCode: videoCode, commentFeature: commentFeature)
+                    CommentView(viewModel: commentViewModel)
                         .padding(.top, 16)
                 } collapseCompensation: {
-                    collapseCompensation
+                    tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
+                } collapseDistance: {
+                    collapseDistance
+                } refreshAction: {
+                    guard !gestureCoordinator.isHorizontalPagingActive else { return }
+                    await commentViewModel.refresh()
                 }
             }
             .frame(maxHeight: .infinity)
@@ -377,6 +386,9 @@ struct VideoDetailView: View {
             for (tab, offset) in offsets {
                 bottomScrollOffsetsByTab[tab] = offset
             }
+            guard !gestureCoordinator.isHorizontalPagingActive else {
+                return
+            }
             let activeOffset = bottomScrollOffsetsByTab[selectedTab] ?? 0
             updatePlayerCollapseOffset(
                 activeTabOffset: activeOffset,
@@ -384,18 +396,9 @@ struct VideoDetailView: View {
                 collapseDistance: collapseDistance
             )
         }
-        .onValueChange(of: selectedTab) { newTab in
+        .onValueChange(of: selectedTab) { _ in
             lastSelectedTabChangeAt = Date()
-            let newTabOffset = max(0, bottomScrollOffsetsByTab[newTab] ?? 0)
-            // Keep the player collapsed across horizontal tab switches. If
-            // the destination tab is already scrolled farther, collapse more;
-            // never expand merely because the destination tab is at offset 0.
-            let targetOffset = min(collapseDistance, max(bottomScrollOffset, newTabOffset))
-            if targetOffset != bottomScrollOffset {
-                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
-                    bottomScrollOffset = targetOffset
-                }
-            }
+            bottomScrollOffset = min(max(bottomScrollOffset, 0), collapseDistance)
         }
         .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
             horizontalPagerExclusionFrames = frames
@@ -419,24 +422,43 @@ struct VideoDetailView: View {
     private func tabScroll<Content: View>(
         _ tab: VideoPageTab,
         @ViewBuilder content: @escaping () -> Content,
-        collapseCompensation: @escaping () -> CGFloat = { 0 }
+        collapseCompensation: @escaping () -> CGFloat = { 0 },
+        collapseDistance: @escaping () -> CGFloat = { 0 },
+        refreshAction: (() async -> Void)? = nil
     ) -> some View {
-        ScrollView {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: BottomScrollOffsetPreferenceKey.self,
-                    value: [tab: -proxy.frame(in: .named(tab.scrollCoordinateSpaceName)).minY]
-                )
-            }
-            .frame(height: 0)
+        GeometryReader { proxy in
+            let minScrollableContentHeight = proxy.size.height + collapseDistance() + 1
+            let scrollView = ScrollView {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: BottomScrollOffsetPreferenceKey.self,
+                        value: [tab: -proxy.frame(in: .named(tab.scrollCoordinateSpaceName)).minY]
+                    )
+                }
+                .frame(height: 0)
 
-            content()
-                .padding(.bottom, 24)
-                .offset(y: collapseCompensation())
-                .padding(.bottom, collapseCompensation())
+                content()
+                    .frame(maxWidth: .infinity, minHeight: minScrollableContentHeight, alignment: .top)
+                    .padding(.bottom, 24)
+                    .offset(y: collapseCompensation())
+                    .padding(.bottom, collapseCompensation())
+            }
+            .coordinateSpace(name: tab.scrollCoordinateSpaceName)
+            .background(VideoDetailScrollViewConfigurator(coordinator: gestureCoordinator))
+            .id(tab)
+
+            if let refreshAction {
+                scrollView.refreshable {
+                    await refreshAction()
+                }
+            } else {
+                scrollView
+            }
         }
-        .coordinateSpace(name: tab.scrollCoordinateSpaceName)
-        .id(tab)
+    }
+
+    private func tabCollapseCompensation(for tab: VideoPageTab, collapseCompensation: CGFloat) -> CGFloat {
+        min(max(bottomScrollOffsetsByTab[tab] ?? 0, 0), collapseCompensation)
     }
 }
 
@@ -459,6 +481,10 @@ private enum VideoPlayerCollapseModel {
     ) -> CGFloat {
         let clampedCurrent = clamp(currentCollapseOffset, upperBound: collapseDistance)
         let nonnegativeActiveOffset = max(0, activeTabOffset)
+
+        if switchedTabsRecently {
+            return clampedCurrent
+        }
 
         guard let previousActiveTabOffset else {
             return min(collapseDistance, max(clampedCurrent, nonnegativeActiveOffset))
@@ -521,6 +547,7 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
 
 private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
     @Binding var selectedTab: VideoPageTab
+    let gestureCoordinator: VideoDetailGestureCoordinator
     let excludedDragStartFrames: [CGRect]
     let introduction: () -> Introduction
     let comments: () -> Comments
@@ -529,11 +556,13 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
 
     init(
         selectedTab: Binding<VideoPageTab>,
+        gestureCoordinator: VideoDetailGestureCoordinator,
         excludedDragStartFrames: [CGRect],
         @ViewBuilder introduction: @escaping () -> Introduction,
         @ViewBuilder comments: @escaping () -> Comments
     ) {
         _selectedTab = selectedTab
+        self.gestureCoordinator = gestureCoordinator
         self.excludedDragStartFrames = excludedDragStartFrames
         self.introduction = introduction
         self.comments = comments
@@ -557,6 +586,7 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
     private var horizontalPagingGesture: some Gesture {
         DragGesture(minimumDistance: 28, coordinateSpace: .local)
             .onChanged { value in
+                updateHorizontalPagingState(value)
                 guard isHorizontalPagingDrag(value) else {
                     dragTranslation = 0
                     return
@@ -572,6 +602,7 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
                     withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
                         dragTranslation = 0
                     }
+                    gestureCoordinator.setHorizontalPagingActive(false)
                 }
 
                 guard isHorizontalPagingDrag(value) else { return }
@@ -605,6 +636,17 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
         return abs(dx) > 36 && abs(dx) > abs(dy) * 2.0
     }
 
+    private func updateHorizontalPagingState(_ value: DragGesture.Value) {
+        let dx = value.translation.width
+        let dy = value.translation.height
+        guard abs(dx) > 10 && abs(dx) > abs(dy) * 1.35 else { return }
+        guard value.startLocation.x > 24 else { return }
+        guard !excludedDragStartFrames.contains(where: { $0.contains(value.startLocation) }) else {
+            return
+        }
+        gestureCoordinator.setHorizontalPagingActive(true)
+    }
+
     private func rubberBandedTranslation(_ translation: CGFloat) -> CGFloat {
         let index = selectedTab.pageIndex
         let isPullingBeforeFirst = index == 0 && translation > 0
@@ -613,6 +655,62 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
             return translation * 0.28
         }
         return translation
+    }
+}
+
+private final class VideoDetailGestureCoordinator {
+    private var scrollViews = NSHashTable<UIScrollView>.weakObjects()
+    private(set) var isHorizontalPagingActive = false
+
+    func register(scrollView: UIScrollView) {
+        scrollViews.add(scrollView)
+        scrollView.isDirectionalLockEnabled = true
+        scrollView.refreshControl?.isEnabled = !isHorizontalPagingActive
+    }
+
+    func setHorizontalPagingActive(_ isActive: Bool) {
+        guard isHorizontalPagingActive != isActive else { return }
+        isHorizontalPagingActive = isActive
+        for scrollView in scrollViews.allObjects {
+            scrollView.refreshControl?.isEnabled = !isActive
+        }
+    }
+}
+
+private struct VideoDetailScrollViewConfigurator: UIViewRepresentable {
+    let coordinator: VideoDetailGestureCoordinator
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        DispatchQueue.main.async {
+            configureScrollView(near: view)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            configureScrollView(near: uiView)
+        }
+    }
+
+    private func configureScrollView(near view: UIView) {
+        guard let scrollView = view.firstSuperview(of: UIScrollView.self) else { return }
+        coordinator.register(scrollView: scrollView)
+    }
+}
+
+private extension UIView {
+    func firstSuperview<T: UIView>(of type: T.Type) -> T? {
+        var view = superview
+        while let current = view {
+            if let match = current as? T {
+                return match
+            }
+            view = current.superview
+        }
+        return nil
     }
 }
 
