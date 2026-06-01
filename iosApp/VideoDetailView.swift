@@ -504,7 +504,9 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
         }
 
         func updateBottomInset(_ bottomInset: CGFloat) {
+            guard abs(self.bottomInset - bottomInset) > 0.5 else { return }
             self.bottomInset = bottomInset
+            remainingRetries = 12
         }
 
         func scheduleConfiguration() {
@@ -513,7 +515,8 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.isConfigurationScheduled = false
-                if !self.configureNearestScrollView(), self.window != nil, self.remainingRetries > 0 {
+                self.configureNearestScrollView()
+                if self.window != nil, self.remainingRetries > 0 {
                     self.remainingRetries -= 1
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                         self?.scheduleConfiguration()
@@ -531,6 +534,7 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
                     scrollView.alwaysBounceVertical = false
                     scrollView.alwaysBounceHorizontal = false
                     scrollView.isDirectionalLockEnabled = true
+                    scrollView.contentInsetAdjustmentBehavior = .never
                     applyBottomInset(to: scrollView)
                     gestureCoordinator.registerVerticalScrollView(scrollView)
                     return true
