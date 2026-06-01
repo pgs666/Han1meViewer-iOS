@@ -437,7 +437,6 @@ struct VideoDetailView: View {
                     .padding(.bottom, collapseCompensation())
             }
             .coordinateSpace(name: tab.scrollCoordinateSpaceName)
-            .background(VideoDetailScrollBounceDisabler())
             .id(tab)
         }
     }
@@ -637,71 +636,6 @@ private final class VideoDetailGestureCoordinator {
 
     func setHorizontalPagingActive(_ isActive: Bool) {
         isHorizontalPagingActive = isActive
-    }
-}
-
-private struct VideoDetailScrollBounceDisabler: UIViewRepresentable {
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.isUserInteractionEnabled = false
-        context.coordinator.scheduleDisableBounce(near: view)
-        return view
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        context.coordinator.scheduleDisableBounce(near: uiView)
-    }
-
-    final class Coordinator {
-        private var generation = 0
-        private var scheduledRetryCount = 0
-
-        func scheduleDisableBounce(near view: UIView) {
-            generation += 1
-            scheduledRetryCount = 0
-            disableBounce(near: view)
-            retryDisableBounce(near: view, generation: generation)
-        }
-
-        private func retryDisableBounce(near view: UIView, generation: Int) {
-            guard scheduledRetryCount < 8 else { return }
-            scheduledRetryCount += 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak view] in
-                guard generation == self.generation else { return }
-                guard let view else { return }
-                self.disableBounce(near: view)
-                self.retryDisableBounce(near: view, generation: generation)
-            }
-        }
-
-        private func disableBounce(near view: UIView) {
-            let scrollViews = view.enclosingScrollViews()
-            guard !scrollViews.isEmpty else { return }
-            for scrollView in scrollViews {
-                scrollView.bounces = false
-                scrollView.alwaysBounceVertical = false
-                scrollView.alwaysBounceHorizontal = false
-                scrollView.isDirectionalLockEnabled = true
-            }
-        }
-    }
-}
-
-private extension UIView {
-    func enclosingScrollViews() -> [UIScrollView] {
-        var scrollViews: [UIScrollView] = []
-        var view = superview
-        while let current = view {
-            if let scrollView = current as? UIScrollView {
-                scrollViews.append(scrollView)
-            }
-            view = current.superview
-        }
-        return scrollViews
     }
 }
 
