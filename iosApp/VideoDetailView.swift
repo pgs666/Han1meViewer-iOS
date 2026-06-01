@@ -76,7 +76,7 @@ struct VideoDetailView: View {
             // again, producing the slide-in/out animation.
             .hidesTabBarOnAppear()
             .statusBarHidden(isPlayerFullscreen)
-            .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
+            .ignoresSafeArea(edges: isPlayerFullscreen ? .all : .bottom)
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
