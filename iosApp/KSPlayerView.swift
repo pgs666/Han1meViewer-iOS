@@ -134,7 +134,9 @@ struct KSPlayerView: View {
     /// which already shows the same bar via swipeHUD).
     @StateObject private var volumeObserver = SystemVolumeObserver()
     @State private var physicalVolumeHUDActive = false
-    @State private var physicalVolumeHUDHideTask: Task<Void, Never>?
+    @State private var physicalVolumeHUDGeneration: UInt64 = 0
+    @State private var lastHandledPhysicalVolumeTick: UInt64 = 0
+    @State private var suppressPhysicalVolumeHUDUntil = Date.distantPast
 
     // MARK: - Buffering / loading feedback
     /// Observes the underlying AVPlayer's `timeControlStatus` — the
@@ -481,8 +483,7 @@ struct KSPlayerView: View {
             hideControlsTask?.cancel()
             SystemVolumeController.release()
             volumeObserver.stop()
-            physicalVolumeHUDHideTask?.cancel()
-            physicalVolumeHUDHideTask = nil
+            physicalVolumeHUDGeneration &+= 1
             physicalVolumeHUDActive = false
             resetSwipeHUDState()
             speedSampleTask?.cancel()
@@ -528,20 +529,31 @@ struct KSPlayerView: View {
                 currentSpeedText = nil
             }
         }
-        .onReceive(volumeObserver.$changeTick) { _ in
+        .onReceive(volumeObserver.$changeTick) { tick in
+            // @Published emits its current value immediately on subscription.
+            // Tick 0 is not a hardware-key event; showing HUD for it can keep
+            // recreating the hide timer during normal SwiftUI re-subscription.
+            guard tick > 0 else { return }
+            guard tick != lastHandledPhysicalVolumeTick else { return }
+            lastHandledPhysicalVolumeTick = tick
             // Skip if the change came from our swipe-volume gesture —
             // swipeHUD is already visible for that case. Otherwise pop
             // the physical-key HUD and auto-hide after 1.5s.
             guard dragState != .volume else { return }
-            physicalVolumeHUDActive = true
-            physicalVolumeHUDHideTask?.cancel()
-            physicalVolumeHUDHideTask = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                if !Task.isCancelled {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        physicalVolumeHUDActive = false
-                    }
-                }
+            guard Date() >= suppressPhysicalVolumeHUDUntil else { return }
+            showPhysicalVolumeHUD()
+        }
+    }
+
+    private func showPhysicalVolumeHUD() {
+        physicalVolumeHUDGeneration &+= 1
+        let generation = physicalVolumeHUDGeneration
+        physicalVolumeHUDActive = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard generation == physicalVolumeHUDGeneration else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                physicalVolumeHUDActive = false
             }
         }
     }
@@ -1190,6 +1202,7 @@ struct KSPlayerView: View {
             guard size.height > 0 else { return }
             let fraction = -Float(value.translation.height / size.height)
             dragCurrentVolume = max(0, min(1, dragStartVolume + fraction))
+            suppressPhysicalVolumeHUDUntil = Date().addingTimeInterval(0.8)
             SystemVolumeController.setVolume(dragCurrentVolume)
         case .none:
             break
