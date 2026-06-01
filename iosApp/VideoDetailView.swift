@@ -422,7 +422,7 @@ struct VideoDetailView: View {
         GeometryReader { proxy in
             let minScrollableContentHeight = proxy.size.height + collapseDistance() + 1
             ScrollView {
-                BounceDisabledScrollViewConfigurator()
+                BounceDisabledScrollViewConfigurator(gestureCoordinator: gestureCoordinator)
                     .frame(width: 0, height: 0)
 
                 GeometryReader { proxy in
@@ -450,8 +450,10 @@ struct VideoDetailView: View {
 }
 
 private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
+    let gestureCoordinator: VideoDetailGestureCoordinator
+
     func makeUIView(context: Context) -> ConfiguringView {
-        let view = ConfiguringView()
+        let view = ConfiguringView(gestureCoordinator: gestureCoordinator)
         view.isUserInteractionEnabled = false
         return view
     }
@@ -461,8 +463,19 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
     }
 
     final class ConfiguringView: UIView {
+        private let gestureCoordinator: VideoDetailGestureCoordinator
         private var isConfigurationScheduled = false
         private var remainingRetries = 12
+
+        init(gestureCoordinator: VideoDetailGestureCoordinator) {
+            self.gestureCoordinator = gestureCoordinator
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
 
         override func didMoveToSuperview() {
             super.didMoveToSuperview()
@@ -505,6 +518,7 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
                     scrollView.alwaysBounceVertical = false
                     scrollView.alwaysBounceHorizontal = false
                     scrollView.isDirectionalLockEnabled = true
+                    gestureCoordinator.registerVerticalScrollView(scrollView)
                     return true
                 }
                 current = view.superview
@@ -712,9 +726,35 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
 
 private final class VideoDetailGestureCoordinator {
     private(set) var isHorizontalPagingActive = false
+    private var verticalScrollViews: [WeakScrollView] = []
 
     func setHorizontalPagingActive(_ isActive: Bool) {
+        guard isHorizontalPagingActive != isActive else { return }
         isHorizontalPagingActive = isActive
+        updateVerticalScrollAvailability()
+    }
+
+    func registerVerticalScrollView(_ scrollView: UIScrollView) {
+        verticalScrollViews.removeAll { $0.scrollView == nil }
+        if !verticalScrollViews.contains(where: { $0.scrollView === scrollView }) {
+            verticalScrollViews.append(WeakScrollView(scrollView))
+        }
+        scrollView.isScrollEnabled = !isHorizontalPagingActive
+    }
+
+    private func updateVerticalScrollAvailability() {
+        verticalScrollViews.removeAll { $0.scrollView == nil }
+        for weakScrollView in verticalScrollViews {
+            weakScrollView.scrollView?.isScrollEnabled = !isHorizontalPagingActive
+        }
+    }
+
+    private final class WeakScrollView {
+        weak var scrollView: UIScrollView?
+
+        init(_ scrollView: UIScrollView) {
+            self.scrollView = scrollView
+        }
     }
 }
 
