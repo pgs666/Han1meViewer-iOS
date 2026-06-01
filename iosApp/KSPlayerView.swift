@@ -113,6 +113,7 @@ struct KSPlayerView: View {
     @State private var dragCurrentBrightness: CGFloat = 0
     @State private var dragStartVolume: Float = 0
     @State private var dragCurrentVolume: Float = 0
+    @State private var swipeHUDCleanupTask: Task<Void, Never>?
     /// 长按 timer。finger 落下后启动；移动 > 12pt 或 finger 抬起时 cancel。
     @State private var longPressTask: Task<Void, Never>?
     /// 当前手势是否已经决定走 swipe 路径（以避免长按 timer 重复 schedule）。
@@ -382,6 +383,7 @@ struct KSPlayerView: View {
                                 isPinching = true
                                 longPressTask?.cancel()
                                 longPressTask = nil
+                                resetSwipeHUDState()
                                 if isBoosted { endBoost() }
                             }
                             .onEnded { value in
@@ -450,6 +452,8 @@ struct KSPlayerView: View {
         }
         .onAppear {
             scheduleAutoHide()
+            physicalVolumeHUDActive = false
+            resetSwipeHUDState()
             // Mount the hidden MPVolumeView so swipe-volume can write the
             // system output volume. Released on disappear so iOS's own
             // volume HUD works everywhere else in the app.
@@ -476,6 +480,10 @@ struct KSPlayerView: View {
             volumeObserver.stop()
             physicalVolumeHUDHideTask?.cancel()
             physicalVolumeHUDHideTask = nil
+            physicalVolumeHUDActive = false
+            swipeHUDCleanupTask?.cancel()
+            swipeHUDCleanupTask = nil
+            resetSwipeHUDState()
             speedSampleTask?.cancel()
             speedSampleTask = nil
             // Pause the player when this view is no longer on-screen.
@@ -1127,6 +1135,7 @@ struct KSPlayerView: View {
     /// based on dominant axis & start location. Subsequent calls update the
     /// active dimension only.
     private func handleSwipeChanged(_ value: DragGesture.Value, in size: CGSize) {
+        scheduleSwipeHUDCleanup()
         if dragState == .none {
             // Decide direction: vertical vs horizontal based on dominant axis.
             let dx = value.translation.width
@@ -1188,10 +1197,35 @@ struct KSPlayerView: View {
             sliderValue = dragTargetProgressSeconds
         }
         // Hide HUD with a small fade.
+        swipeHUDCleanupTask?.cancel()
+        swipeHUDCleanupTask = nil
         withAnimation(.easeOut(duration: 0.2)) {
             dragState = .none
         }
         scheduleAutoHide()
+    }
+
+    private func scheduleSwipeHUDCleanup() {
+        swipeHUDCleanupTask?.cancel()
+        swipeHUDCleanupTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            resetSwipeHUDState()
+            scheduleAutoHide()
+        }
+    }
+
+    private func resetSwipeHUDState() {
+        swipeHUDCleanupTask?.cancel()
+        swipeHUDCleanupTask = nil
+        longPressTask?.cancel()
+        longPressTask = nil
+        hasMovedToSwipe = false
+        if dragState != .none {
+            withAnimation(.easeOut(duration: 0.18)) {
+                dragState = .none
+            }
+        }
     }
 
     private func togglePlayPause() {
