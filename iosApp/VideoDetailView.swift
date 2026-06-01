@@ -437,6 +437,7 @@ struct VideoDetailView: View {
                     .padding(.bottom, collapseCompensation())
             }
             .coordinateSpace(name: tab.scrollCoordinateSpaceName)
+            .background(VideoDetailScrollBounceDisabler())
             .id(tab)
         }
     }
@@ -636,6 +637,43 @@ private final class VideoDetailGestureCoordinator {
 
     func setHorizontalPagingActive(_ isActive: Bool) {
         isHorizontalPagingActive = isActive
+    }
+}
+
+private struct VideoDetailScrollBounceDisabler: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        DispatchQueue.main.async {
+            disableBounce(near: view)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            disableBounce(near: uiView)
+        }
+    }
+
+    private func disableBounce(near view: UIView) {
+        guard let scrollView = view.firstSuperview(of: UIScrollView.self) else { return }
+        scrollView.bounces = false
+        scrollView.alwaysBounceVertical = false
+        scrollView.isDirectionalLockEnabled = true
+    }
+}
+
+private extension UIView {
+    func firstSuperview<T: UIView>(of type: T.Type) -> T? {
+        var view = superview
+        while let current = view {
+            if let match = current as? T {
+                return match
+            }
+            view = current.superview
+        }
+        return nil
     }
 }
 
