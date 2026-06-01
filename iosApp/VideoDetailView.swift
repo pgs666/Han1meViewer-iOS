@@ -212,7 +212,7 @@ struct VideoDetailView: View {
                     : proxy.size.width
 
                 HStack(alignment: .top, spacing: 0) {
-                    VStack(spacing: 0) {
+                    ZStack(alignment: .top) {
                         let currentPlayerCollapseDistance = playerCollapseDistance(panelWidth: leftWidth)
                         let currentPlayerHeight = playerHeight(
                             panelWidth: leftWidth,
@@ -233,10 +233,12 @@ struct VideoDetailView: View {
                                 showsRelated: !isWide,
                                 collapseDistance: currentPlayerCollapseDistance
                             )
-                                .frame(height: max(0, proxy.size.height - currentPlayerHeight))
+                            .frame(height: max(0, proxy.size.height - playerMinimumHeight(panelWidth: leftWidth)))
+                            .offset(y: currentPlayerHeight)
                         }
                     }
-                    .frame(width: leftWidth)
+                    .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
+                    .clipped()
 
                     if isWide {
                         Divider()
@@ -280,8 +282,11 @@ struct VideoDetailView: View {
 
     private func playerCollapseDistance(panelWidth: CGFloat) -> CGFloat {
         let baseHeight = panelWidth * 9 / 16
-        let minHeight: CGFloat = max(baseHeight * 0.32, 80)
-        return max(baseHeight - minHeight, 1)
+        return max(baseHeight - playerMinimumHeight(panelWidth: panelWidth), 1)
+    }
+
+    private func playerMinimumHeight(panelWidth: CGFloat) -> CGFloat {
+        max((panelWidth * 9 / 16) * 0.32, 80)
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
