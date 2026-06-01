@@ -218,6 +218,7 @@ struct VideoDetailView: View {
                             panelWidth: leftWidth,
                             parentHeight: proxy.size.height
                         )
+                        let currentPlayerShrink = playerVisualShrink(panelWidth: leftWidth)
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
@@ -231,7 +232,8 @@ struct VideoDetailView: View {
                             belowPlayerScroll(
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
-                                collapseDistance: currentPlayerCollapseDistance
+                                collapseDistance: currentPlayerCollapseDistance,
+                                collapseCompensation: currentPlayerShrink
                             )
                             .frame(height: max(0, proxy.size.height - playerMinimumHeight(panelWidth: leftWidth)))
                             .offset(y: currentPlayerHeight)
@@ -270,14 +272,7 @@ struct VideoDetailView: View {
         // (content scrolled up), the player shrinks proportionally, never
         // below playerCollapsedFollowMinHeight so its overlay controls
         // remain at least partly visible.
-        let collapseDistance = playerCollapseDistance(panelWidth: panelWidth)
-        let progress = max(0, min(1, bottomScrollOffset / collapseDistance))
-        // Ease out instead of subtracting scroll offset linearly. This keeps
-        // the player responsive at the start while avoiding a rigid
-        // one-pixel-scroll == one-pixel-height feedback loop near collapse.
-        let easedProgress = progress * (2 - progress)
-        let shrink = collapseDistance * easedProgress
-        return baseHeight - shrink
+        return baseHeight - playerVisualShrink(panelWidth: panelWidth)
     }
 
     private func playerCollapseDistance(panelWidth: CGFloat) -> CGFloat {
@@ -287,6 +282,10 @@ struct VideoDetailView: View {
 
     private func playerMinimumHeight(panelWidth: CGFloat) -> CGFloat {
         max((panelWidth * 9 / 16) * 0.32, 80)
+    }
+
+    private func playerVisualShrink(panelWidth: CGFloat) -> CGFloat {
+        min(max(bottomScrollOffset, 0), playerCollapseDistance(panelWidth: panelWidth))
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
@@ -327,7 +326,8 @@ struct VideoDetailView: View {
     private func belowPlayerScroll(
         snapshot: VideoDetailScreenSnapshot,
         showsRelated: Bool,
-        collapseDistance: CGFloat
+        collapseDistance: CGFloat,
+        collapseCompensation: CGFloat
     ) -> some View {
         VStack(spacing: 0) {
             Picker("Content", selection: $selectedTab) {
@@ -358,11 +358,15 @@ struct VideoDetailView: View {
                         showsRelated: showsRelated
                     )
                     .padding(.top, 16)
+                } collapseCompensation: {
+                    collapseCompensation
                 }
             } comments: {
                 tabScroll(.comments) {
                     CommentView(videoCode: videoCode, commentFeature: commentFeature)
                         .padding(.top, 16)
+                } collapseCompensation: {
+                    collapseCompensation
                 }
             }
             .frame(maxHeight: .infinity)
@@ -414,7 +418,8 @@ struct VideoDetailView: View {
 
     private func tabScroll<Content: View>(
         _ tab: VideoPageTab,
-        @ViewBuilder content: @escaping () -> Content
+        @ViewBuilder content: @escaping () -> Content,
+        collapseCompensation: @escaping () -> CGFloat = { 0 }
     ) -> some View {
         ScrollView {
             GeometryReader { proxy in
@@ -426,7 +431,9 @@ struct VideoDetailView: View {
             .frame(height: 0)
 
             content()
-            .padding(.bottom, 24)
+                .padding(.bottom, 24)
+                .offset(y: collapseCompensation())
+                .padding(.bottom, collapseCompensation())
         }
         .coordinateSpace(name: tab.scrollCoordinateSpaceName)
         .id(tab)
@@ -548,7 +555,7 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
     }
 
     private var horizontalPagingGesture: some Gesture {
-        DragGesture(minimumDistance: 18, coordinateSpace: .local)
+        DragGesture(minimumDistance: 28, coordinateSpace: .local)
             .onChanged { value in
                 guard isHorizontalPagingDrag(value) else {
                     dragTranslation = 0
@@ -595,7 +602,7 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
         guard !excludedDragStartFrames.contains(where: { $0.contains(value.startLocation) }) else {
             return false
         }
-        return abs(dx) > 24 && abs(dx) > abs(dy) * 1.35
+        return abs(dx) > 36 && abs(dx) > abs(dy) * 2.0
     }
 
     private func rubberBandedTranslation(_ translation: CGFloat) -> CGFloat {
