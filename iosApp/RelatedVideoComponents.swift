@@ -41,7 +41,7 @@ struct HorizontalVideoSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(videos) { video in
-                        DragAwareNavigationButton {
+                        ManualNavigationCard {
                             selectedVideo = video
                         } label: {
                             RelatedVideoCard(video: video, showPlaying: showPlaying, width: 172)
@@ -116,7 +116,7 @@ struct RelatedVideoGrid: View {
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 12)], spacing: 12) {
                 ForEach(videos) { video in
-                    DragAwareNavigationButton {
+                    ManualNavigationCard {
                         selectedVideo = video
                     } label: {
                         RelatedVideoCard(video: video, showPlaying: false)
@@ -141,11 +141,9 @@ struct RelatedVideoGrid: View {
     }
 }
 
-private struct DragAwareNavigationButton<Label: View>: View {
+private struct ManualNavigationCard<Label: View>: View {
     let action: () -> Void
     let label: () -> Label
-
-    @State private var suppressTap = false
 
     init(action: @escaping () -> Void, @ViewBuilder label: @escaping () -> Label) {
         self.action = action
@@ -153,26 +151,9 @@ private struct DragAwareNavigationButton<Label: View>: View {
     }
 
     var body: some View {
-        Button {
-            guard !suppressTap else { return }
-            action()
-        } label: {
-            label()
-        }
-        .buttonStyle(.plain)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 4, coordinateSpace: .local)
-                .onChanged { value in
-                    if abs(value.translation.width) > 4 || abs(value.translation.height) > 4 {
-                        suppressTap = true
-                    }
-                }
-                .onEnded { _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) {
-                        suppressTap = false
-                    }
-                }
-        )
+        label()
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
     }
 }
 
@@ -334,6 +315,9 @@ struct RelatedVideoCard: View {
             }
         }
         .frame(width: width, alignment: .leading)
+        .padding(8)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
