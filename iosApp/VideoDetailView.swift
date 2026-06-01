@@ -652,8 +652,7 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let pagerGlobalOrigin = proxy.frame(in: .global).origin
+        GeometryReader { _ in
             VideoDetailPagerLayout(
                 selectedIndex: selectedTab.pageIndex,
                 dragTranslation: dragTranslation
@@ -664,81 +663,59 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
             .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
             .contentShape(Rectangle())
             .clipped()
-            .simultaneousGesture(horizontalPagingGesture(pagerGlobalOrigin: pagerGlobalOrigin))
-        }
-    }
-
-    private func horizontalPagingGesture(pagerGlobalOrigin: CGPoint) -> some Gesture {
-        DragGesture(minimumDistance: 28, coordinateSpace: .local)
-            .onChanged { value in
-                updateHorizontalPagingState(value, pagerGlobalOrigin: pagerGlobalOrigin)
-                guard isHorizontalPagingDrag(value, pagerGlobalOrigin: pagerGlobalOrigin) else {
-                    dragTranslation = 0
-                    return
-                }
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    dragTranslation = rubberBandedTranslation(value.translation.width)
-                }
-            }
-            .onEnded { value in
-                defer {
-                    withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
-                        dragTranslation = 0
+            .background(
+                HorizontalPagingPanGestureInstaller(
+                    excludedDragStartFrames: excludedDragStartFrames,
+                    onBegan: {
+                        gestureCoordinator.setHorizontalPagingActive(true)
+                    },
+                    onChanged: { translation in
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) {
+                            dragTranslation = rubberBandedTranslation(translation)
+                        }
+                    },
+                    onEnded: { translation, velocity in
+                        finishHorizontalPaging(translation: translation, velocity: velocity)
+                    },
+                    onCancelled: {
+                        cancelHorizontalPaging()
                     }
-                    gestureCoordinator.setHorizontalPagingActive(false)
-                }
-
-                guard isHorizontalPagingDrag(value, pagerGlobalOrigin: pagerGlobalOrigin) else { return }
-                let threshold: CGFloat = 72
-                let projected = value.predictedEndTranslation.width
-                let currentIndex = selectedTab.pageIndex
-                let targetIndex: Int
-
-                if projected < -threshold {
-                    targetIndex = min(currentIndex + 1, VideoPageTab.allCases.count - 1)
-                } else if projected > threshold {
-                    targetIndex = max(currentIndex - 1, 0)
-                } else {
-                    targetIndex = currentIndex
-                }
-
-                guard targetIndex != currentIndex else { return }
-                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
-                    selectedTab = .page(at: targetIndex)
-                }
-            }
-    }
-
-    private func isHorizontalPagingDrag(_ value: DragGesture.Value, pagerGlobalOrigin: CGPoint) -> Bool {
-        let dx = value.translation.width
-        let dy = value.translation.height
-        guard value.startLocation.x > 24 else { return false }
-        let globalStartLocation = globalStartLocation(value.startLocation, pagerGlobalOrigin: pagerGlobalOrigin)
-        guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
-            return false
+                )
+            )
         }
-        return abs(dx) > 36 && abs(dx) > abs(dy) * 2.0
     }
 
-    private func updateHorizontalPagingState(_ value: DragGesture.Value, pagerGlobalOrigin: CGPoint) {
-        let dx = value.translation.width
-        let dy = value.translation.height
-        guard abs(dx) > 10 && abs(dx) > abs(dy) * 1.35 else { return }
-        guard value.startLocation.x > 24 else { return }
-        let globalStartLocation = globalStartLocation(value.startLocation, pagerGlobalOrigin: pagerGlobalOrigin)
-        guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
-            return
+    private func finishHorizontalPaging(translation: CGFloat, velocity: CGFloat) {
+        defer {
+            cancelHorizontalPaging()
         }
-        gestureCoordinator.setHorizontalPagingActive(true)
+
+        let threshold: CGFloat = 72
+        let projected = translation + velocity * 0.18
+        let currentIndex = selectedTab.pageIndex
+        let targetIndex: Int
+
+        if projected < -threshold {
+            targetIndex = min(currentIndex + 1, VideoPageTab.allCases.count - 1)
+        } else if projected > threshold {
+            targetIndex = max(currentIndex - 1, 0)
+        } else {
+            targetIndex = currentIndex
+        }
+
+        guard targetIndex != currentIndex else { return }
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+            selectedTab = .page(at: targetIndex)
+        }
     }
 
-    private func globalStartLocation(_ startLocation: CGPoint, pagerGlobalOrigin: CGPoint) -> CGPoint {
-        CGPoint(
-            x: pagerGlobalOrigin.x + startLocation.x,
-            y: pagerGlobalOrigin.y + startLocation.y
-        )
+    private func cancelHorizontalPaging() {
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+            dragTranslation = 0
+        }
+        gestureCoordinator.setHorizontalPagingActive(false)
     }
 
     private func rubberBandedTranslation(_ translation: CGFloat) -> CGFloat {
@@ -749,6 +726,172 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
             return translation * 0.28
         }
         return translation
+    }
+}
+
+private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
+    let excludedDragStartFrames: [CGRect]
+    let onBegan: () -> Void
+    let onChanged: (CGFloat) -> Void
+    let onEnded: (CGFloat, CGFloat) -> Void
+    let onCancelled: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            excludedDragStartFrames: excludedDragStartFrames,
+            onBegan: onBegan,
+            onChanged: onChanged,
+            onEnded: onEnded,
+            onCancelled: onCancelled
+        )
+    }
+
+    func makeUIView(context: Context) -> InstallingView {
+        let view = InstallingView(coordinator: context.coordinator)
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: InstallingView, context: Context) {
+        context.coordinator.update(
+            excludedDragStartFrames: excludedDragStartFrames,
+            onBegan: onBegan,
+            onChanged: onChanged,
+            onEnded: onEnded,
+            onCancelled: onCancelled
+        )
+        uiView.scheduleInstall()
+    }
+
+    final class InstallingView: UIView {
+        private let coordinator: Coordinator
+        private weak var installedView: UIView?
+
+        init(coordinator: Coordinator) {
+            self.coordinator = coordinator
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            scheduleInstall()
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            scheduleInstall()
+        }
+
+        func scheduleInstall() {
+            DispatchQueue.main.async { [weak self] in
+                self?.installIfNeeded()
+            }
+        }
+
+        private func installIfNeeded() {
+            guard let targetView = superview else { return }
+            guard installedView !== targetView else { return }
+            if let installedView {
+                installedView.removeGestureRecognizer(coordinator.panGestureRecognizer)
+            }
+            installedView = targetView
+            targetView.addGestureRecognizer(coordinator.panGestureRecognizer)
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        let panGestureRecognizer: UIPanGestureRecognizer
+        private var excludedDragStartFrames: [CGRect]
+        private var onBegan: () -> Void
+        private var onChanged: (CGFloat) -> Void
+        private var onEnded: (CGFloat, CGFloat) -> Void
+        private var onCancelled: () -> Void
+
+        init(
+            excludedDragStartFrames: [CGRect],
+            onBegan: @escaping () -> Void,
+            onChanged: @escaping (CGFloat) -> Void,
+            onEnded: @escaping (CGFloat, CGFloat) -> Void,
+            onCancelled: @escaping () -> Void
+        ) {
+            self.excludedDragStartFrames = excludedDragStartFrames
+            self.onBegan = onBegan
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+            self.onCancelled = onCancelled
+            self.panGestureRecognizer = UIPanGestureRecognizer()
+            super.init()
+            panGestureRecognizer.delegate = self
+            panGestureRecognizer.cancelsTouchesInView = true
+            panGestureRecognizer.delaysTouchesBegan = false
+            panGestureRecognizer.delaysTouchesEnded = false
+            panGestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+        }
+
+        func update(
+            excludedDragStartFrames: [CGRect],
+            onBegan: @escaping () -> Void,
+            onChanged: @escaping (CGFloat) -> Void,
+            onEnded: @escaping (CGFloat, CGFloat) -> Void,
+            onCancelled: @escaping () -> Void
+        ) {
+            self.excludedDragStartFrames = excludedDragStartFrames
+            self.onBegan = onBegan
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+            self.onCancelled = onCancelled
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let panGestureRecognizer = gestureRecognizer as? UIPanGestureRecognizer,
+                  let view = gestureRecognizer.view else {
+                return false
+            }
+            let startLocation = panGestureRecognizer.location(in: view)
+            guard startLocation.x > 24 else { return false }
+            let globalStartLocation = view.convert(startLocation, to: nil)
+            guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
+                return false
+            }
+
+            let translation = panGestureRecognizer.translation(in: view)
+            let velocity = panGestureRecognizer.velocity(in: view)
+            let horizontal = max(abs(translation.x), abs(velocity.x) * 0.05)
+            let vertical = max(abs(translation.y), abs(velocity.y) * 0.05)
+            return horizontal > 12 && horizontal > vertical * 1.35
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            false
+        }
+
+        @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            switch recognizer.state {
+            case .began:
+                onBegan()
+                onChanged(recognizer.translation(in: view).x)
+            case .changed:
+                onChanged(recognizer.translation(in: view).x)
+            case .ended:
+                onEnded(
+                    recognizer.translation(in: view).x,
+                    recognizer.velocity(in: view).x
+                )
+            case .cancelled, .failed:
+                onCancelled()
+            default:
+                break
+            }
+        }
     }
 }
 
