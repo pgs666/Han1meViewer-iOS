@@ -15,17 +15,15 @@ struct VideoDetailView: View {
     /// player at full 16:9 height while playing — only paused state lets the
     /// scroll-driven shrink behaviour engage.
     @State private var isPlayerPlaying = false
-    /// True iff the user is currently driving the bottom ScrollView with
-    /// a finger (or inertial scroll is still running). Used to gate
-    /// `onScrollGeometryChange` so that phantom contentOffset reports
-    /// caused by unrelated layout passes (e.g. tapping to show
-    /// controls inside the player) don't shrink/grow the player area.
-    @State private var isUserScrollingBottom = false
     /// Vertical scroll offset of the inline content area below the player,
     /// measured from the natural top (>= 0). When the user scrolls UP (so
     /// the offset grows), and the player is paused, the player shrinks
     /// proportionally — Bilibili-style "follow finger" collapse.
     @State private var bottomScrollOffset: CGFloat = 0
+    /// Each tab owns an independent vertical ScrollView below the player, so
+    /// switching between intro / comments preserves their separate scroll
+    /// positions instead of sharing one outer ScrollView offset.
+    @State private var bottomScrollOffsetsByTab: [VideoPageTab: CGFloat] = [:]
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -302,136 +300,79 @@ struct VideoDetailView: View {
     }
 
     private func belowPlayerScroll(snapshot: VideoDetailScreenSnapshot, showsRelated: Bool) -> some View {
-        let scrollContent = ScrollView {
-            // iOS 16/17 fallback: 0-height GR sentinel as the first child of
-            // the ScrollView. minY in the named coordinate space tracks the
-            // scroll content's vertical movement against the ScrollView's
-            // viewport: scroll up 100pt → sentinel.minY becomes -100. We
-            // negate so the published value grows positive.
-            // On iOS 18+ this co-exists with .onScrollGeometryChange below;
-            // whichever fires first wins, both produce the same result.
+        VStack(spacing: 0) {
+            Picker("Content", selection: $selectedTab) {
+                ForEach(VideoPageTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.background)
+
+            VideoDetailTabPager(selectedTab: $selectedTab) {
+                tabScroll(.introduction) {
+                    AndroidStyleIntroduction(
+                        snapshot: snapshot,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature,
+                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                        onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                        onShowMessage: { viewModel.showActionMessage($0) },
+                        showsRelated: showsRelated
+                    )
+                    .padding(.top, 16)
+                }
+            } comments: {
+                tabScroll(.comments) {
+                    CommentView(videoCode: videoCode, commentFeature: commentFeature)
+                        .padding(.top, 16)
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(maxHeight: .infinity)
+        .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { offsets in
+            for (tab, offset) in offsets {
+                bottomScrollOffsetsByTab[tab] = max(0, offset)
+            }
+            bottomScrollOffset = bottomScrollOffsetsByTab[selectedTab] ?? 0
+        }
+        .onValueChange(of: selectedTab) { newTab in
+            bottomScrollOffset = bottomScrollOffsetsByTab[newTab] ?? 0
+        }
+    }
+
+    private func tabScroll<Content: View>(
+        _ tab: VideoPageTab,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        ScrollView {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: BottomScrollOffsetPreferenceKey.self,
-                    value: -proxy.frame(in: .named("bottomScroll")).minY
+                    value: [tab: -proxy.frame(in: .named(tab.scrollCoordinateSpaceName)).minY]
                 )
             }
             .frame(height: 0)
 
-            LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                Section {
-                    // Wrap the per-tab content in a Group with .id(selectedTab)
-                    // so SwiftUI treats the two branches as distinct view
-                    // identities. Without this, switching introduction →
-                    // comments inside a LazyVStack section sometimes
-                    // recycles the row and leaves contentSize stale, which
-                    // showed as a blank page until the user nudged the
-                    // ScrollView (re-laying out and refreshing the size).
-                    Group {
-                        switch selectedTab {
-                        case .introduction:
-                            AndroidStyleIntroduction(
-                                snapshot: snapshot,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature,
-                                isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                                onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                                onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                                onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                                onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                                onShowMessage: { viewModel.showActionMessage($0) },
-                                showsRelated: showsRelated
-                            )
-                        case .comments:
-                            CommentView(videoCode: videoCode, commentFeature: commentFeature)
-                        }
-                    }
-                    .id(selectedTab)
-                    // Horizontal swipe to switch between introduction /
-                    // comments. Use plain .gesture (NOT simultaneous /
-                    // highPriority) so any nested horizontal-scroll
-                    // ScrollView (系列影片 / 相关影片 grids) gets to
-                    // claim the gesture first; SwiftUI only falls
-                    // through to this DragGesture for the area above
-                    // the horizontal strips. We require horizontal
-                    // dominance + 60pt minimum, AND a 24pt left/right
-                    // start-edge deadzone so the iOS swipe-back gesture
-                    // (and any future right-edge system gesture) wins.
-                    .gesture(
-                        DragGesture(minimumDistance: 30, coordinateSpace: .local)
-                            .onEnded { value in
-                                let dx = value.translation.width
-                                let dy = value.translation.height
-                                guard abs(dx) > abs(dy) * 1.5, abs(dx) > 60 else { return }
-                                guard value.startLocation.x > 24 else { return }
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    if dx < 0, selectedTab == .introduction {
-                                        selectedTab = .comments
-                                    } else if dx > 0, selectedTab == .comments {
-                                        selectedTab = .introduction
-                                    }
-                                }
-                            }
-                    )
-                } header: {
-                    Picker("Content", selection: $selectedTab) {
-                        ForEach(VideoPageTab.allCases) { tab in
-                            Text(tab.title).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(.background)
-                }
-            }
+            content()
             .padding(.bottom, 24)
         }
-        .coordinateSpace(name: "bottomScroll")
-        .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { value in
-            bottomScrollOffset = max(0, value)
-        }
-
-        // iOS 18+ explicit scroll-offset reporting via Apple's public API.
-        // More reliable than GeometryReader-on-Lazy* containers, which can
-        // sometimes skip preference updates during inertial scrolling.
-        if #available(iOS 18.0, *) {
-            return AnyView(
-                scrollContent
-                    .onScrollPhaseChange { _, newPhase in
-                        // .idle and .animating are "not currently being
-                        // driven by the user". We only treat .tracking
-                        // (finger down + moving) and .decelerating
-                        // (inertial after release) and .interacting as
-                        // legitimate scroll signals. This prevents tap-
-                        // -to-show-controls inside the player from
-                        // accidentally pulsing bottomScrollOffset and
-                        // resizing the player area.
-                        isUserScrollingBottom = (newPhase == .tracking
-                            || newPhase == .decelerating
-                            || newPhase == .interacting)
-                    }
-                    .onScrollGeometryChange(for: CGFloat.self) { geom in
-                        geom.contentOffset.y
-                    } action: { _, newOffset in
-                        guard isUserScrollingBottom else { return }
-                        bottomScrollOffset = max(0, newOffset)
-                    }
-            )
-        } else {
-            return AnyView(scrollContent)
-        }
+        .coordinateSpace(name: tab.scrollCoordinateSpaceName)
     }
 }
 
-/// Reports the inline-content ScrollView's vertical offset from its top so
-/// the player area can shrink (B-station-style) when the user scrolls up
-/// while paused. Reduce policy: keep the largest reported value of a single
-/// pass — there's only one ScrollView publishing into this key.
+/// Reports each tab-owned ScrollView's vertical offset from its top so the
+/// player area can shrink (B-station-style) based only on the active tab.
 private struct BottomScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+    static var defaultValue: [VideoPageTab: CGFloat] = [:]
+    static func reduce(value: inout [VideoPageTab: CGFloat], nextValue: () -> [VideoPageTab: CGFloat]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 
@@ -441,6 +382,21 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var pageIndex: Int {
+        switch self {
+        case .introduction: return 0
+        case .comments: return 1
+        }
+    }
+
+    static func page(at index: Int) -> VideoPageTab {
+        index <= 0 ? .introduction : .comments
+    }
+
+    var scrollCoordinateSpaceName: String {
+        "bottomScroll-\(rawValue)"
+    }
+
     var title: String {
         switch self {
         case .introduction:
@@ -448,6 +404,135 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
         case .comments:
             return String(localized: "评论")
         }
+    }
+}
+
+private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
+    @Binding var selectedTab: VideoPageTab
+    let introduction: () -> Introduction
+    let comments: () -> Comments
+
+    @State private var dragTranslation: CGFloat = 0
+
+    init(
+        selectedTab: Binding<VideoPageTab>,
+        @ViewBuilder introduction: @escaping () -> Introduction,
+        @ViewBuilder comments: @escaping () -> Comments
+    ) {
+        _selectedTab = selectedTab
+        self.introduction = introduction
+        self.comments = comments
+    }
+
+    var body: some View {
+        VideoDetailPagerLayout(
+            selectedIndex: selectedTab.pageIndex,
+            dragTranslation: dragTranslation
+        ) {
+            introduction()
+            comments()
+        }
+        .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
+        .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.9), value: dragTranslation)
+        .contentShape(Rectangle())
+        .clipped()
+        .gesture(horizontalPagingGesture)
+    }
+
+    private var horizontalPagingGesture: some Gesture {
+        DragGesture(minimumDistance: 18, coordinateSpace: .local)
+            .onChanged { value in
+                guard isHorizontalPagingDrag(value) else {
+                    dragTranslation = 0
+                    return
+                }
+                dragTranslation = rubberBandedTranslation(value.translation.width)
+            }
+            .onEnded { value in
+                defer {
+                    withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+                        dragTranslation = 0
+                    }
+                }
+
+                guard isHorizontalPagingDrag(value) else { return }
+                let threshold: CGFloat = 72
+                let projected = value.predictedEndTranslation.width
+                let currentIndex = selectedTab.pageIndex
+                let targetIndex: Int
+
+                if projected < -threshold {
+                    targetIndex = min(currentIndex + 1, VideoPageTab.allCases.count - 1)
+                } else if projected > threshold {
+                    targetIndex = max(currentIndex - 1, 0)
+                } else {
+                    targetIndex = currentIndex
+                }
+
+                guard targetIndex != currentIndex else { return }
+                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+                    selectedTab = .page(at: targetIndex)
+                }
+            }
+    }
+
+    private func isHorizontalPagingDrag(_ value: DragGesture.Value) -> Bool {
+        let dx = value.translation.width
+        let dy = value.translation.height
+        guard value.startLocation.x > 24 else { return false }
+        return abs(dx) > 24 && abs(dx) > abs(dy) * 1.35
+    }
+
+    private func rubberBandedTranslation(_ translation: CGFloat) -> CGFloat {
+        let index = selectedTab.pageIndex
+        let isPullingBeforeFirst = index == 0 && translation > 0
+        let isPullingAfterLast = index == VideoPageTab.allCases.count - 1 && translation < 0
+        if isPullingBeforeFirst || isPullingAfterLast {
+            return translation * 0.28
+        }
+        return translation
+    }
+}
+
+/// Horizontally pages two tab bodies while reporting only ONE page's width to
+/// the parent vertical ScrollView. A plain HStack exposes its full 2× width
+/// during sizeThatFits, which can make nested lazy grids compute enormous
+/// minor geometry and eventually abort on allocation failure.
+private struct VideoDetailPagerLayout: Layout {
+    let selectedIndex: Int
+    let dragTranslation: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = resolvedWidth(proposal: proposal, subviews: subviews)
+        let pageProposal = ProposedViewSize(width: width, height: proposal.height)
+        let height: CGFloat
+        if let proposedHeight = proposal.height, proposedHeight.isFinite, proposedHeight > 0 {
+            height = proposedHeight
+        } else {
+            height = subviews.map { $0.sizeThatFits(pageProposal).height }.max() ?? 0
+        }
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let width = bounds.width
+        let pageProposal = ProposedViewSize(width: width, height: bounds.height)
+        let originX = bounds.minX - CGFloat(selectedIndex) * width + dragTranslation
+
+        for (index, subview) in subviews.enumerated() {
+            subview.place(
+                at: CGPoint(x: originX + CGFloat(index) * width, y: bounds.minY),
+                anchor: .topLeading,
+                proposal: pageProposal
+            )
+        }
+    }
+
+    private func resolvedWidth(proposal: ProposedViewSize, subviews: Subviews) -> CGFloat {
+        if let width = proposal.width, width.isFinite, width > 0 {
+            return width
+        }
+        return subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0
     }
 }
 
@@ -464,7 +549,7 @@ private struct AndroidStyleIntroduction: View {
     let showsRelated: Bool
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             if let artist = snapshot.artist {
                 ArtistCard(
                     artist: artist,
