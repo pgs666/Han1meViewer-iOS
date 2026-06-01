@@ -213,6 +213,7 @@ struct VideoDetailView: View {
 
                 HStack(alignment: .top, spacing: 0) {
                     VStack(spacing: 0) {
+                        let currentPlayerCollapseDistance = playerCollapseDistance(panelWidth: leftWidth)
                         let currentPlayerHeight = playerHeight(
                             panelWidth: leftWidth,
                             parentHeight: proxy.size.height
@@ -227,7 +228,11 @@ struct VideoDetailView: View {
                             // showsRelated=false on iPad regular landscape because the
                             // dedicated right sidebar already shows related videos —
                             // duplicating them in the bottom scroll would be redundant.
-                            belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
+                            belowPlayerScroll(
+                                snapshot: snapshot,
+                                showsRelated: !isWide,
+                                collapseDistance: currentPlayerCollapseDistance
+                            )
                                 .frame(height: max(0, proxy.size.height - currentPlayerHeight))
                         }
                     }
@@ -263,8 +268,7 @@ struct VideoDetailView: View {
         // (content scrolled up), the player shrinks proportionally, never
         // below playerCollapsedFollowMinHeight so its overlay controls
         // remain at least partly visible.
-        let minHeight: CGFloat = max(baseHeight * 0.32, 80)
-        let collapseDistance = max(baseHeight - minHeight, 1)
+        let collapseDistance = playerCollapseDistance(panelWidth: panelWidth)
         let progress = max(0, min(1, bottomScrollOffset / collapseDistance))
         // Ease out instead of subtracting scroll offset linearly. This keeps
         // the player responsive at the start while avoiding a rigid
@@ -272,6 +276,12 @@ struct VideoDetailView: View {
         let easedProgress = progress * (2 - progress)
         let shrink = collapseDistance * easedProgress
         return baseHeight - shrink
+    }
+
+    private func playerCollapseDistance(panelWidth: CGFloat) -> CGFloat {
+        let baseHeight = panelWidth * 9 / 16
+        let minHeight: CGFloat = max(baseHeight * 0.32, 80)
+        return max(baseHeight - minHeight, 1)
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
@@ -309,7 +319,11 @@ struct VideoDetailView: View {
         )
     }
 
-    private func belowPlayerScroll(snapshot: VideoDetailScreenSnapshot, showsRelated: Bool) -> some View {
+    private func belowPlayerScroll(
+        snapshot: VideoDetailScreenSnapshot,
+        showsRelated: Bool,
+        collapseDistance: CGFloat
+    ) -> some View {
         VStack(spacing: 0) {
             Picker("Content", selection: $selectedTab) {
                 ForEach(VideoPageTab.allCases) { tab in
@@ -352,21 +366,22 @@ struct VideoDetailView: View {
         .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { offsets in
             let previousActiveOffset = bottomScrollOffsetsByTab[selectedTab]
             for (tab, offset) in offsets {
-                bottomScrollOffsetsByTab[tab] = max(0, offset)
+                bottomScrollOffsetsByTab[tab] = offset
             }
             let activeOffset = bottomScrollOffsetsByTab[selectedTab] ?? 0
             updatePlayerCollapseOffset(
                 activeTabOffset: activeOffset,
-                previousActiveTabOffset: previousActiveOffset
+                previousActiveTabOffset: previousActiveOffset,
+                collapseDistance: collapseDistance
             )
         }
         .onValueChange(of: selectedTab) { newTab in
             lastSelectedTabChangeAt = Date()
-            let newTabOffset = bottomScrollOffsetsByTab[newTab] ?? 0
+            let newTabOffset = max(0, bottomScrollOffsetsByTab[newTab] ?? 0)
             // Keep the player collapsed across horizontal tab switches. If
             // the destination tab is already scrolled farther, collapse more;
             // never expand merely because the destination tab is at offset 0.
-            let targetOffset = max(bottomScrollOffset, newTabOffset)
+            let targetOffset = min(collapseDistance, max(bottomScrollOffset, newTabOffset))
             if targetOffset != bottomScrollOffset {
                 withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
                     bottomScrollOffset = targetOffset
@@ -380,25 +395,38 @@ struct VideoDetailView: View {
 
     private func updatePlayerCollapseOffset(
         activeTabOffset: CGFloat,
-        previousActiveTabOffset: CGFloat?
+        previousActiveTabOffset: CGFloat?,
+        collapseDistance: CGFloat
     ) {
         let tabSwitchGracePeriod: TimeInterval = 0.35
         let justSwitchedTabs = Date().timeIntervalSince(lastSelectedTabChangeAt) < tabSwitchGracePeriod
+        let currentCollapseOffset = min(max(bottomScrollOffset, 0), collapseDistance)
+        let nonnegativeActiveOffset = max(0, activeTabOffset)
+
         guard let previousActiveTabOffset else {
-            bottomScrollOffset = max(bottomScrollOffset, activeTabOffset)
+            bottomScrollOffset = min(collapseDistance, max(currentCollapseOffset, nonnegativeActiveOffset))
             return
         }
 
-        if activeTabOffset >= previousActiveTabOffset {
+        let delta = activeTabOffset - previousActiveTabOffset
+        if delta > 0.5 {
             // User is scrolling upward in the active tab. Collapse more only
             // after this tab catches up to the current global collapse amount;
             // do not expand a previously collapsed player just because the
             // destination tab starts near offset 0.
-            bottomScrollOffset = max(bottomScrollOffset, activeTabOffset)
-        } else if !justSwitchedTabs {
+            if nonnegativeActiveOffset >= currentCollapseOffset {
+                bottomScrollOffset = min(collapseDistance, nonnegativeActiveOffset)
+            }
+        } else if delta < -0.5 && activeTabOffset <= 0 {
+            // At the top of a newly selected tab, a downward rubber-band drag
+            // should still expand the shared player instead of feeling stuck.
+            bottomScrollOffset = min(collapseDistance, max(0, currentCollapseOffset + delta))
+        } else if delta < -0.5 && !justSwitchedTabs {
             // User is scrolling downward in the active tab. This is an
             // intentional expansion gesture, so let the player follow it.
-            bottomScrollOffset = activeTabOffset
+            bottomScrollOffset = min(collapseDistance, nonnegativeActiveOffset)
+        } else if currentCollapseOffset != bottomScrollOffset {
+            bottomScrollOffset = currentCollapseOffset
         }
     }
 
