@@ -8,6 +8,7 @@ struct HorizontalVideoSection: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let showPlaying: Bool
+    let showsMetadataFooter: Bool
 
     @State private var selectedVideo: VideoRelatedRow?
     @State private var isShowingVideoList = false
@@ -39,7 +40,12 @@ struct HorizontalVideoSection: View {
                         ManualNavigationCard {
                             selectedVideo = video
                         } label: {
-                            RelatedVideoCard(video: video, showPlaying: showPlaying, width: 172)
+                            RelatedVideoCard(
+                                video: video,
+                                showPlaying: showPlaying,
+                                showsMetadataFooter: showsMetadataFooter,
+                                width: 172
+                            )
                         }
                     }
                 }
@@ -51,7 +57,8 @@ struct HorizontalVideoSection: View {
                 videos: videos,
                 videoFeature: videoFeature,
                 commentFeature: commentFeature,
-                showPlaying: showPlaying
+                showPlaying: showPlaying,
+                showsMetadataFooter: showsMetadataFooter
             )
         }
         .navigationDestination(
@@ -77,6 +84,7 @@ struct RelatedVideoListView: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let showPlaying: Bool
+    let showsMetadataFooter: Bool
 
     var body: some View {
         ScrollView {
@@ -93,7 +101,11 @@ struct RelatedVideoListView: View {
                             commentFeature: commentFeature
                         )
                     } label: {
-                        RelatedVideoCard(video: video, showPlaying: showPlaying)
+                        RelatedVideoCard(
+                            video: video,
+                            showPlaying: showPlaying,
+                            showsMetadataFooter: showsMetadataFooter
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -238,11 +250,18 @@ struct TabletRelatedVideoRow: View {
 struct RelatedVideoCard: View {
     let video: VideoRelatedRow
     let showPlaying: Bool
+    let showsMetadataFooter: Bool
     let width: CGFloat?
 
-    init(video: VideoRelatedRow, showPlaying: Bool, width: CGFloat? = nil) {
+    init(
+        video: VideoRelatedRow,
+        showPlaying: Bool,
+        showsMetadataFooter: Bool = true,
+        width: CGFloat? = nil
+    ) {
         self.video = video
         self.showPlaying = showPlaying
+        self.showsMetadataFooter = showsMetadataFooter
         self.width = width
     }
 
@@ -307,14 +326,16 @@ struct RelatedVideoCard: View {
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 6) {
-                MarqueeText(text: video.artistLabel)
-                if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
-                    Text(uploadTime)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .layoutPriority(1)
+            if showsMetadataFooter {
+                HStack(spacing: 6) {
+                    MarqueeText(text: video.artistLabel)
+                    if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
+                        Text(uploadTime)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                    }
                 }
             }
         }

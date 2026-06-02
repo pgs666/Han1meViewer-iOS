@@ -1062,7 +1062,8 @@ private struct AndroidStyleIntroduction: View {
                     videos: snapshot.playlistVideos,
                     videoFeature: videoFeature,
                     commentFeature: commentFeature,
-                    showPlaying: true
+                    showPlaying: true,
+                    showsMetadataFooter: false
                 )
                 .horizontalPagerExclusionArea()
             }
