@@ -1309,7 +1309,9 @@ private struct AndroidStyleIntroduction: View {
                     showPlaying: true,
                     showsMetadataFooter: false
                 )
-                .horizontalPagerExclusionArea()
+                // Temporarily disabled for scroll-jank CI probe: this section
+                // lives inside the vertical ScrollView, so its global frame
+                // preference changes on every scroll tick.
             }
 
             if showsRelated && !snapshot.relatedVideos.isEmpty {

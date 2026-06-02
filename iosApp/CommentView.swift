@@ -105,7 +105,9 @@ struct CommentView: View {
                     .padding(.vertical, 7)
                     .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .horizontalPagerExclusionArea()
+            // Temporarily disabled for scroll-jank CI probe: reporting global
+            // frames from inside the vertical ScrollView invalidates parent
+            // layout continuously while scrolling.
 
             Spacer()
 
@@ -154,7 +156,6 @@ struct CommentView: View {
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 CloudflareVerifyButton(errorMessage: message)
-                    .horizontalPagerExclusionArea()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 60)
