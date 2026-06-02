@@ -456,7 +456,6 @@ struct VideoDetailView: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            .animation(.easeInOut(duration: 0.2), value: selectedTab)
         }
         .frame(maxHeight: .infinity)
         .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { offsets in
@@ -545,10 +544,6 @@ struct VideoDetailView: View {
             }
             .coordinateSpace(name: tab.scrollCoordinateSpaceName)
             .scrollDismissesKeyboard(.interactively)
-            .transaction { transaction in
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
             .id(tab)
         }
     }
@@ -888,7 +883,6 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
                 introduction()
                 comments()
             }
-            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
             .contentShape(Rectangle())
             .clipped()
             .background(
@@ -928,17 +922,13 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
         }
 
         if targetIndex != currentIndex {
-            withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
-                selectedTab = .page(at: targetIndex)
-            }
+            selectedTab = .page(at: targetIndex)
         }
         resetHorizontalPagingVisuals()
     }
 
     private func resetHorizontalPagingVisuals() {
-        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
-            dragTranslation = 0
-        }
+        dragTranslation = 0
     }
 
     private func rubberBandedTranslation(_ translation: CGFloat) -> CGFloat {
