@@ -316,7 +316,7 @@ struct VideoDetailView: View {
 
     private func usesTabletRelatedSidebar(for size: CGSize) -> Bool {
         let isLandscape = currentInterfaceOrientation()?.isLandscape ?? (size.width > size.height)
-        horizontalSizeClass == .regular
+        return horizontalSizeClass == .regular
             && size.width >= tabletLeftMinimumWidth + tabletSidebarMinimumWidth
             && isLandscape
             && !isPlayerFullscreen
