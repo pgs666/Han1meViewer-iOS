@@ -36,7 +36,7 @@ final class CommentViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
-    @Published private(set) var sortMode: SortMode = .latest
+    @Published private(set) var sortMode: SortMode = .mostLikes
     @Published var actionMessage: String?
     @Published private(set) var runningActionIDs: Set<String> = []
     @Published private(set) var sortedComments: [CommentRow] = []
