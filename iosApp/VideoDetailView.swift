@@ -32,6 +32,8 @@ struct VideoDetailView: View {
     @State private var lastSelectedTabChangeAt = Date.distantPast
     @State private var commentComposeText = ""
     @State private var isCommentInternalOverlayActive = false
+    @State private var commentComposerHeight: CGFloat = CommentComposerBar.compactHeight
+    @State private var fullscreenOrientationTask: Task<Void, Never>?
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -68,6 +70,10 @@ struct VideoDetailView: View {
             .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
                 horizontalPagerExclusionFrames = frames
             }
+            .onPreferenceChange(CommentComposerHeightPreferenceKey.self) { height in
+                guard height > 0, abs(commentComposerHeight - height) > 0.5 else { return }
+                commentComposerHeight = height
+            }
         }
             .logScreen("VideoDetail v=\(videoCode)")
             // Navigation bar (and its system back button) is hidden the
@@ -95,6 +101,8 @@ struct VideoDetailView: View {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
             .onDisappear {
+                fullscreenOrientationTask?.cancel()
+                fullscreenOrientationTask = nil
                 // KSPlayer pauses itself in its own .onDisappear; the
                 // detail VM no longer owns a player.
                 if isPlayerFullscreen {
@@ -151,13 +159,7 @@ struct VideoDetailView: View {
                 // already animated to its new size by then; the subsequent
                 // orientation rotation is its own UIKit-driven animation
                 // and doesn't fight with SwiftUI.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
-                    if newValue {
-                        AppOrientationController.shared.lockForFullscreen(to: fullscreenOrientation)
-                    } else {
-                        AppOrientationController.shared.unlockAfterFullscreen()
-                    }
-                }
+                scheduleFullscreenOrientationUpdate(isFullscreen: newValue)
             }
     }
 
@@ -185,7 +187,15 @@ struct VideoDetailView: View {
     private var shouldShowRootCommentComposer: Bool {
         guard !isPlayerFullscreen, selectedTab == .comments else { return false }
         guard !isCommentInternalOverlayActive else { return false }
+        guard isCommentComposerReady else { return false }
         if case .loaded = viewModel.state {
+            return true
+        }
+        return false
+    }
+
+    private var isCommentComposerReady: Bool {
+        if case .loaded = commentViewModel.state {
             return true
         }
         return false
@@ -197,11 +207,13 @@ struct VideoDetailView: View {
             CommentComposerBar(
                 text: $commentComposeText,
                 isSending: commentViewModel.runningActionIDs.contains("post-comment"),
+                isReady: isCommentComposerReady,
                 onSubmit: submitComment
             )
             .frame(width: leftPanelWidth(for: layoutSize))
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .reportCommentComposerHeight()
             .horizontalPagerExclusionArea()
+            .frame(maxWidth: .infinity, alignment: .leading)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(1)
         }
@@ -303,9 +315,10 @@ struct VideoDetailView: View {
     }
 
     private func usesTabletRelatedSidebar(for size: CGSize) -> Bool {
+        let isLandscape = currentInterfaceOrientation()?.isLandscape ?? (size.width > size.height)
         horizontalSizeClass == .regular
             && size.width >= tabletLeftMinimumWidth + tabletSidebarMinimumWidth
-            && size.width > size.height
+            && isLandscape
             && !isPlayerFullscreen
     }
 
@@ -482,8 +495,22 @@ struct VideoDetailView: View {
     }
 
     private func submitComment() {
+        guard isCommentComposerReady else { return }
         if commentViewModel.postComment(text: commentComposeText) {
             commentComposeText = ""
+        }
+    }
+
+    private func scheduleFullscreenOrientationUpdate(isFullscreen: Bool) {
+        fullscreenOrientationTask?.cancel()
+        fullscreenOrientationTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled, isPlayerFullscreen == isFullscreen else { return }
+            if isFullscreen {
+                AppOrientationController.shared.lockForFullscreen(to: fullscreenOrientation)
+            } else {
+                AppOrientationController.shared.unlockAfterFullscreen()
+            }
         }
     }
 
@@ -529,16 +556,26 @@ struct VideoDetailView: View {
     private func commentComposerContentClearance(safeAreaBottom: CGFloat) -> CGFloat {
         let containerBottomInset = currentWindowBottomSafeAreaInset()
         let isKeyboardSafeAreaActive = safeAreaBottom > containerBottomInset + 1
-        return CommentComposerBar.compactHeight + (isKeyboardSafeAreaActive ? 0 : containerBottomInset)
+        let composerHeight = max(commentComposerHeight, CommentComposerBar.compactHeight)
+        return composerHeight + (isKeyboardSafeAreaActive ? 0 : containerBottomInset)
     }
 
     private func currentWindowBottomSafeAreaInset() -> CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
+        currentWindowScene()?
+            .windows
             .first { $0.isKeyWindow }?
             .safeAreaInsets
             .bottom ?? 0
+    }
+
+    private func currentInterfaceOrientation() -> UIInterfaceOrientation? {
+        currentWindowScene()?.interfaceOrientation
+    }
+
+    private func currentWindowScene() -> UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
     }
 }
 
@@ -547,11 +584,12 @@ private struct CommentComposerBar: View {
 
     @Binding var text: String
     let isSending: Bool
+    let isReady: Bool
     let onSubmit: () -> Void
     @FocusState private var isFieldFocused: Bool
 
     private var canSubmit: Bool {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && !isSending
+        isReady && text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && !isSending
     }
 
     var body: some View {
@@ -605,7 +643,25 @@ private struct CommentComposerBar: View {
     }
 }
 
+private struct CommentComposerHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 private extension View {
+    func reportCommentComposerHeight() -> some View {
+        background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: CommentComposerHeightPreferenceKey.self,
+                    value: proxy.size.height
+                )
+            }
+        )
+    }
+
     @ViewBuilder
     func commentComposerFieldChrome() -> some View {
         if #available(iOS 26.0, *) {
@@ -1448,11 +1504,11 @@ private struct ActionButtonRow: View {
     @State private var isShowingDownloadQuality = false
 
     private var videoURL: URL? {
-        URL(string: "https://hanime1.me/watch?v=\(snapshot.videoCode)")
+        siteURL(path: "/watch")
     }
 
     private var downloadURL: URL? {
-        URL(string: "https://hanime1.me/download?v=\(snapshot.videoCode)")
+        siteURL(path: "/download")
     }
 
     /// Real downloadable sources (a concrete resolution + a usable URL).
@@ -1461,6 +1517,17 @@ private struct ActionButtonRow: View {
     /// to opening the official download page instead of in-app download.
     private var downloadableSources: [VideoPlaybackSourceRow] {
         snapshot.playbackSources.filter { $0.label.uppercased() != "AUTO" && !$0.url.isEmpty }
+    }
+
+    private func siteURL(path: String) -> URL? {
+        guard var components = URLComponents(string: AppDomain.currentBaseURL) else {
+            return nil
+        }
+        components.path = path
+        components.queryItems = [
+            URLQueryItem(name: "v", value: snapshot.videoCode)
+        ]
+        return components.url
     }
 
     var body: some View {
