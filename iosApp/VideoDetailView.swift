@@ -901,6 +901,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     func update(page: VideoDetailTabPage) {
+        loadViewIfNeeded()
         coordinator.tab = page.tab
         coordinator.onOffsetChange = page.onOffsetChange
         if contentUpdateRevision != page.contentUpdateRevision {
@@ -1099,6 +1100,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             selectedIndex: Int,
             animated: Bool
         ) {
+            loadViewIfNeeded()
             introductionPage.update(page: introduction)
             commentsPage.update(page: comments)
             setSelectedIndex(selectedIndex, animated: animated)
