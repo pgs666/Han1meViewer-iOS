@@ -661,9 +661,6 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
                     },
                     onCancelled: {
                         cancelHorizontalPaging()
-                    },
-                    onInstalled: { panGestureRecognizer in
-                        gestureCoordinator.registerHorizontalPagingPanGestureRecognizer(panGestureRecognizer)
                     }
                 )
             )
@@ -718,7 +715,6 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
     let onChanged: (CGFloat) -> Void
     let onEnded: (CGFloat, CGFloat) -> Void
     let onCancelled: () -> Void
-    let onInstalled: (UIPanGestureRecognizer) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -726,8 +722,7 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
             onBegan: onBegan,
             onChanged: onChanged,
             onEnded: onEnded,
-            onCancelled: onCancelled,
-            onInstalled: onInstalled
+            onCancelled: onCancelled
         )
     }
 
@@ -743,8 +738,7 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
             onBegan: onBegan,
             onChanged: onChanged,
             onEnded: onEnded,
-            onCancelled: onCancelled,
-            onInstalled: onInstalled
+            onCancelled: onCancelled
         )
         uiView.scheduleInstall()
     }
@@ -797,7 +791,6 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
             }
             installedView = targetView
             targetView.addGestureRecognizer(coordinator.panGestureRecognizer)
-            coordinator.notifyInstalled()
             return true
         }
     }
@@ -809,22 +802,19 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
         private var onChanged: (CGFloat) -> Void
         private var onEnded: (CGFloat, CGFloat) -> Void
         private var onCancelled: () -> Void
-        private var onInstalled: (UIPanGestureRecognizer) -> Void
 
         init(
             excludedDragStartFrames: [CGRect],
             onBegan: @escaping () -> Void,
             onChanged: @escaping (CGFloat) -> Void,
             onEnded: @escaping (CGFloat, CGFloat) -> Void,
-            onCancelled: @escaping () -> Void,
-            onInstalled: @escaping (UIPanGestureRecognizer) -> Void
+            onCancelled: @escaping () -> Void
         ) {
             self.excludedDragStartFrames = excludedDragStartFrames
             self.onBegan = onBegan
             self.onChanged = onChanged
             self.onEnded = onEnded
             self.onCancelled = onCancelled
-            self.onInstalled = onInstalled
             self.panGestureRecognizer = UIPanGestureRecognizer()
             super.init()
             panGestureRecognizer.delegate = self
@@ -839,19 +829,13 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
             onBegan: @escaping () -> Void,
             onChanged: @escaping (CGFloat) -> Void,
             onEnded: @escaping (CGFloat, CGFloat) -> Void,
-            onCancelled: @escaping () -> Void,
-            onInstalled: @escaping (UIPanGestureRecognizer) -> Void
+            onCancelled: @escaping () -> Void
         ) {
             self.excludedDragStartFrames = excludedDragStartFrames
             self.onBegan = onBegan
             self.onChanged = onChanged
             self.onEnded = onEnded
             self.onCancelled = onCancelled
-            self.onInstalled = onInstalled
-        }
-
-        func notifyInstalled() {
-            onInstalled(panGestureRecognizer)
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -905,7 +889,6 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
 private final class VideoDetailGestureCoordinator {
     private(set) var isHorizontalPagingActive = false
     private var verticalScrollViews: [WeakScrollView] = []
-    private weak var horizontalPagingPanGestureRecognizer: UIPanGestureRecognizer?
 
     func setHorizontalPagingActive(_ isActive: Bool) {
         guard isHorizontalPagingActive != isActive else { return }
@@ -918,19 +901,7 @@ private final class VideoDetailGestureCoordinator {
         if !verticalScrollViews.contains(where: { $0.scrollView === scrollView }) {
             verticalScrollViews.append(WeakScrollView(scrollView))
         }
-        if let horizontalPagingPanGestureRecognizer {
-            scrollView.panGestureRecognizer.require(toFail: horizontalPagingPanGestureRecognizer)
-        }
         scrollView.isScrollEnabled = !isHorizontalPagingActive
-    }
-
-    func registerHorizontalPagingPanGestureRecognizer(_ panGestureRecognizer: UIPanGestureRecognizer) {
-        guard horizontalPagingPanGestureRecognizer !== panGestureRecognizer else { return }
-        horizontalPagingPanGestureRecognizer = panGestureRecognizer
-        verticalScrollViews.removeAll { $0.scrollView == nil }
-        for weakScrollView in verticalScrollViews {
-            weakScrollView.scrollView?.panGestureRecognizer.require(toFail: panGestureRecognizer)
-        }
     }
 
     private func updateVerticalScrollAvailability() {
