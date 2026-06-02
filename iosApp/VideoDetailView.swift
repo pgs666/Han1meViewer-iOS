@@ -536,6 +536,10 @@ struct VideoDetailView: View {
                 .frame(height: 0)
 
                 content()
+                    .transaction { transaction in
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
                     .padding(.bottom, contentBottomPadding)
                     .offset(y: collapseCompensation())
@@ -545,10 +549,6 @@ struct VideoDetailView: View {
             }
             .coordinateSpace(name: tab.scrollCoordinateSpaceName)
             .scrollDismissesKeyboard(.interactively)
-            .transaction { transaction in
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
             .id(tab)
         }
     }
