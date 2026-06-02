@@ -832,16 +832,19 @@ struct KSPlayerView: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.white)
 
-            // 倍速 menu
-            playbackRateMenu
+            if isFullscreen {
+                // Keep inline chrome compact; these menus are available
+                // once fullscreen has enough horizontal room.
+                playbackRateMenu
 
-            // 画质 menu — only shown if the snapshot exposes more than one
-            // source (typical: the page only ships a single 'auto' source
-            // because the script extraction returns one URL). When more
-            // qualities exist they sit between the rate menu and the
-            // fullscreen toggle as the user requested.
-            if snapshot.playbackSources.count > 1 {
-                qualityMenu
+                // 画质 menu — only shown if the snapshot exposes more than one
+                // source (typical: the page only ships a single 'auto' source
+                // because the script extraction returns one URL). When more
+                // qualities exist they sit between the rate menu and the
+                // fullscreen toggle as the user requested.
+                if snapshot.playbackSources.count > 1 {
+                    qualityMenu
+                }
             }
 
             // 全屏 toggle — placed immediately to the right of the playback
