@@ -211,9 +211,6 @@ struct VideoDetailView: View {
                 let leftWidth: CGFloat = isWide
                     ? min(max(proxy.size.width * 0.64, leftMinimumWidth), proxy.size.width - sidebarMinimumWidth)
                     : proxy.size.width
-                let showsCommentComposer = selectedTab == .comments && !isPlayerFullscreen
-                let commentComposerBottomPadding = showsCommentComposer ? max(proxy.safeAreaInsets.bottom, 10) : 0
-                let commentComposerReservedHeight = showsCommentComposer ? 72 + commentComposerBottomPadding : 0
 
                 HStack(alignment: .top, spacing: 0) {
                     ZStack(alignment: .top) {
@@ -242,26 +239,10 @@ struct VideoDetailView: View {
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
                                 collapseDistance: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerCollapseDistance,
-                                collapseCompensation: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerShrink,
-                                commentBottomInset: commentComposerReservedHeight
+                                collapseCompensation: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerShrink
                             )
                             .frame(height: max(0, currentBottomScrollHeight))
                             .offset(y: currentPlayerHeight)
-                        }
-
-                        if showsCommentComposer {
-                            VStack {
-                                Spacer()
-                                CommentComposerBar(
-                                    text: $commentComposeText,
-                                    isSending: commentViewModel.runningActionIDs.contains("post-comment"),
-                                    onSubmit: submitComment
-                                )
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, commentComposerBottomPadding)
-                            }
-                            .frame(width: leftWidth, height: proxy.size.height)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
                     .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
@@ -352,8 +333,7 @@ struct VideoDetailView: View {
         snapshot: VideoDetailScreenSnapshot,
         showsRelated: Bool,
         collapseDistance: CGFloat,
-        collapseCompensation: CGFloat,
-        commentBottomInset: CGFloat
+        collapseCompensation: CGFloat
     ) -> some View {
         VStack(spacing: 0) {
             Picker("Content", selection: $selectedTab) {
@@ -398,8 +378,14 @@ struct VideoDetailView: View {
                     tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
                 } collapseDistance: {
                     collapseDistance
-                } bottomInset: {
-                    commentBottomInset
+                } bottomAccessory: {
+                    AnyView(
+                        CommentComposerBar(
+                            text: $commentComposeText,
+                            isSending: commentViewModel.runningActionIDs.contains("post-comment"),
+                            onSubmit: submitComment
+                        )
+                    )
                 }
             }
             .frame(maxHeight: .infinity)
@@ -454,7 +440,7 @@ struct VideoDetailView: View {
         @ViewBuilder content: @escaping () -> Content,
         collapseCompensation: @escaping () -> CGFloat = { 0 },
         collapseDistance: @escaping () -> CGFloat = { 0 },
-        bottomInset: @escaping () -> CGFloat = { 0 }
+        bottomAccessory: (() -> AnyView)? = nil
     ) -> some View {
         GeometryReader { proxy in
             let collapseScrollSpacerHeight = collapseDistance() + 1
@@ -472,7 +458,7 @@ struct VideoDetailView: View {
 
                 content()
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
-                    .padding(.bottom, 24 + bottomInset())
+                    .padding(.bottom, 24)
                     .offset(y: collapseCompensation())
 
                 Color.clear
@@ -480,6 +466,11 @@ struct VideoDetailView: View {
             }
             .coordinateSpace(name: tab.scrollCoordinateSpaceName)
             .id(tab)
+            .commentComposerSafeAreaInset(isVisible: bottomAccessory != nil) {
+                if let bottomAccessory {
+                    bottomAccessory()
+                }
+            }
         }
     }
 
@@ -499,16 +490,17 @@ private struct CommentComposerBar: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            TextField("输入评论", text: $text)
+            TextField("输入评论", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .submitLabel(.send)
+                .lineLimit(1...4)
                 .onSubmit {
                     guard canSubmit else { return }
                     onSubmit()
                 }
                 .padding(.horizontal, 14)
-                .frame(minHeight: 42)
-                .background(Color(.secondarySystemBackground).opacity(0.78), in: Capsule())
+                .padding(.vertical, 10)
+                .commentComposerFieldChrome()
 
             Button(action: onSubmit) {
                 Image(systemName: isSending ? "hourglass" : "paperplane.fill")
@@ -520,24 +512,50 @@ private struct CommentComposerBar: View {
             .foregroundStyle(canSubmit ? Color.accentColor : Color.secondary)
             .accessibilityLabel("发送评论")
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .commentComposerChrome()
+        .frame(maxWidth: .infinity)
+        .commentComposerBarChrome()
     }
 }
 
 private extension View {
     @ViewBuilder
-    func commentComposerChrome() -> some View {
-        if #available(iOS 26.0, *) {
-            glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    func commentComposerSafeAreaInset<Bar: View>(
+        isVisible: Bool,
+        @ViewBuilder bar: () -> Bar
+    ) -> some View {
+        if isVisible {
+            safeAreaInset(edge: .bottom, spacing: 0) {
+                bar()
+            }
         } else {
-            background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            self
+        }
+    }
+
+    @ViewBuilder
+    func commentComposerFieldChrome() -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular, in: Capsule())
+        } else {
+            background(Color(.secondarySystemBackground), in: Capsule())
                 .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    Capsule()
                         .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
                 }
-                .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 4)
+        }
+    }
+
+    @ViewBuilder
+    func commentComposerBarChrome() -> some View {
+        if #available(iOS 26.0, *) {
+            background(.clear)
+        } else {
+            background(.bar)
+                .overlay(alignment: .top) {
+                    Divider()
+                }
         }
     }
 }

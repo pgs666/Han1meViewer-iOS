@@ -277,7 +277,10 @@ struct KSPlayerView: View {
                         // previous value across re-entry.
                         onProgress(current)
                     }
-                    .onFinish { _, _ in onPlaybackEnded() }
+                    .onFinish { _, _ in
+                        setPlayingState(false)
+                        onPlaybackEnded()
+                    }
                     .onStateChanged { layer, state in
                         // DIAGNOSTIC: the player previously swallowed every
                         // state, so a failed open showed only a black screen
@@ -304,21 +307,20 @@ struct KSPlayerView: View {
                         // is set after, the recursive call sees it false
                         // and calls play() again — unbounded recursion
                         // until the stack guard kills the process.
-                        var nowPlaying = state.isPlaying
                         if !autoPlayApplied, state == .bufferFinished {
                             autoPlayApplied = true
                             AppLogger.log("autoplay enforced: \(autoPlayOnEnter ? "play" : "pause")")
                             if autoPlayOnEnter {
                                 layer.play()
-                                nowPlaying = true
+                                setPlayingState(true)
                             } else {
                                 layer.pause()
-                                nowPlaying = false
+                                setPlayingState(false)
                             }
-                        }
-                        if nowPlaying != isPlaying {
-                            isPlaying = nowPlaying
-                            onPlayingChanged(nowPlaying)
+                        } else if state.isPlaying {
+                            setPlayingState(true)
+                        } else if state == .error {
+                            setPlayingState(false)
                         }
                         // Wire / re-wire the timeControlStatus observer
                         // any time KSPlayer's state ticks, so we always have
@@ -494,6 +496,7 @@ struct KSPlayerView: View {
             // navigation stack — without an explicit pause, BOTH videos
             // would keep playing audio simultaneously.
             coordinator.playerLayer?.pause()
+            setPlayingState(false)
         }
         .onValueChange(of: isShrunken) { newValue in
             // The moment the parent reports the player has begun shrinking
@@ -1261,7 +1264,19 @@ struct KSPlayerView: View {
     private func togglePlayPause() {
         guard let layer = coordinator.playerLayer else { return }
         AppLogger.log("gesture: toggle play/pause was=\(isPlaying ? "playing" : "paused")")
-        if isPlaying { layer.pause() } else { layer.play() }
+        let shouldPlay = !isPlaying
+        if shouldPlay {
+            layer.play()
+        } else {
+            layer.pause()
+        }
+        setPlayingState(shouldPlay)
+    }
+
+    private func setPlayingState(_ nowPlaying: Bool) {
+        guard nowPlaying != isPlaying else { return }
+        isPlaying = nowPlaying
+        onPlayingChanged(nowPlaying)
     }
 
     private func startBoost() {
