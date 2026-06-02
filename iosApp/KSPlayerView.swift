@@ -477,7 +477,7 @@ struct KSPlayerView: View {
             // it up via the onStateChanged callback once the layer is
             // created.
             statusObserver.observe(Self.findAVPlayer(in: coordinator.playerLayer?.player))
-            AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
+            AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksLoadAutoPlay=\(KSOptions.isAutoPlay)")
         }
         .onDisappear {
             hideControlsTask?.cancel()
@@ -1298,12 +1298,11 @@ struct KSPlayerView: View {
     private static let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     private func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
-        // KSOptions.isAutoPlay is a class-level static. Re-set it on every
-        // option build so the user's auto_play_on_enter preference takes
-        // effect for the very next video they open (without restarting
-        // the app). When OFF, the player loads the source but stays
-        // paused at frame 0 until the user taps the play/pause button.
-        KSOptions.isAutoPlay = autoPlayOnEnter
+        // KSPlayer uses this class-level switch to decide whether to begin
+        // opening/buffering the URL at all. Keep it ON for loading, then
+        // enforce the user's autoPlayOnEnter preference once the layer first
+        // reaches .bufferFinished in onStateChanged.
+        KSOptions.isAutoPlay = true
         let options = KSOptions()
         options.appendHeader([
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
