@@ -416,9 +416,8 @@ struct VideoDetailView: View {
 
             VideoDetailTabPager(
                 selectedTab: $selectedTab,
-                excludedDragStartFrames: horizontalPagerExclusionFrames
-            ) {
-                tabScroll(
+                excludedDragStartFrames: horizontalPagerExclusionFrames,
+                introduction: tabPage(
                     .introduction,
                     contentUpdateRevision: contentRevision.introduction
                 ) {
@@ -439,9 +438,8 @@ struct VideoDetailView: View {
                     tabCollapseCompensation(for: .introduction, collapseCompensation: collapseCompensation)
                 } collapseDistance: {
                     collapseDistance
-                }
-            } comments: {
-                tabScroll(
+                },
+                comments: tabPage(
                     .comments,
                     contentBottomPadding: composerContentClearance,
                     contentUpdateRevision: contentRevision.comments
@@ -458,7 +456,7 @@ struct VideoDetailView: View {
                 } collapseDistance: {
                     collapseDistance
                 }
-            }
+            )
             .frame(maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity)
@@ -502,15 +500,15 @@ struct VideoDetailView: View {
         }
     }
 
-    private func tabScroll<Content: View>(
+    private func tabPage<Content: View>(
         _ tab: VideoPageTab,
         contentBottomPadding: CGFloat = 24,
         contentUpdateRevision: Int,
         @ViewBuilder content: @escaping () -> Content,
         collapseCompensation: @escaping () -> CGFloat = { 0 },
         collapseDistance: @escaping () -> CGFloat = { 0 }
-    ) -> some View {
-        VideoDetailVerticalScrollPage(
+    ) -> VideoDetailTabPage {
+        VideoDetailTabPage(
             tab: tab,
             contentBottomPadding: contentBottomPadding,
             collapseCompensation: collapseCompensation(),
@@ -528,7 +526,6 @@ struct VideoDetailView: View {
             },
             content: content
         )
-        .id(tab)
     }
 
     private func tabCollapseCompensation(for tab: VideoPageTab, collapseCompensation: CGFloat) -> CGFloat {
@@ -768,16 +765,16 @@ private struct VideoDetailTabContentRevision: Equatable {
     let comments: Int
 }
 
-private struct VideoDetailVerticalScrollPage<Content: View>: UIViewControllerRepresentable {
+private struct VideoDetailTabPage {
     let tab: VideoPageTab
     let contentBottomPadding: CGFloat
     let collapseCompensation: CGFloat
     let collapseDistance: CGFloat
     let contentUpdateRevision: Int
     let onOffsetChange: (VideoPageTab, CGFloat) -> Void
-    let content: () -> Content
+    let content: () -> AnyView
 
-    init(
+    init<Content: View>(
         tab: VideoPageTab,
         contentBottomPadding: CGFloat,
         collapseCompensation: CGFloat,
@@ -792,167 +789,143 @@ private struct VideoDetailVerticalScrollPage<Content: View>: UIViewControllerRep
         self.collapseDistance = collapseDistance
         self.contentUpdateRevision = contentUpdateRevision
         self.onOffsetChange = onOffsetChange
-        self.content = content
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(tab: tab, onOffsetChange: onOffsetChange)
-    }
-
-    func makeUIViewController(context: Context) -> ScrollPageViewController {
-        ScrollPageViewController(coordinator: context.coordinator)
-    }
-
-    func updateUIViewController(_ uiViewController: ScrollPageViewController, context: Context) {
-        context.coordinator.tab = tab
-        context.coordinator.onOffsetChange = onOffsetChange
-        uiViewController.update(
-            content: AnyView(content()),
-            contentBottomPadding: contentBottomPadding,
-            collapseCompensation: collapseCompensation,
-            collapseDistance: collapseDistance,
-            contentUpdateRevision: contentUpdateRevision
-        )
-    }
-
-    final class Coordinator: NSObject, UIScrollViewDelegate {
-        var tab: VideoPageTab
-        var onOffsetChange: (VideoPageTab, CGFloat) -> Void
-
-        init(tab: VideoPageTab, onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void) {
-            self.tab = tab
-            self.onOffsetChange = onOffsetChange
-        }
-
-        func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            onOffsetChange(tab, max(0, scrollView.contentOffset.y))
-        }
-    }
-
-    final class ScrollPageViewController: UIViewController {
-        private let coordinator: Coordinator
-        private let scrollView = UIScrollView()
-        private let contentView = UIView()
-        private let bottomPaddingView = UIView()
-        private let collapseSpacerView = UIView()
-        private let host = UIHostingController(rootView: AnyView(EmptyView()))
-        private var hostTopConstraint: NSLayoutConstraint!
-        private var hostMinimumHeightConstraint: NSLayoutConstraint!
-        private var bottomPaddingHeightConstraint: NSLayoutConstraint!
-        private var collapseSpacerHeightConstraint: NSLayoutConstraint!
-        private var contentUpdateRevision: Int?
-
-        init(coordinator: Coordinator) {
-            self.coordinator = coordinator
-            super.init(nibName: nil, bundle: nil)
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-
-        override func viewDidLoad() {
-            super.viewDidLoad()
-            view.backgroundColor = .clear
-
-            scrollView.translatesAutoresizingMaskIntoConstraints = false
-            scrollView.backgroundColor = .clear
-            scrollView.bounces = false
-            scrollView.alwaysBounceVertical = false
-            scrollView.alwaysBounceHorizontal = false
-            scrollView.showsHorizontalScrollIndicator = false
-            scrollView.showsVerticalScrollIndicator = false
-            scrollView.isDirectionalLockEnabled = true
-            scrollView.contentInsetAdjustmentBehavior = .never
-            scrollView.keyboardDismissMode = .interactive
-            scrollView.delegate = coordinator
-            view.addSubview(scrollView)
-
-            contentView.translatesAutoresizingMaskIntoConstraints = false
-            contentView.backgroundColor = .clear
-            scrollView.addSubview(contentView)
-
-            addChild(host)
-            host.view.translatesAutoresizingMaskIntoConstraints = false
-            host.view.backgroundColor = .clear
-            contentView.addSubview(host.view)
-            host.didMove(toParent: self)
-
-            bottomPaddingView.translatesAutoresizingMaskIntoConstraints = false
-            bottomPaddingView.backgroundColor = .clear
-            contentView.addSubview(bottomPaddingView)
-
-            collapseSpacerView.translatesAutoresizingMaskIntoConstraints = false
-            collapseSpacerView.backgroundColor = .clear
-            contentView.addSubview(collapseSpacerView)
-
-            hostTopConstraint = host.view.topAnchor.constraint(equalTo: contentView.topAnchor)
-            hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor)
-            bottomPaddingHeightConstraint = bottomPaddingView.heightAnchor.constraint(equalToConstant: 24)
-            collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
-
-            NSLayoutConstraint.activate([
-                scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-                scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-                contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-                contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-                contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-                contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-                contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
-
-                host.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                host.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-                hostTopConstraint,
-                hostMinimumHeightConstraint,
-
-                bottomPaddingView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                bottomPaddingView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-                bottomPaddingView.topAnchor.constraint(equalTo: host.view.bottomAnchor),
-                bottomPaddingHeightConstraint,
-
-                collapseSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                collapseSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-                collapseSpacerView.topAnchor.constraint(equalTo: bottomPaddingView.bottomAnchor),
-                collapseSpacerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-                collapseSpacerHeightConstraint
-            ])
-        }
-
-        func update(
-            content: AnyView,
-            contentBottomPadding: CGFloat,
-            collapseCompensation: CGFloat,
-            collapseDistance: CGFloat,
-            contentUpdateRevision: Int
-        ) {
-            if self.contentUpdateRevision != contentUpdateRevision {
-                self.contentUpdateRevision = contentUpdateRevision
-                host.rootView = content
-            }
-
-            hostTopConstraint.constant = 0
-            host.view.transform = CGAffineTransform(translationX: 0, y: collapseCompensation)
-            bottomPaddingHeightConstraint.constant = contentBottomPadding
-            collapseSpacerHeightConstraint.constant = collapseDistance + 1
-        }
+        self.content = { AnyView(content()) }
     }
 }
 
-private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewControllerRepresentable {
+private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScrollViewDelegate {
+    var tab: VideoPageTab
+    var onOffsetChange: (VideoPageTab, CGFloat) -> Void
+
+    init(tab: VideoPageTab, onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void) {
+        self.tab = tab
+        self.onOffsetChange = onOffsetChange
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        onOffsetChange(tab, max(0, scrollView.contentOffset.y))
+    }
+}
+
+private final class VideoDetailVerticalScrollPageViewController: UIViewController {
+    private let coordinator: VideoDetailVerticalScrollPageCoordinator
+    private let scrollView = UIScrollView()
+    private let contentView = UIView()
+    private let bottomPaddingView = UIView()
+    private let collapseSpacerView = UIView()
+    private let host = UIHostingController(rootView: AnyView(EmptyView()))
+    private var hostTopConstraint: NSLayoutConstraint!
+    private var hostMinimumHeightConstraint: NSLayoutConstraint!
+    private var bottomPaddingHeightConstraint: NSLayoutConstraint!
+    private var collapseSpacerHeightConstraint: NSLayoutConstraint!
+    private var contentUpdateRevision: Int?
+
+    init(tab: VideoPageTab) {
+        coordinator = VideoDetailVerticalScrollPageCoordinator(tab: tab, onOffsetChange: { _, _ in })
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.backgroundColor = .clear
+        scrollView.bounces = false
+        scrollView.alwaysBounceVertical = false
+        scrollView.alwaysBounceHorizontal = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.isDirectionalLockEnabled = true
+        scrollView.contentInsetAdjustmentBehavior = .never
+        scrollView.keyboardDismissMode = .interactive
+        scrollView.delegate = coordinator
+        view.addSubview(scrollView)
+
+        contentView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.backgroundColor = .clear
+        scrollView.addSubview(contentView)
+
+        addChild(host)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        host.view.backgroundColor = .clear
+        contentView.addSubview(host.view)
+        host.didMove(toParent: self)
+
+        bottomPaddingView.translatesAutoresizingMaskIntoConstraints = false
+        bottomPaddingView.backgroundColor = .clear
+        contentView.addSubview(bottomPaddingView)
+
+        collapseSpacerView.translatesAutoresizingMaskIntoConstraints = false
+        collapseSpacerView.backgroundColor = .clear
+        contentView.addSubview(collapseSpacerView)
+
+        hostTopConstraint = host.view.topAnchor.constraint(equalTo: contentView.topAnchor)
+        hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor)
+        bottomPaddingHeightConstraint = bottomPaddingView.heightAnchor.constraint(equalToConstant: 24)
+        collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
+
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+
+            host.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            hostTopConstraint,
+            hostMinimumHeightConstraint,
+
+            bottomPaddingView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            bottomPaddingView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            bottomPaddingView.topAnchor.constraint(equalTo: host.view.bottomAnchor),
+            bottomPaddingHeightConstraint,
+
+            collapseSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            collapseSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            collapseSpacerView.topAnchor.constraint(equalTo: bottomPaddingView.bottomAnchor),
+            collapseSpacerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            collapseSpacerHeightConstraint
+        ])
+    }
+
+    func update(page: VideoDetailTabPage) {
+        coordinator.tab = page.tab
+        coordinator.onOffsetChange = page.onOffsetChange
+        if contentUpdateRevision != page.contentUpdateRevision {
+            contentUpdateRevision = page.contentUpdateRevision
+            host.rootView = page.content()
+        }
+
+        hostTopConstraint.constant = 0
+        host.view.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
+        bottomPaddingHeightConstraint.constant = page.contentBottomPadding
+        collapseSpacerHeightConstraint.constant = page.collapseDistance + 1
+    }
+}
+
+private struct VideoDetailTabPager: UIViewControllerRepresentable {
     @Binding var selectedTab: VideoPageTab
     let excludedDragStartFrames: [CGRect]
-    let introduction: () -> Introduction
-    let comments: () -> Comments
+    let introduction: VideoDetailTabPage
+    let comments: VideoDetailTabPage
 
     init(
         selectedTab: Binding<VideoPageTab>,
         excludedDragStartFrames: [CGRect],
-        @ViewBuilder introduction: @escaping () -> Introduction,
-        @ViewBuilder comments: @escaping () -> Comments
+        introduction: VideoDetailTabPage,
+        comments: VideoDetailTabPage
     ) {
         _selectedTab = selectedTab
         self.excludedDragStartFrames = excludedDragStartFrames
@@ -972,8 +945,8 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewCo
         context.coordinator.selectedTab = $selectedTab
         context.coordinator.excludedDragStartFrames = excludedDragStartFrames
         uiViewController.updatePages(
-            introduction: AnyView(introduction()),
-            comments: AnyView(comments()),
+            introduction: introduction,
+            comments: comments,
             selectedIndex: selectedTab.pageIndex,
             animated: context.coordinator.shouldAnimateProgrammaticSelection(to: selectedTab.pageIndex)
         )
@@ -1042,8 +1015,8 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewCo
         private let coordinator: Coordinator
         private let scrollView = UIScrollView()
         private let contentView = UIView()
-        private let introductionHost = UIHostingController(rootView: AnyView(EmptyView()))
-        private let commentsHost = UIHostingController(rootView: AnyView(EmptyView()))
+        private let introductionPage = VideoDetailVerticalScrollPageViewController(tab: .introduction)
+        private let commentsPage = VideoDetailVerticalScrollPageViewController(tab: .comments)
         private var selectedIndex = 0
         private var pendingSelectedIndex: Int?
 
@@ -1079,8 +1052,8 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewCo
             contentView.backgroundColor = .clear
             scrollView.addSubview(contentView)
 
-            addPage(introductionHost)
-            addPage(commentsHost)
+            addPage(introductionPage)
+            addPage(commentsPage)
 
             NSLayoutConstraint.activate([
                 scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -1094,18 +1067,18 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewCo
                 contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
                 contentView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
 
-                introductionHost.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                introductionHost.view.topAnchor.constraint(equalTo: contentView.topAnchor),
-                introductionHost.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-                introductionHost.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
-                introductionHost.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
+                introductionPage.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                introductionPage.view.topAnchor.constraint(equalTo: contentView.topAnchor),
+                introductionPage.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                introductionPage.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+                introductionPage.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
 
-                commentsHost.view.leadingAnchor.constraint(equalTo: introductionHost.view.trailingAnchor),
-                commentsHost.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-                commentsHost.view.topAnchor.constraint(equalTo: contentView.topAnchor),
-                commentsHost.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-                commentsHost.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
-                commentsHost.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+                commentsPage.view.leadingAnchor.constraint(equalTo: introductionPage.view.trailingAnchor),
+                commentsPage.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                commentsPage.view.topAnchor.constraint(equalTo: contentView.topAnchor),
+                commentsPage.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                commentsPage.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+                commentsPage.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
             ])
         }
 
@@ -1120,22 +1093,22 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewCo
         }
 
         func updatePages(
-            introduction: AnyView,
-            comments: AnyView,
+            introduction: VideoDetailTabPage,
+            comments: VideoDetailTabPage,
             selectedIndex: Int,
             animated: Bool
         ) {
-            introductionHost.rootView = introduction
-            commentsHost.rootView = comments
+            introductionPage.update(page: introduction)
+            commentsPage.update(page: comments)
             setSelectedIndex(selectedIndex, animated: animated)
         }
 
-        private func addPage(_ host: UIHostingController<AnyView>) {
-            addChild(host)
-            host.view.translatesAutoresizingMaskIntoConstraints = false
-            host.view.backgroundColor = .clear
-            contentView.addSubview(host.view)
-            host.didMove(toParent: self)
+        private func addPage(_ page: VideoDetailVerticalScrollPageViewController) {
+            addChild(page)
+            page.view.translatesAutoresizingMaskIntoConstraints = false
+            page.view.backgroundColor = .clear
+            contentView.addSubview(page.view)
+            page.didMove(toParent: self)
         }
 
         private func setSelectedIndex(_ index: Int, animated: Bool) {
