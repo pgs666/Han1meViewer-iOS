@@ -29,6 +29,7 @@ struct VideoDetailView: View {
     @State private var bottomScrollOffsetsByTab: [VideoPageTab: CGFloat] = [:]
     @State private var lastSelectedTabChangeAt = Date.distantPast
     @State private var commentComposeText = ""
+    @State private var isCommentInternalOverlayActive = false
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -54,7 +55,18 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        content
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                content
+                    .ignoresSafeArea(.container, edges: ignoredContainerSafeAreaEdges)
+
+                rootCommentComposer(bottomSafeAreaInset: proxy.safeAreaInsets.bottom)
+            }
+            .animation(.easeInOut(duration: 0.2), value: shouldShowRootCommentComposer)
+            .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
+                horizontalPagerExclusionFrames = frames
+            }
+        }
             .logScreen("VideoDetail v=\(videoCode)")
             // Navigation bar (and its system back button) is hidden the
             // whole time. The player draws its own floating back button
@@ -77,7 +89,6 @@ struct VideoDetailView: View {
             // again, producing the slide-in/out animation.
             .hidesTabBarOnAppear()
             .statusBarHidden(isPlayerFullscreen)
-            .ignoresSafeArea(.container, edges: ignoredContainerSafeAreaEdges)
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
@@ -166,7 +177,31 @@ struct VideoDetailView: View {
     }
 
     private var ignoredContainerSafeAreaEdges: Edge.Set {
-        isPlayerFullscreen ? .all : Edge.Set()
+        isPlayerFullscreen ? .all : .bottom
+    }
+
+    private var shouldShowRootCommentComposer: Bool {
+        guard !isPlayerFullscreen, selectedTab == .comments else { return false }
+        guard !isCommentInternalOverlayActive else { return false }
+        if case .loaded = viewModel.state {
+            return true
+        }
+        return false
+    }
+
+    @ViewBuilder
+    private func rootCommentComposer(bottomSafeAreaInset: CGFloat) -> some View {
+        if shouldShowRootCommentComposer {
+            CommentComposerBar(
+                text: $commentComposeText,
+                isSending: commentViewModel.runningActionIDs.contains("post-comment"),
+                bottomSafeAreaInset: bottomSafeAreaInset,
+                onSubmit: submitComment
+            )
+            .horizontalPagerExclusionArea()
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .zIndex(1)
+        }
     }
 
     @ViewBuilder
@@ -243,7 +278,8 @@ struct VideoDetailView: View {
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
                                 collapseDistance: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerCollapseDistance,
-                                collapseCompensation: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerShrink
+                                collapseCompensation: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerShrink,
+                                bottomSafeAreaInset: proxy.safeAreaInsets.bottom
                             )
                             .frame(height: max(0, currentBottomScrollHeight))
                             .offset(y: currentPlayerHeight)
@@ -337,8 +373,10 @@ struct VideoDetailView: View {
         snapshot: VideoDetailScreenSnapshot,
         showsRelated: Bool,
         collapseDistance: CGFloat,
-        collapseCompensation: CGFloat
+        collapseCompensation: CGFloat,
+        bottomSafeAreaInset: CGFloat
     ) -> some View {
+        let composerClearance = 88 + bottomSafeAreaInset
         VStack(spacing: 0) {
             Picker("Content", selection: $selectedTab) {
                 ForEach(VideoPageTab.allCases) { tab in
@@ -350,55 +388,46 @@ struct VideoDetailView: View {
             .padding(.vertical, 8)
             .background(.background)
 
-            ZStack(alignment: .bottom) {
-                VideoDetailTabPager(
-                    selectedTab: $selectedTab,
-                    gestureCoordinator: gestureCoordinator,
-                    excludedDragStartFrames: horizontalPagerExclusionFrames
-                ) {
-                    tabScroll(.introduction) {
-                        AndroidStyleIntroduction(
-                            snapshot: snapshot,
-                            videoFeature: videoFeature,
-                            commentFeature: commentFeature,
-                            isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                            onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                            onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                            onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                            onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                            onShowMessage: { viewModel.showActionMessage($0) },
-                            showsRelated: showsRelated
-                        )
-                        .padding(.top, 16)
-                    } collapseCompensation: {
-                        tabCollapseCompensation(for: .introduction, collapseCompensation: collapseCompensation)
-                    } collapseDistance: {
-                        collapseDistance
-                    }
-                } comments: {
-                    tabScroll(
-                        .comments,
-                        contentBottomPadding: 88
-                    ) {
-                        CommentView(viewModel: commentViewModel)
-                            .padding(.top, 16)
-                    } collapseCompensation: {
-                        tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
-                    } collapseDistance: {
-                        collapseDistance
-                    }
-                }
-                .frame(maxHeight: .infinity)
-
-                if selectedTab == .comments {
-                    CommentComposerBar(
-                        text: $commentComposeText,
-                        isSending: commentViewModel.runningActionIDs.contains("post-comment"),
-                        onSubmit: submitComment
+            VideoDetailTabPager(
+                selectedTab: $selectedTab,
+                gestureCoordinator: gestureCoordinator,
+                excludedDragStartFrames: horizontalPagerExclusionFrames
+            ) {
+                tabScroll(.introduction) {
+                    AndroidStyleIntroduction(
+                        snapshot: snapshot,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature,
+                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                        onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                        onShowMessage: { viewModel.showActionMessage($0) },
+                        showsRelated: showsRelated
                     )
-                    .horizontalPagerExclusionArea()
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1)
+                    .padding(.top, 16)
+                } collapseCompensation: {
+                    tabCollapseCompensation(for: .introduction, collapseCompensation: collapseCompensation)
+                } collapseDistance: {
+                    collapseDistance
+                }
+            } comments: {
+                tabScroll(
+                    .comments,
+                    contentBottomPadding: composerClearance
+                ) {
+                    CommentView(
+                        viewModel: commentViewModel,
+                        onOverlayActivityChanged: { isActive in
+                            isCommentInternalOverlayActive = isActive
+                        }
+                    )
+                        .padding(.top, 16)
+                } collapseCompensation: {
+                    tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
+                } collapseDistance: {
+                    collapseDistance
                 }
             }
             .frame(maxHeight: .infinity)
@@ -423,9 +452,6 @@ struct VideoDetailView: View {
         .onValueChange(of: selectedTab) { _ in
             lastSelectedTabChangeAt = Date()
             bottomScrollOffset = min(max(bottomScrollOffset, 0), collapseDistance)
-        }
-        .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
-            horizontalPagerExclusionFrames = frames
         }
     }
 
@@ -492,6 +518,7 @@ struct VideoDetailView: View {
 private struct CommentComposerBar: View {
     @Binding var text: String
     let isSending: Bool
+    let bottomSafeAreaInset: CGFloat
     let onSubmit: () -> Void
     @FocusState private var isFieldFocused: Bool
 
@@ -525,7 +552,8 @@ private struct CommentComposerBar: View {
             .accessibilityLabel("发送评论")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 8 + bottomSafeAreaInset)
         .frame(maxWidth: .infinity)
         .commentComposerBarChrome()
         .onDisappear {
