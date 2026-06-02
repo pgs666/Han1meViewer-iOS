@@ -175,7 +175,7 @@ struct CommentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 60)
             } else {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
                     ForEach(comments) { comment in
                         CommentRowView(
                             comment: comment,
