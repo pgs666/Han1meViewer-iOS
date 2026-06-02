@@ -954,7 +954,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         )
     }
 
-    final class Coordinator: NSObject, UIScrollViewDelegate, UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, UIScrollViewDelegate {
         var selectedTab: Binding<VideoPageTab>
         var excludedDragStartFrames: [CGRect] = []
         private var lastProgrammaticIndex: Int?
@@ -983,11 +983,10 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             }
         }
 
-        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard let panGestureRecognizer = gestureRecognizer as? UIPanGestureRecognizer,
-                  let view = gestureRecognizer.view else {
-                return true
-            }
+        func shouldBeginHorizontalPagingPan(
+            panGestureRecognizer: UIPanGestureRecognizer,
+            in view: UIView
+        ) -> Bool {
             let startLocation = panGestureRecognizer.location(in: view)
             guard startLocation.x > 24 else { return false }
             let globalStartLocation = view.convert(startLocation, to: nil)
@@ -1015,7 +1014,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
     final class PagingViewController: UIViewController {
         private let coordinator: Coordinator
-        private let scrollView = UIScrollView()
+        private let scrollView = PagingScrollView()
         private let contentView = UIView()
         private let introductionPage = VideoDetailVerticalScrollPageViewController(tab: .introduction)
         private let commentsPage = VideoDetailVerticalScrollPageViewController(tab: .comments)
@@ -1047,7 +1046,12 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             scrollView.isDirectionalLockEnabled = true
             scrollView.contentInsetAdjustmentBehavior = .never
             scrollView.delegate = coordinator
-            scrollView.panGestureRecognizer.delegate = coordinator
+            scrollView.shouldBeginPagingPan = { [weak self] panGestureRecognizer, view in
+                self?.coordinator.shouldBeginHorizontalPagingPan(
+                    panGestureRecognizer: panGestureRecognizer,
+                    in: view
+                ) ?? true
+            }
             view.addSubview(scrollView)
 
             contentView.translatesAutoresizingMaskIntoConstraints = false
@@ -1124,6 +1128,18 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let targetOffset = CGPoint(x: CGFloat(selectedIndex) * width, y: 0)
             guard abs(scrollView.contentOffset.x - targetOffset.x) > 0.5 else { return }
             scrollView.setContentOffset(targetOffset, animated: animated)
+        }
+    }
+
+    final class PagingScrollView: UIScrollView {
+        var shouldBeginPagingPan: ((UIPanGestureRecognizer, UIView) -> Bool)?
+
+        override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            if let panGestureRecognizer = gestureRecognizer as? UIPanGestureRecognizer,
+               panGestureRecognizer === self.panGestureRecognizer {
+                return shouldBeginPagingPan?(panGestureRecognizer, self) ?? true
+            }
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
     }
 }
