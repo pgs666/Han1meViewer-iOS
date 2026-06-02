@@ -85,12 +85,26 @@ struct CommentView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Picker("排序", selection: $viewModel.sortMode) {
+            Menu {
                 ForEach(CommentViewModel.SortMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+                    Button {
+                        viewModel.changeSortMode(mode)
+                    } label: {
+                        if mode == viewModel.sortMode {
+                            Label(mode.title, systemImage: "checkmark")
+                        } else {
+                            Text(mode.title)
+                        }
+                    }
                 }
+            } label: {
+                Label(viewModel.sortMode.title, systemImage: "arrow.up.arrow.down")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .pickerStyle(.menu)
             .horizontalPagerExclusionArea()
 
             Spacer()
@@ -190,6 +204,7 @@ struct CommentView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                 }
+                .id(viewModel.sortMode.id)
             }
         }
     }

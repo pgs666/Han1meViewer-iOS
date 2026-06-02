@@ -36,11 +36,7 @@ final class CommentViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
-    @Published var sortMode: SortMode = .latest {
-        didSet {
-            updateSortedComments()
-        }
-    }
+    @Published private(set) var sortMode: SortMode = .latest
     @Published var actionMessage: String?
     @Published private(set) var runningActionIDs: Set<String> = []
     @Published private(set) var sortedComments: [CommentRow] = []
@@ -81,6 +77,12 @@ final class CommentViewModel: ObservableObject {
         requestGeneration += 1
         let generation = requestGeneration
         await loadComments(generation: generation)
+    }
+
+    func changeSortMode(_ mode: SortMode) {
+        guard sortMode != mode else { return }
+        sortMode = mode
+        updateSortedComments()
     }
 
     @discardableResult
