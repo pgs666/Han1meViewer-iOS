@@ -38,4 +38,6 @@ Apple's Liquid Glass documentation says custom components need `interactive(_:)`
 
 ## Verification
 
-- Pending local checks and GitHub Actions CI after push.
+- `git diff --check` passed.
+- `./gradlew :shared:jvmTest` passed on local Linux aarch64.
+- GitHub Actions `iOS App Build` passed on run `26819040731` with Xcode 26.2, including unsigned device app build, IPA packaging, and upload.
