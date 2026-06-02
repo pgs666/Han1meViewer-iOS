@@ -910,6 +910,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
         hostTopConstraint.constant = 0
         host.view.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
+        bottomPaddingView.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
         bottomPaddingHeightConstraint.constant = page.contentBottomPadding
         collapseSpacerHeightConstraint.constant = page.collapseDistance + 1
     }
