@@ -306,16 +306,18 @@ struct KSPlayerView: View {
                         // is set after, the recursive call sees it false
                         // and calls play() again — unbounded recursion
                         // until the stack guard kills the process.
+                        var nowPlaying = state.isPlaying
                         if !autoPlayApplied, state == .bufferFinished {
                             autoPlayApplied = true
                             AppLogger.log("autoplay enforced: \(autoPlayOnEnter ? "play" : "pause")")
                             if autoPlayOnEnter {
                                 layer.play()
+                                nowPlaying = true
                             } else {
                                 layer.pause()
+                                nowPlaying = false
                             }
                         }
-                        let nowPlaying = state.isPlaying
                         if nowPlaying != isPlaying {
                             isPlaying = nowPlaying
                             onPlayingChanged(nowPlaying)
