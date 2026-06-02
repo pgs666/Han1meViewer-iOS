@@ -208,9 +208,9 @@ final class CommentViewModel: ObservableObject {
         let comments = snapshot.comments
         switch sortMode {
         case .latest:
-            return comments
-        case .earliest:
             return Array(comments.reversed())
+        case .earliest:
+            return comments
         case .mostReplies:
             return comments.sorted { ($0.replyCount ?? 0) > ($1.replyCount ?? 0) }
         case .mostLikes:
