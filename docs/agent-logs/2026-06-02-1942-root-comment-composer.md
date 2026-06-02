@@ -34,3 +34,8 @@ Reply and reply-thread flows have their own input context. Showing the root-leve
 
 - `git diff --check` passed.
 - `./gradlew :shared:jvmTest` passed on local Linux aarch64. Kotlin/Native remains unsupported on this host, so the iOS Swift build is verified through GitHub Actions.
+
+## Follow-Up
+
+- First GitHub Actions Swift build failed because `belowPlayerScroll -> some View` gained a local `let` before the view expression and therefore needed an explicit `return`.
+- Added the explicit `return` before re-running checks.
