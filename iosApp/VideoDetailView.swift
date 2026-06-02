@@ -217,6 +217,11 @@ struct VideoDetailView: View {
                             parentHeight: proxy.size.height
                         )
                         let currentPlayerShrink = playerVisualShrink(panelWidth: leftWidth)
+                        let currentBottomScrollHeight = proxy.size.height - (
+                            isPlayerPlaying
+                                ? currentPlayerHeight
+                                : playerMinimumHeight(panelWidth: leftWidth)
+                        )
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
@@ -230,10 +235,10 @@ struct VideoDetailView: View {
                             belowPlayerScroll(
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
-                                collapseDistance: currentPlayerCollapseDistance,
-                                collapseCompensation: currentPlayerShrink
+                                collapseDistance: isPlayerPlaying ? 0 : currentPlayerCollapseDistance,
+                                collapseCompensation: isPlayerPlaying ? 0 : currentPlayerShrink
                             )
-                            .frame(height: max(0, proxy.size.height - playerMinimumHeight(panelWidth: leftWidth)))
+                            .frame(height: max(0, currentBottomScrollHeight))
                             .offset(y: currentPlayerHeight)
                         }
                     }
@@ -741,6 +746,7 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
     final class InstallingView: UIView {
         private let coordinator: Coordinator
         private weak var installedView: UIView?
+        private var remainingInstallRetries = 8
 
         init(coordinator: Coordinator) {
             self.coordinator = coordinator
@@ -754,28 +760,38 @@ private struct HorizontalPagingPanGestureInstaller: UIViewRepresentable {
 
         override func didMoveToSuperview() {
             super.didMoveToSuperview()
+            remainingInstallRetries = 8
             scheduleInstall()
         }
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
+            remainingInstallRetries = 8
             scheduleInstall()
         }
 
         func scheduleInstall() {
             DispatchQueue.main.async { [weak self] in
-                self?.installIfNeeded()
+                guard let self else { return }
+                if !self.installIfNeeded(), self.window != nil, self.remainingInstallRetries > 0 {
+                    self.remainingInstallRetries -= 1
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                        self?.scheduleInstall()
+                    }
+                }
             }
         }
 
-        private func installIfNeeded() {
-            guard let targetView = superview else { return }
-            guard installedView !== targetView else { return }
+        @discardableResult
+        private func installIfNeeded() -> Bool {
+            guard let targetView = superview?.superview ?? superview else { return false }
+            guard installedView !== targetView else { return true }
             if let installedView {
                 installedView.removeGestureRecognizer(coordinator.panGestureRecognizer)
             }
             installedView = targetView
             targetView.addGestureRecognizer(coordinator.panGestureRecognizer)
+            return true
         }
     }
 
