@@ -377,7 +377,7 @@ struct VideoDetailView: View {
         bottomSafeAreaInset: CGFloat
     ) -> some View {
         let composerClearance = 88 + bottomSafeAreaInset
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             Picker("Content", selection: $selectedTab) {
                 ForEach(VideoPageTab.allCases) { tab in
                     Text(tab.title).tag(tab)
