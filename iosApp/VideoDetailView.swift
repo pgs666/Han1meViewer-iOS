@@ -416,8 +416,7 @@ struct VideoDetailView: View {
 
             VideoDetailTabPager(
                 selectedTab: $selectedTab,
-                excludedDragStartFrames: horizontalPagerExclusionFrames,
-                contentRevision: contentRevision
+                excludedDragStartFrames: horizontalPagerExclusionFrames
             ) {
                 tabScroll(
                     .introduction,
@@ -935,7 +934,8 @@ private struct VideoDetailVerticalScrollPage<Content: View>: UIViewControllerRep
                 host.rootView = content
             }
 
-            hostTopConstraint.constant = collapseCompensation
+            hostTopConstraint.constant = 0
+            host.view.transform = CGAffineTransform(translationX: 0, y: collapseCompensation)
             bottomPaddingHeightConstraint.constant = contentBottomPadding
             collapseSpacerHeightConstraint.constant = collapseDistance + 1
         }
@@ -945,20 +945,17 @@ private struct VideoDetailVerticalScrollPage<Content: View>: UIViewControllerRep
 private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewControllerRepresentable {
     @Binding var selectedTab: VideoPageTab
     let excludedDragStartFrames: [CGRect]
-    let contentRevision: VideoDetailTabContentRevision
     let introduction: () -> Introduction
     let comments: () -> Comments
 
     init(
         selectedTab: Binding<VideoPageTab>,
         excludedDragStartFrames: [CGRect],
-        contentRevision: VideoDetailTabContentRevision,
         @ViewBuilder introduction: @escaping () -> Introduction,
         @ViewBuilder comments: @escaping () -> Comments
     ) {
         _selectedTab = selectedTab
         self.excludedDragStartFrames = excludedDragStartFrames
-        self.contentRevision = contentRevision
         self.introduction = introduction
         self.comments = comments
     }
@@ -978,7 +975,6 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewCo
             introduction: AnyView(introduction()),
             comments: AnyView(comments()),
             selectedIndex: selectedTab.pageIndex,
-            contentRevision: contentRevision,
             animated: context.coordinator.shouldAnimateProgrammaticSelection(to: selectedTab.pageIndex)
         )
     }
@@ -1127,7 +1123,6 @@ private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewCo
             introduction: AnyView,
             comments: AnyView,
             selectedIndex: Int,
-            contentRevision: VideoDetailTabContentRevision,
             animated: Bool
         ) {
             introductionHost.rootView = introduction
