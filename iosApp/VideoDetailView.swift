@@ -30,7 +30,6 @@ struct VideoDetailView: View {
     /// positions instead of sharing one outer ScrollView offset.
     @State private var bottomScrollOffsetsByTab: [VideoPageTab: CGFloat] = [:]
     @State private var lastSelectedTabChangeAt = Date.distantPast
-    @State private var freezePlayerCollapseUpdatesUntil = Date.distantPast
     @State private var commentComposeText = ""
     @State private var isCommentInternalOverlayActive = false
     @State private var commentComposerHeight: CGFloat = CommentComposerBar.compactHeight
@@ -468,9 +467,6 @@ struct VideoDetailView: View {
             guard !gestureCoordinator.isHorizontalPagingActive else {
                 return
             }
-            guard Date() >= freezePlayerCollapseUpdatesUntil else {
-                return
-            }
             let activeOffset = bottomScrollOffsetsByTab[selectedTab] ?? 0
             updatePlayerCollapseOffset(
                 activeTabOffset: activeOffset,
@@ -480,7 +476,6 @@ struct VideoDetailView: View {
         }
         .onValueChange(of: selectedTab) { _ in
             lastSelectedTabChangeAt = Date()
-            freezePlayerCollapseUpdatesUntil = Date().addingTimeInterval(0.55)
             bottomScrollOffset = min(max(bottomScrollOffset, 0), collapseDistance)
         }
     }
