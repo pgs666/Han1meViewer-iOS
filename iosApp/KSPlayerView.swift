@@ -227,14 +227,12 @@ struct KSPlayerView: View {
         let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
         let options = makeKSOptions(resumeSeconds: resumeSeconds)
 
-        // GeometryReader wraps KSVideoPlayer (alone, not the whole ZStack) so the
-        // DragGesture handler can see the player's own size — needed to decide
-        // whether a vertical swipe started on the LEFT half (brightness) or the
-        // RIGHT half (volume), and to scale a horizontal swipe to a sensible
-        // seek delta. KSVideoPlayer is the only child of this GeometryReader,
-        // no branching, so view identity is preserved.
-        ZStack {
-            GeometryReader { proxy in
+        // GeometryReader gives both the video gestures and the controls overlay
+        // the player's actual size. Gestures need it for swipe classification;
+        // the overlay needs it for fullscreen safe-area padding.
+        GeometryReader { proxy in
+            let safeAreaInsets = isFullscreen ? proxy.safeAreaInsets : EdgeInsets()
+            ZStack {
                 KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                     .onPlay { current, total in
                         guard current.isFinite, current >= 0 else { return }
@@ -431,30 +429,30 @@ struct KSPlayerView: View {
                                 handlePressOrSwipeEnded()
                             }
                     )
-            }
 
-            // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
-            // The two HUDs sit ABOVE the controls so the centre play / skip
-            // buttons (which live inside controlsOverlay) don't visually
-            // cover the swipe HUD or the boost badge.
-            if showsControls {
-                controlsOverlay.transition(.opacity)
-            }
+                // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
+                // The two HUDs sit ABOVE the controls so the centre play / skip
+                // buttons (which live inside controlsOverlay) don't visually
+                // cover the swipe HUD or the boost badge.
+                if showsControls {
+                    controlsOverlay(safeAreaInsets: safeAreaInsets).transition(.opacity)
+                }
 
-            if dragState != .none {
-                swipeHUD.transition(.opacity)
-            }
+                if dragState != .none {
+                    swipeHUD.transition(.opacity)
+                }
 
-            if isBoosted {
-                boostHint.transition(.opacity)
-            }
+                if isBoosted {
+                    boostHint.transition(.opacity)
+                }
 
-            if statusObserver.isWaitingForPlayback {
-                loadingHUD.transition(.opacity)
-            }
+                if statusObserver.isWaitingForPlayback {
+                    loadingHUD.transition(.opacity)
+                }
 
-            if physicalVolumeHUDActive {
-                physicalVolumeHUD.transition(.opacity)
+                if physicalVolumeHUDActive {
+                    physicalVolumeHUD.transition(.opacity)
+                }
             }
         }
         .onAppear {
@@ -690,7 +688,7 @@ struct KSPlayerView: View {
         return String(format: "%.0f B/s", bytesPerSec)
     }
 
-    private var controlsOverlay: some View {
+    private func controlsOverlay(safeAreaInsets: EdgeInsets) -> some View {
         ZStack {
             LinearGradient(
                 colors: [.black.opacity(0.5), .clear, .black.opacity(0.55)],
@@ -704,8 +702,10 @@ struct KSPlayerView: View {
                 Spacer()
                 bottomBar
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.leading, 12 + safeAreaInsets.leading)
+            .padding(.trailing, 12 + safeAreaInsets.trailing)
+            .padding(.top, 10 + safeAreaInsets.top)
+            .padding(.bottom, 10 + safeAreaInsets.bottom)
             .foregroundStyle(.white)
         }
         // Pin to the player ZStack's full extent. Without this, the
@@ -774,6 +774,14 @@ struct KSPlayerView: View {
     }
 
     private var bottomBar: some View {
+        GeometryReader { proxy in
+            bottomBarContent(showsTimeLabels: proxy.size.width >= 390)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(height: 44)
+    }
+
+    private func bottomBarContent(showsTimeLabels: Bool) -> some View {
         let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
         // Slider value is now a PLAIN @State (not a closure-based binding) so
         // SwiftUI's first drag delta correctly persists into binding source on
@@ -794,9 +802,12 @@ struct KSPlayerView: View {
                 scheduleAutoHide()
             }
 
-            Text(Self.formatTime(sliderValue))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.white)
+            if showsTimeLabels {
+                Text(Self.formatTime(sliderValue))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
 
             Slider(
                 value: $sliderValue,
@@ -829,10 +840,14 @@ struct KSPlayerView: View {
                     sliderValue = asTime
                 }
             }
+            .layoutPriority(1)
 
-            Text(Self.formatTime(TimeInterval(coordinator.timemodel.totalTime)))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.white)
+            if showsTimeLabels {
+                Text(Self.formatTime(TimeInterval(coordinator.timemodel.totalTime)))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
 
             if isFullscreen {
                 // Keep inline chrome compact; these menus are available

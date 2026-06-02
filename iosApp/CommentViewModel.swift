@@ -83,15 +83,16 @@ final class CommentViewModel: ObservableObject {
         await loadComments(generation: generation)
     }
 
-    func postComment(text: String) {
+    @discardableResult
+    func postComment(text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             actionMessage = String(localized: "评论太短")
-            return
+            return false
         }
         guard let snapshot = currentSnapshot, let userId = snapshot.currentUserId else {
             actionMessage = String(localized: "请先登录")
-            return
+            return false
         }
 
         runAction(id: "post-comment") {
@@ -104,6 +105,7 @@ final class CommentViewModel: ObservableObject {
             self.actionMessage = String(localized: "评论已发送")
             self.load()
         }
+        return true
     }
 
     func postReply(to comment: CommentRow, text: String) {

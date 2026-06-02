@@ -28,6 +28,7 @@ struct VideoDetailView: View {
     /// positions instead of sharing one outer ScrollView offset.
     @State private var bottomScrollOffsetsByTab: [VideoPageTab: CGFloat] = [:]
     @State private var lastSelectedTabChangeAt = Date.distantPast
+    @State private var commentComposeText = ""
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -201,13 +202,18 @@ struct VideoDetailView: View {
             // Phone / iPad portrait collapses to a single full-width left panel
             // (no sidebar), giving the same visual as before for those modes.
             GeometryReader { proxy in
+                let leftMinimumWidth: CGFloat = 620
+                let sidebarMinimumWidth: CGFloat = 360
                 let isWide = horizontalSizeClass == .regular
-                    && proxy.size.width >= 900
+                    && proxy.size.width >= leftMinimumWidth + sidebarMinimumWidth
                     && proxy.size.width > proxy.size.height
                     && !isPlayerFullscreen
                 let leftWidth: CGFloat = isWide
-                    ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
+                    ? min(max(proxy.size.width * 0.64, leftMinimumWidth), proxy.size.width - sidebarMinimumWidth)
                     : proxy.size.width
+                let showsCommentComposer = selectedTab == .comments && !isPlayerFullscreen
+                let commentComposerBottomPadding = showsCommentComposer ? max(proxy.safeAreaInsets.bottom, 10) : 0
+                let commentComposerReservedHeight = showsCommentComposer ? 72 + commentComposerBottomPadding : 0
 
                 HStack(alignment: .top, spacing: 0) {
                     ZStack(alignment: .top) {
@@ -218,7 +224,7 @@ struct VideoDetailView: View {
                         )
                         let currentPlayerShrink = playerVisualShrink(panelWidth: leftWidth)
                         let currentBottomScrollHeight = proxy.size.height - (
-                            isPlayerPlaying
+                            isPlayerCollapsed || isPlayerPlaying
                                 ? currentPlayerHeight
                                 : playerMinimumHeight(panelWidth: leftWidth)
                         )
@@ -235,11 +241,27 @@ struct VideoDetailView: View {
                             belowPlayerScroll(
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
-                                collapseDistance: isPlayerPlaying ? 0 : currentPlayerCollapseDistance,
-                                collapseCompensation: isPlayerPlaying ? 0 : currentPlayerShrink
+                                collapseDistance: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerCollapseDistance,
+                                collapseCompensation: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerShrink,
+                                commentBottomInset: commentComposerReservedHeight
                             )
                             .frame(height: max(0, currentBottomScrollHeight))
                             .offset(y: currentPlayerHeight)
+                        }
+
+                        if showsCommentComposer {
+                            VStack {
+                                Spacer()
+                                CommentComposerBar(
+                                    text: $commentComposeText,
+                                    isSending: commentViewModel.runningActionIDs.contains("post-comment"),
+                                    onSubmit: submitComment
+                                )
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, commentComposerBottomPadding)
+                            }
+                            .frame(width: leftWidth, height: proxy.size.height)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
                     .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
@@ -330,7 +352,8 @@ struct VideoDetailView: View {
         snapshot: VideoDetailScreenSnapshot,
         showsRelated: Bool,
         collapseDistance: CGFloat,
-        collapseCompensation: CGFloat
+        collapseCompensation: CGFloat,
+        commentBottomInset: CGFloat
     ) -> some View {
         VStack(spacing: 0) {
             Picker("Content", selection: $selectedTab) {
@@ -375,6 +398,8 @@ struct VideoDetailView: View {
                     tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
                 } collapseDistance: {
                     collapseDistance
+                } bottomInset: {
+                    commentBottomInset
                 }
             }
             .frame(maxHeight: .infinity)
@@ -418,11 +443,18 @@ struct VideoDetailView: View {
         )
     }
 
+    private func submitComment() {
+        if commentViewModel.postComment(text: commentComposeText) {
+            commentComposeText = ""
+        }
+    }
+
     private func tabScroll<Content: View>(
         _ tab: VideoPageTab,
         @ViewBuilder content: @escaping () -> Content,
         collapseCompensation: @escaping () -> CGFloat = { 0 },
-        collapseDistance: @escaping () -> CGFloat = { 0 }
+        collapseDistance: @escaping () -> CGFloat = { 0 },
+        bottomInset: @escaping () -> CGFloat = { 0 }
     ) -> some View {
         GeometryReader { proxy in
             let collapseScrollSpacerHeight = collapseDistance() + 1
@@ -440,7 +472,7 @@ struct VideoDetailView: View {
 
                 content()
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 24 + bottomInset())
                     .offset(y: collapseCompensation())
 
                 Color.clear
@@ -453,6 +485,60 @@ struct VideoDetailView: View {
 
     private func tabCollapseCompensation(for tab: VideoPageTab, collapseCompensation: CGFloat) -> CGFloat {
         min(max(bottomScrollOffsetsByTab[tab] ?? 0, 0), collapseCompensation)
+    }
+}
+
+private struct CommentComposerBar: View {
+    @Binding var text: String
+    let isSending: Bool
+    let onSubmit: () -> Void
+
+    private var canSubmit: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && !isSending
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TextField("输入评论", text: $text)
+                .textFieldStyle(.plain)
+                .submitLabel(.send)
+                .onSubmit {
+                    guard canSubmit else { return }
+                    onSubmit()
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 42)
+                .background(Color(.secondarySystemBackground).opacity(0.78), in: Capsule())
+
+            Button(action: onSubmit) {
+                Image(systemName: isSending ? "hourglass" : "paperplane.fill")
+                    .font(.headline)
+                    .frame(width: 42, height: 42)
+            }
+            .disabled(!canSubmit)
+            .buttonStyle(.plain)
+            .foregroundStyle(canSubmit ? Color.accentColor : Color.secondary)
+            .accessibilityLabel("发送评论")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .commentComposerChrome()
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func commentComposerChrome() -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        } else {
+            background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 4)
+        }
     }
 }
 
@@ -1434,7 +1520,7 @@ private struct TagFlow: View {
                         TapOnlyControl {
                             selectedTag = tag
                         } label: {
-                            Text(tag).font(.caption)
+                            TagChipText(tag: tag)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 7)
                                 .background(
@@ -1447,8 +1533,7 @@ private struct TagFlow: View {
                         // which shouldn't happen in production) the tag still
                         // renders as a disabled bordered chip rather than
                         // disappearing entirely.
-                        Text(tag)
-                            .font(.caption)
+                        TagChipText(tag: tag)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
                             .foregroundStyle(.secondary)
@@ -1476,6 +1561,18 @@ private struct TagFlow: View {
                 )
             }
         }
+    }
+}
+
+private struct TagChipText: View {
+    let tag: String
+
+    var body: some View {
+        Text(tag)
+            .font(.caption)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: 240, alignment: .leading)
     }
 }
 
