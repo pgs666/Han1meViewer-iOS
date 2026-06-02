@@ -3,13 +3,18 @@ import Han1meShared
 
 struct CommentView: View {
     @ObservedObject private var viewModel: CommentViewModel
+    private let onOverlayActivityChanged: (Bool) -> Void
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
 
-    init(viewModel: CommentViewModel) {
+    init(
+        viewModel: CommentViewModel,
+        onOverlayActivityChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.onOverlayActivityChanged = onOverlayActivityChanged
     }
 
     var body: some View {
@@ -20,6 +25,15 @@ struct CommentView: View {
         .padding(.horizontal, 16)
         .task {
             viewModel.loadIfNeeded()
+        }
+        .onValueChange(of: replyTarget?.id) { _ in
+            notifyOverlayActivityChanged()
+        }
+        .onValueChange(of: repliesTarget?.id) { _ in
+            notifyOverlayActivityChanged()
+        }
+        .onDisappear {
+            onOverlayActivityChanged(false)
         }
         .alert("提示", isPresented: actionMessageBinding) {
             Button("好", role: .cancel) {
@@ -192,6 +206,10 @@ struct CommentView: View {
             get: { reportTarget != nil },
             set: { if !$0 { reportTarget = nil } }
         )
+    }
+
+    private func notifyOverlayActivityChanged() {
+        onOverlayActivityChanged(replyTarget != nil || repliesTarget != nil)
     }
 }
 
