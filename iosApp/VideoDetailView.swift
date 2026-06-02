@@ -6,6 +6,8 @@ struct VideoDetailView: View {
     let videoCode: String
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
+    private let tabletLeftMinimumWidth: CGFloat = 620
+    private let tabletSidebarMinimumWidth: CGFloat = 360
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
     @State private var selectedTab = VideoPageTab.introduction
@@ -60,7 +62,7 @@ struct VideoDetailView: View {
                 content
                     .ignoresSafeArea(.container, edges: ignoredContainerSafeAreaEdges)
 
-                rootCommentComposer()
+                rootCommentComposer(layoutSize: proxy.size)
             }
             .animation(.easeInOut(duration: 0.2), value: shouldShowRootCommentComposer)
             .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
@@ -190,13 +192,15 @@ struct VideoDetailView: View {
     }
 
     @ViewBuilder
-    private func rootCommentComposer() -> some View {
+    private func rootCommentComposer(layoutSize: CGSize) -> some View {
         if shouldShowRootCommentComposer {
             CommentComposerBar(
                 text: $commentComposeText,
                 isSending: commentViewModel.runningActionIDs.contains("post-comment"),
                 onSubmit: submitComment
             )
+            .frame(width: leftPanelWidth(for: layoutSize))
+            .frame(maxWidth: .infinity, alignment: .leading)
             .horizontalPagerExclusionArea()
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(1)
@@ -240,15 +244,8 @@ struct VideoDetailView: View {
             // Phone / iPad portrait collapses to a single full-width left panel
             // (no sidebar), giving the same visual as before for those modes.
             GeometryReader { proxy in
-                let leftMinimumWidth: CGFloat = 620
-                let sidebarMinimumWidth: CGFloat = 360
-                let isWide = horizontalSizeClass == .regular
-                    && proxy.size.width >= leftMinimumWidth + sidebarMinimumWidth
-                    && proxy.size.width > proxy.size.height
-                    && !isPlayerFullscreen
-                let leftWidth: CGFloat = isWide
-                    ? min(max(proxy.size.width * 0.64, leftMinimumWidth), proxy.size.width - sidebarMinimumWidth)
-                    : proxy.size.width
+                let isWide = usesTabletRelatedSidebar(for: proxy.size)
+                let leftWidth = leftPanelWidth(for: proxy.size)
 
                 HStack(alignment: .top, spacing: 0) {
                     ZStack(alignment: .top) {
@@ -303,6 +300,21 @@ struct VideoDetailView: View {
             }
             .background(Color(.systemGroupedBackground))
         }
+    }
+
+    private func usesTabletRelatedSidebar(for size: CGSize) -> Bool {
+        horizontalSizeClass == .regular
+            && size.width >= tabletLeftMinimumWidth + tabletSidebarMinimumWidth
+            && size.width > size.height
+            && !isPlayerFullscreen
+    }
+
+    private func leftPanelWidth(for size: CGSize) -> CGFloat {
+        guard usesTabletRelatedSidebar(for: size) else { return size.width }
+        return min(
+            max(size.width * 0.64, tabletLeftMinimumWidth),
+            size.width - tabletSidebarMinimumWidth
+        )
     }
 
     /// Player 高度：
