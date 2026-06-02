@@ -60,7 +60,7 @@ struct VideoDetailView: View {
                 content
                     .ignoresSafeArea(.container, edges: ignoredContainerSafeAreaEdges)
 
-                rootCommentComposer(bottomSafeAreaInset: proxy.safeAreaInsets.bottom)
+                rootCommentComposer()
             }
             .animation(.easeInOut(duration: 0.2), value: shouldShowRootCommentComposer)
             .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
@@ -190,12 +190,11 @@ struct VideoDetailView: View {
     }
 
     @ViewBuilder
-    private func rootCommentComposer(bottomSafeAreaInset: CGFloat) -> some View {
+    private func rootCommentComposer() -> some View {
         if shouldShowRootCommentComposer {
             CommentComposerBar(
                 text: $commentComposeText,
                 isSending: commentViewModel.runningActionIDs.contains("post-comment"),
-                bottomSafeAreaInset: bottomSafeAreaInset,
                 onSubmit: submitComment
             )
             .horizontalPagerExclusionArea()
@@ -279,7 +278,9 @@ struct VideoDetailView: View {
                                 showsRelated: !isWide,
                                 collapseDistance: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerCollapseDistance,
                                 collapseCompensation: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerShrink,
-                                bottomSafeAreaInset: proxy.safeAreaInsets.bottom
+                                composerContentClearance: commentComposerContentClearance(
+                                    safeAreaBottom: proxy.safeAreaInsets.bottom
+                                )
                             )
                             .frame(height: max(0, currentBottomScrollHeight))
                             .offset(y: currentPlayerHeight)
@@ -374,9 +375,8 @@ struct VideoDetailView: View {
         showsRelated: Bool,
         collapseDistance: CGFloat,
         collapseCompensation: CGFloat,
-        bottomSafeAreaInset: CGFloat
+        composerContentClearance: CGFloat
     ) -> some View {
-        let composerClearance = 88 + bottomSafeAreaInset
         return VStack(spacing: 0) {
             Picker("Content", selection: $selectedTab) {
                 ForEach(VideoPageTab.allCases) { tab in
@@ -415,7 +415,7 @@ struct VideoDetailView: View {
             } comments: {
                 tabScroll(
                     .comments,
-                    contentBottomPadding: composerClearance
+                    contentBottomPadding: composerContentClearance
                 ) {
                     CommentView(
                         viewModel: commentViewModel,
@@ -513,12 +513,28 @@ struct VideoDetailView: View {
     private func tabCollapseCompensation(for tab: VideoPageTab, collapseCompensation: CGFloat) -> CGFloat {
         min(max(bottomScrollOffsetsByTab[tab] ?? 0, 0), collapseCompensation)
     }
+
+    private func commentComposerContentClearance(safeAreaBottom: CGFloat) -> CGFloat {
+        let containerBottomInset = currentWindowBottomSafeAreaInset()
+        let isKeyboardSafeAreaActive = safeAreaBottom > containerBottomInset + 1
+        return CommentComposerBar.compactHeight + (isKeyboardSafeAreaActive ? 0 : containerBottomInset)
+    }
+
+    private func currentWindowBottomSafeAreaInset() -> CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets
+            .bottom ?? 0
+    }
 }
 
 private struct CommentComposerBar: View {
+    static let compactHeight: CGFloat = 49
+
     @Binding var text: String
     let isSending: Bool
-    let bottomSafeAreaInset: CGFloat
     let onSubmit: () -> Void
     @FocusState private var isFieldFocused: Bool
 
@@ -527,6 +543,28 @@ private struct CommentComposerBar: View {
     }
 
     var body: some View {
+        composerControls
+            .padding(.horizontal, 16)
+            .frame(minHeight: Self.compactHeight)
+            .frame(maxWidth: .infinity)
+            .commentComposerBarChrome()
+            .onDisappear {
+                isFieldFocused = false
+            }
+    }
+
+    @ViewBuilder
+    private var composerControls: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 10) {
+                composerControlRow
+            }
+        } else {
+            composerControlRow
+        }
+    }
+
+    private var composerControlRow: some View {
         HStack(spacing: 10) {
             TextField("输入评论", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
@@ -540,6 +578,7 @@ private struct CommentComposerBar: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .commentComposerFieldChrome()
+                .layoutPriority(1)
 
             Button(action: onSubmit) {
                 Image(systemName: isSending ? "hourglass" : "paperplane.fill")
@@ -547,17 +586,9 @@ private struct CommentComposerBar: View {
                     .frame(width: 42, height: 42)
             }
             .disabled(!canSubmit)
-            .buttonStyle(.plain)
             .foregroundStyle(canSubmit ? Color.accentColor : Color.secondary)
             .accessibilityLabel("发送评论")
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 8 + bottomSafeAreaInset)
-        .frame(maxWidth: .infinity)
-        .commentComposerBarChrome()
-        .onDisappear {
-            isFieldFocused = false
+            .commentComposerSendButtonChrome(isEnabled: canSubmit)
         }
     }
 }
@@ -566,13 +597,25 @@ private extension View {
     @ViewBuilder
     func commentComposerFieldChrome() -> some View {
         if #available(iOS 26.0, *) {
-            glassEffect(.regular, in: Capsule())
+            contentShape(Capsule())
+                .glassEffect(.regular.interactive(), in: Capsule())
         } else {
             background(Color(.secondarySystemBackground), in: Capsule())
                 .overlay {
                     Capsule()
                         .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
                 }
+        }
+    }
+
+    @ViewBuilder
+    func commentComposerSendButtonChrome(isEnabled: Bool) -> some View {
+        if #available(iOS 26.0, *) {
+            buttonStyle(.plain)
+                .contentShape(Circle())
+                .glassEffect(.regular.interactive(isEnabled), in: Circle())
+        } else {
+            buttonStyle(.plain)
         }
     }
 
