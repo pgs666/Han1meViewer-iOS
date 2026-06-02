@@ -3,12 +3,10 @@ import Han1meShared
 
 struct CommentView: View {
     @ObservedObject private var viewModel: CommentViewModel
-    @State private var composeText = ""
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var isShowingComposer = false
 
     init(viewModel: CommentViewModel) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
@@ -29,23 +27,6 @@ struct CommentView: View {
             }
         } message: {
             Text(viewModel.actionMessage ?? "")
-        }
-        .sheet(isPresented: $isShowingComposer) {
-            CommentTextSheet(
-                title: "发表评论",
-                text: $composeText,
-                placeholder: "输入评论",
-                submitTitle: "发送",
-                onCancel: {
-                    isShowingComposer = false
-                    composeText = ""
-                },
-                onSubmit: {
-                    viewModel.postComment(text: composeText)
-                    isShowingComposer = false
-                    composeText = ""
-                }
-            )
         }
         .sheet(item: $replyTarget) { comment in
             CommentTextSheet(
@@ -99,17 +80,6 @@ struct CommentView: View {
             .horizontalPagerExclusionArea()
 
             Spacer()
-
-            TapOnlyControl {
-                isShowingComposer = true
-            } label: {
-                Label("评论", systemImage: "square.and.pencil")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
 
             TapOnlyControl {
                 viewModel.load()
