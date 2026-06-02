@@ -14,7 +14,6 @@ struct VideoDetailView: View {
     @State private var isPlayerFullscreen = false
     @State private var isPlayerCollapsed = false
     @State private var horizontalPagerExclusionFrames: [CGRect] = []
-    @State private var gestureCoordinator = VideoDetailGestureCoordinator()
     /// True iff the player is currently playing (not paused / buffering).
     /// Driven from KSPlayerView via the @Binding below. Used to lock the
     /// player at full 16:9 height while playing — only paused state lets the
@@ -415,7 +414,6 @@ struct VideoDetailView: View {
 
             VideoDetailTabPager(
                 selectedTab: $selectedTab,
-                gestureCoordinator: gestureCoordinator,
                 excludedDragStartFrames: horizontalPagerExclusionFrames
             ) {
                 tabScroll(.introduction) {
@@ -456,16 +454,12 @@ struct VideoDetailView: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            .animation(.easeInOut(duration: 0.2), value: selectedTab)
         }
         .frame(maxHeight: .infinity)
         .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { offsets in
             let previousActiveOffset = bottomScrollOffsetsByTab[selectedTab]
             for (tab, offset) in offsets {
                 bottomScrollOffsetsByTab[tab] = offset
-            }
-            guard !gestureCoordinator.isHorizontalPagingActive else {
-                return
             }
             let activeOffset = bottomScrollOffsetsByTab[selectedTab] ?? 0
             updatePlayerCollapseOffset(
@@ -524,7 +518,7 @@ struct VideoDetailView: View {
         GeometryReader { proxy in
             let collapseScrollSpacerHeight = collapseDistance() + 1
             ScrollView {
-                BounceDisabledScrollViewConfigurator(gestureCoordinator: gestureCoordinator)
+                BounceDisabledScrollViewConfigurator()
                     .frame(width: 0, height: 0)
 
                 GeometryReader { proxy in
@@ -701,10 +695,8 @@ private extension View {
 }
 
 private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
-    let gestureCoordinator: VideoDetailGestureCoordinator
-
     func makeUIView(context: Context) -> ConfiguringView {
-        let view = ConfiguringView(gestureCoordinator: gestureCoordinator)
+        let view = ConfiguringView()
         view.isUserInteractionEnabled = false
         return view
     }
@@ -714,12 +706,10 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
     }
 
     final class ConfiguringView: UIView {
-        private let gestureCoordinator: VideoDetailGestureCoordinator
         private var isConfigurationScheduled = false
         private var remainingRetries = 12
 
-        init(gestureCoordinator: VideoDetailGestureCoordinator) {
-            self.gestureCoordinator = gestureCoordinator
+        init() {
             super.init(frame: .zero)
         }
 
@@ -770,7 +760,6 @@ private struct BounceDisabledScrollViewConfigurator: UIViewRepresentable {
                     scrollView.alwaysBounceVertical = false
                     scrollView.alwaysBounceHorizontal = false
                     scrollView.isDirectionalLockEnabled = true
-                    gestureCoordinator.registerVerticalScrollView(scrollView)
                     return true
                 }
                 current = view.superview
@@ -852,295 +841,207 @@ private enum VideoPageTab: String, CaseIterable, Identifiable {
     }
 }
 
-private struct VideoDetailTabPager<Introduction: View, Comments: View>: View {
+private struct VideoDetailTabPager<Introduction: View, Comments: View>: UIViewControllerRepresentable {
     @Binding var selectedTab: VideoPageTab
-    let gestureCoordinator: VideoDetailGestureCoordinator
     let excludedDragStartFrames: [CGRect]
     let introduction: () -> Introduction
     let comments: () -> Comments
 
-    @State private var dragTranslation: CGFloat = 0
-
     init(
         selectedTab: Binding<VideoPageTab>,
-        gestureCoordinator: VideoDetailGestureCoordinator,
         excludedDragStartFrames: [CGRect],
         @ViewBuilder introduction: @escaping () -> Introduction,
         @ViewBuilder comments: @escaping () -> Comments
     ) {
         _selectedTab = selectedTab
-        self.gestureCoordinator = gestureCoordinator
         self.excludedDragStartFrames = excludedDragStartFrames
         self.introduction = introduction
         self.comments = comments
     }
 
-    var body: some View {
-        GeometryReader { _ in
-            VideoDetailPagerLayout(
-                selectedIndex: selectedTab.pageIndex,
-                dragTranslation: dragTranslation
-            ) {
-                introduction()
-                comments()
-            }
-            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: selectedTab)
-            .contentShape(Rectangle())
-            .clipped()
-            .background(
-                HorizontalPagingGestureConfigurator(
-                    gestureCoordinator: gestureCoordinator,
-                    excludedDragStartFrames: excludedDragStartFrames,
-                    onChanged: { translation in
-                        var transaction = Transaction()
-                        transaction.disablesAnimations = true
-                        withTransaction(transaction) {
-                            dragTranslation = rubberBandedTranslation(translation)
-                        }
-                    },
-                    onEnded: { translation, velocity in
-                        finishHorizontalPaging(translation: translation, velocity: velocity)
-                    },
-                    onCancelled: {
-                        resetHorizontalPagingVisuals()
-                    }
-                )
-            )
-        }
-    }
-
-    private func finishHorizontalPaging(translation: CGFloat, velocity: CGFloat) {
-        let threshold: CGFloat = 72
-        let projected = translation + velocity * 0.18
-        let currentIndex = selectedTab.pageIndex
-        let targetIndex: Int
-
-        if projected < -threshold {
-            targetIndex = min(currentIndex + 1, VideoPageTab.allCases.count - 1)
-        } else if projected > threshold {
-            targetIndex = max(currentIndex - 1, 0)
-        } else {
-            targetIndex = currentIndex
-        }
-
-        if targetIndex != currentIndex {
-            withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
-                selectedTab = .page(at: targetIndex)
-            }
-        }
-        resetHorizontalPagingVisuals()
-    }
-
-    private func resetHorizontalPagingVisuals() {
-        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
-            dragTranslation = 0
-        }
-    }
-
-    private func rubberBandedTranslation(_ translation: CGFloat) -> CGFloat {
-        let index = selectedTab.pageIndex
-        let isPullingBeforeFirst = index == 0 && translation > 0
-        let isPullingAfterLast = index == VideoPageTab.allCases.count - 1 && translation < 0
-        if isPullingBeforeFirst || isPullingAfterLast {
-            return translation * 0.28
-        }
-        return translation
-    }
-}
-
-private struct HorizontalPagingGestureConfigurator: UIViewRepresentable {
-    let gestureCoordinator: VideoDetailGestureCoordinator
-    let excludedDragStartFrames: [CGRect]
-    let onChanged: (CGFloat) -> Void
-    let onEnded: (CGFloat, CGFloat) -> Void
-    let onCancelled: () -> Void
-
     func makeCoordinator() -> Coordinator {
-        Coordinator(
-            onChanged: onChanged,
-            onEnded: onEnded,
-            onCancelled: onCancelled
+        Coordinator(selectedTab: $selectedTab)
+    }
+
+    func makeUIViewController(context: Context) -> PagingViewController {
+        PagingViewController(coordinator: context.coordinator)
+    }
+
+    func updateUIViewController(_ uiViewController: PagingViewController, context: Context) {
+        context.coordinator.selectedTab = $selectedTab
+        context.coordinator.excludedDragStartFrames = excludedDragStartFrames
+        uiViewController.updatePages(
+            introduction: AnyView(introduction()),
+            comments: AnyView(comments()),
+            selectedIndex: selectedTab.pageIndex,
+            animated: context.coordinator.shouldAnimateProgrammaticSelection(to: selectedTab.pageIndex)
         )
     }
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.isUserInteractionEnabled = false
-        return view
-    }
+    final class Coordinator: NSObject, UIScrollViewDelegate, UIGestureRecognizerDelegate {
+        var selectedTab: Binding<VideoPageTab>
+        var excludedDragStartFrames: [CGRect] = []
+        private var lastProgrammaticIndex: Int?
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        context.coordinator.update(
-            onChanged: onChanged,
-            onEnded: onEnded,
-            onCancelled: onCancelled
-        )
-        gestureCoordinator.configureHorizontalPaging(
-            excludedDragStartFrames: excludedDragStartFrames,
-            actions: context.coordinator
-        )
-    }
-
-    final class Coordinator: VideoDetailHorizontalPagingActions {
-        private var onChanged: (CGFloat) -> Void
-        private var onEnded: (CGFloat, CGFloat) -> Void
-        private var onCancelled: () -> Void
-
-        init(
-            onChanged: @escaping (CGFloat) -> Void,
-            onEnded: @escaping (CGFloat, CGFloat) -> Void,
-            onCancelled: @escaping () -> Void
-        ) {
-            self.onChanged = onChanged
-            self.onEnded = onEnded
-            self.onCancelled = onCancelled
+        init(selectedTab: Binding<VideoPageTab>) {
+            self.selectedTab = selectedTab
         }
 
-        func update(
-            onChanged: @escaping (CGFloat) -> Void,
-            onEnded: @escaping (CGFloat, CGFloat) -> Void,
-            onCancelled: @escaping () -> Void
-        ) {
-            self.onChanged = onChanged
-            self.onEnded = onEnded
-            self.onCancelled = onCancelled
+        func shouldAnimateProgrammaticSelection(to index: Int) -> Bool {
+            defer { lastProgrammaticIndex = index }
+            guard let lastProgrammaticIndex else { return false }
+            return lastProgrammaticIndex != index
         }
 
-        func horizontalPagingChanged(_ translation: CGFloat) {
-            onChanged(translation)
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            updateSelectedTab(from: scrollView)
         }
 
-        func horizontalPagingEnded(translation: CGFloat, velocity: CGFloat) {
-            onEnded(translation, velocity)
+        func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+            updateSelectedTab(from: scrollView)
         }
 
-        func horizontalPagingCancelled() {
-            onCancelled()
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            if !decelerate {
+                updateSelectedTab(from: scrollView)
+            }
         }
-    }
-}
 
-private protocol VideoDetailHorizontalPagingActions: AnyObject {
-    func horizontalPagingChanged(_ translation: CGFloat)
-    func horizontalPagingEnded(translation: CGFloat, velocity: CGFloat)
-    func horizontalPagingCancelled()
-}
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let panGestureRecognizer = gestureRecognizer as? UIPanGestureRecognizer,
+                  let view = gestureRecognizer.view else {
+                return true
+            }
+            let startLocation = panGestureRecognizer.location(in: view)
+            guard startLocation.x > 24 else { return false }
+            let globalStartLocation = view.convert(startLocation, to: nil)
+            guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
+                return false
+            }
 
-private final class VideoDetailGestureCoordinator: NSObject, UIGestureRecognizerDelegate {
-    private(set) var isHorizontalPagingActive = false
-    private var verticalScrollViews: [WeakScrollView] = []
-    private var excludedDragStartFrames: [CGRect] = []
-    private weak var horizontalPagingActions: VideoDetailHorizontalPagingActions?
+            let translation = panGestureRecognizer.translation(in: view)
+            let velocity = panGestureRecognizer.velocity(in: view)
+            let horizontal = max(abs(translation.x), abs(velocity.x) * 0.05)
+            let vertical = max(abs(translation.y), abs(velocity.y) * 0.05)
+            return horizontal > 8 && horizontal > vertical * 1.18
+        }
 
-    func configureHorizontalPaging(
-        excludedDragStartFrames: [CGRect],
-        actions: VideoDetailHorizontalPagingActions
-    ) {
-        self.excludedDragStartFrames = excludedDragStartFrames
-        self.horizontalPagingActions = actions
-
-        verticalScrollViews.removeAll { $0.scrollView == nil }
-        for weakScrollView in verticalScrollViews {
-            installHorizontalPagingPanIfNeeded(on: weakScrollView)
+        private func updateSelectedTab(from scrollView: UIScrollView) {
+            let width = scrollView.bounds.width
+            guard width > 0 else { return }
+            let index = Int(round(scrollView.contentOffset.x / width))
+            let tab = VideoPageTab.page(at: index)
+            if selectedTab.wrappedValue != tab {
+                selectedTab.wrappedValue = tab
+            }
         }
     }
 
-    func setHorizontalPagingActive(_ isActive: Bool) {
-        guard isHorizontalPagingActive != isActive else { return }
-        isHorizontalPagingActive = isActive
-        updateVerticalScrollAvailability()
-    }
+    final class PagingViewController: UIViewController {
+        private let coordinator: Coordinator
+        private let scrollView = UIScrollView()
+        private let contentView = UIView()
+        private let introductionHost = UIHostingController(rootView: AnyView(EmptyView()))
+        private let commentsHost = UIHostingController(rootView: AnyView(EmptyView()))
+        private var selectedIndex = 0
+        private var pendingSelectedIndex: Int?
 
-    func registerVerticalScrollView(_ scrollView: UIScrollView) {
-        verticalScrollViews.removeAll { $0.scrollView == nil }
-        if !verticalScrollViews.contains(where: { $0.scrollView === scrollView }) {
-            verticalScrollViews.append(WeakScrollView(scrollView))
-        }
-        if let weakScrollView = verticalScrollViews.first(where: { $0.scrollView === scrollView }) {
-            installHorizontalPagingPanIfNeeded(on: weakScrollView)
-        }
-        scrollView.isScrollEnabled = !isHorizontalPagingActive
-    }
-
-    private func installHorizontalPagingPanIfNeeded(on weakScrollView: WeakScrollView) {
-        guard let scrollView = weakScrollView.scrollView else { return }
-        guard weakScrollView.horizontalPagingPanGestureRecognizer == nil else { return }
-
-        let panGestureRecognizer = UIPanGestureRecognizer(
-            target: self,
-            action: #selector(handleHorizontalPagingPan(_:))
-        )
-        panGestureRecognizer.delegate = self
-        panGestureRecognizer.cancelsTouchesInView = true
-        panGestureRecognizer.delaysTouchesBegan = false
-        panGestureRecognizer.delaysTouchesEnded = false
-
-        scrollView.addGestureRecognizer(panGestureRecognizer)
-        scrollView.panGestureRecognizer.require(toFail: panGestureRecognizer)
-        weakScrollView.horizontalPagingPanGestureRecognizer = panGestureRecognizer
-    }
-
-    private func updateVerticalScrollAvailability() {
-        verticalScrollViews.removeAll { $0.scrollView == nil }
-        for weakScrollView in verticalScrollViews {
-            weakScrollView.scrollView?.isScrollEnabled = !isHorizontalPagingActive
-        }
-    }
-
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard let panGestureRecognizer = gestureRecognizer as? UIPanGestureRecognizer,
-              let view = gestureRecognizer.view else {
-            return false
-        }
-        let startLocation = panGestureRecognizer.location(in: view)
-        guard startLocation.x > 24 else { return false }
-        let globalStartLocation = view.convert(startLocation, to: nil)
-        guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
-            return false
+        init(coordinator: Coordinator) {
+            self.coordinator = coordinator
+            super.init(nibName: nil, bundle: nil)
         }
 
-        let translation = panGestureRecognizer.translation(in: view)
-        let velocity = panGestureRecognizer.velocity(in: view)
-        let horizontal = max(abs(translation.x), abs(velocity.x) * 0.05)
-        let vertical = max(abs(translation.y), abs(velocity.y) * 0.05)
-        return horizontal > 12 && horizontal > vertical * 1.35
-    }
-
-    func gestureRecognizer(
-        _ gestureRecognizer: UIGestureRecognizer,
-        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-    ) -> Bool {
-        false
-    }
-
-    @objc private func handleHorizontalPagingPan(_ recognizer: UIPanGestureRecognizer) {
-        guard let view = recognizer.view else { return }
-        switch recognizer.state {
-        case .began:
-            setHorizontalPagingActive(true)
-            horizontalPagingActions?.horizontalPagingChanged(recognizer.translation(in: view).x)
-        case .changed:
-            horizontalPagingActions?.horizontalPagingChanged(recognizer.translation(in: view).x)
-        case .ended:
-            horizontalPagingActions?.horizontalPagingEnded(
-                translation: recognizer.translation(in: view).x,
-                velocity: recognizer.velocity(in: view).x
-            )
-            setHorizontalPagingActive(false)
-        case .cancelled, .failed:
-            horizontalPagingActions?.horizontalPagingCancelled()
-            setHorizontalPagingActive(false)
-        default:
-            break
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
         }
-    }
 
-    private final class WeakScrollView {
-        weak var scrollView: UIScrollView?
-        weak var horizontalPagingPanGestureRecognizer: UIPanGestureRecognizer?
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            view.backgroundColor = .clear
 
-        init(_ scrollView: UIScrollView) {
-            self.scrollView = scrollView
+            scrollView.translatesAutoresizingMaskIntoConstraints = false
+            scrollView.backgroundColor = .clear
+            scrollView.isPagingEnabled = true
+            scrollView.bounces = false
+            scrollView.alwaysBounceHorizontal = false
+            scrollView.alwaysBounceVertical = false
+            scrollView.showsHorizontalScrollIndicator = false
+            scrollView.showsVerticalScrollIndicator = false
+            scrollView.isDirectionalLockEnabled = true
+            scrollView.contentInsetAdjustmentBehavior = .never
+            scrollView.delegate = coordinator
+            scrollView.panGestureRecognizer.delegate = coordinator
+            view.addSubview(scrollView)
+
+            contentView.translatesAutoresizingMaskIntoConstraints = false
+            contentView.backgroundColor = .clear
+            scrollView.addSubview(contentView)
+
+            addPage(introductionHost)
+            addPage(commentsHost)
+
+            NSLayoutConstraint.activate([
+                scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+                scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+                contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+                contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+                contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+                contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+                contentView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
+
+                introductionHost.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                introductionHost.view.topAnchor.constraint(equalTo: contentView.topAnchor),
+                introductionHost.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                introductionHost.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+                introductionHost.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
+
+                commentsHost.view.leadingAnchor.constraint(equalTo: introductionHost.view.trailingAnchor),
+                commentsHost.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                commentsHost.view.topAnchor.constraint(equalTo: contentView.topAnchor),
+                commentsHost.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                commentsHost.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+                commentsHost.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+            ])
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            if let pendingSelectedIndex {
+                self.pendingSelectedIndex = nil
+                setSelectedIndex(pendingSelectedIndex, animated: false)
+            } else {
+                setSelectedIndex(selectedIndex, animated: false)
+            }
+        }
+
+        func updatePages(introduction: AnyView, comments: AnyView, selectedIndex: Int, animated: Bool) {
+            introductionHost.rootView = introduction
+            commentsHost.rootView = comments
+            setSelectedIndex(selectedIndex, animated: animated)
+        }
+
+        private func addPage(_ host: UIHostingController<AnyView>) {
+            addChild(host)
+            host.view.translatesAutoresizingMaskIntoConstraints = false
+            host.view.backgroundColor = .clear
+            contentView.addSubview(host.view)
+            host.didMove(toParent: self)
+        }
+
+        private func setSelectedIndex(_ index: Int, animated: Bool) {
+            selectedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            let width = scrollView.bounds.width
+            guard width > 0 else {
+                pendingSelectedIndex = selectedIndex
+                return
+            }
+            let targetOffset = CGPoint(x: CGFloat(selectedIndex) * width, y: 0)
+            guard abs(scrollView.contentOffset.x - targetOffset.x) > 0.5 else { return }
+            scrollView.setContentOffset(targetOffset, animated: animated)
         }
     }
 }
@@ -1197,48 +1098,6 @@ struct TapOnlyControl<Label: View>: View {
                 guard !isDisabled else { return }
                 action()
             }
-    }
-}
-
-/// Horizontally pages two tab bodies while reporting only ONE page's width to
-/// the parent vertical ScrollView. A plain HStack exposes its full 2× width
-/// during sizeThatFits, which can make nested lazy grids compute enormous
-/// minor geometry and eventually abort on allocation failure.
-private struct VideoDetailPagerLayout: Layout {
-    let selectedIndex: Int
-    let dragTranslation: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = resolvedWidth(proposal: proposal, subviews: subviews)
-        let pageProposal = ProposedViewSize(width: width, height: proposal.height)
-        let height: CGFloat
-        if let proposedHeight = proposal.height, proposedHeight.isFinite, proposedHeight > 0 {
-            height = proposedHeight
-        } else {
-            height = subviews.map { $0.sizeThatFits(pageProposal).height }.max() ?? 0
-        }
-        return CGSize(width: width, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let width = bounds.width
-        let pageProposal = ProposedViewSize(width: width, height: bounds.height)
-        let originX = bounds.minX - CGFloat(selectedIndex) * width + dragTranslation
-
-        for (index, subview) in subviews.enumerated() {
-            subview.place(
-                at: CGPoint(x: originX + CGFloat(index) * width, y: bounds.minY),
-                anchor: .topLeading,
-                proposal: pageProposal
-            )
-        }
-    }
-
-    private func resolvedWidth(proposal: ProposedViewSize, subviews: Subviews) -> CGFloat {
-        if let width = proposal.width, width.isFinite, width > 0 {
-            return width
-        }
-        return subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0
     }
 }
 
