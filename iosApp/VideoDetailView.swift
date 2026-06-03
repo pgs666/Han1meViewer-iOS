@@ -998,6 +998,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         ) -> Bool {
             let startLocation = panGestureRecognizer.location(in: view)
             guard startLocation.x > 24 else { return false }
+            guard !view.hasScrollableHorizontalDescendant(at: startLocation, excluding: view) else {
+                return false
+            }
             let globalStartLocation = view.convert(startLocation, to: nil)
             guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
                 return false
@@ -1150,6 +1153,22 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
+    }
+}
+
+private extension UIView {
+    func hasScrollableHorizontalDescendant(at location: CGPoint, excluding excludedView: UIView) -> Bool {
+        guard let hitView = hitTest(location, with: nil) else { return false }
+        var current: UIView? = hitView
+        while let view = current, view !== excludedView {
+            if let scrollView = view as? UIScrollView,
+               scrollView.contentSize.width > scrollView.bounds.width + 1,
+               scrollView.isScrollEnabled {
+                return true
+            }
+            current = view.superview
+        }
+        return false
     }
 }
 
