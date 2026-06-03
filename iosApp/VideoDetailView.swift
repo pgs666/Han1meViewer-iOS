@@ -62,6 +62,7 @@ struct VideoDetailView: View {
             ZStack(alignment: .bottom) {
                 content
                     .ignoresSafeArea(.container, edges: ignoredContainerSafeAreaEdges)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
 
                 rootCommentComposer(layoutSize: proxy.size)
             }
@@ -259,18 +260,19 @@ struct VideoDetailView: View {
                 let leftWidth = leftPanelWidth(for: proxy.size)
 
                 HStack(alignment: .top, spacing: 0) {
+                    let currentPlayerCollapseDistance = playerCollapseDistance(panelWidth: leftWidth)
+                    let currentPlayerHeight = playerHeight(
+                        panelWidth: leftWidth,
+                        parentHeight: proxy.size.height
+                    )
+                    let currentPlayerShrink = playerVisualShrink(panelWidth: leftWidth)
+                    let currentBottomScrollHeight = proxy.size.height - (
+                        isPlayerCollapsed || isPlayerPlaying
+                            ? currentPlayerHeight
+                            : playerMinimumHeight(panelWidth: leftWidth)
+                    )
+
                     ZStack(alignment: .top) {
-                        let currentPlayerCollapseDistance = playerCollapseDistance(panelWidth: leftWidth)
-                        let currentPlayerHeight = playerHeight(
-                            panelWidth: leftWidth,
-                            parentHeight: proxy.size.height
-                        )
-                        let currentPlayerShrink = playerVisualShrink(panelWidth: leftWidth)
-                        let currentBottomScrollHeight = proxy.size.height - (
-                            isPlayerCollapsed || isPlayerPlaying
-                                ? currentPlayerHeight
-                                : playerMinimumHeight(panelWidth: leftWidth)
-                        )
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
@@ -296,6 +298,13 @@ struct VideoDetailView: View {
                     }
                     .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
                     .clipped()
+                    .onValueChange(of: isPlayerPlaying) { isPlaying in
+                        guard !isPlaying, !isPlayerCollapsed, !isPlayerFullscreen else { return }
+                        bottomScrollOffset = min(
+                            max(bottomScrollOffsetsByTab[selectedTab] ?? 0, 0),
+                            currentPlayerCollapseDistance
+                        )
+                    }
 
                     if isWide {
                         Divider()
