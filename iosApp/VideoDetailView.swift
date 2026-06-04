@@ -989,7 +989,25 @@ private final class VideoDetailHostedTabPageViewController: UIViewController {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
         }
-        host.view.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
+        updateEmbeddedScrollCompensation(page.collapseCompensation)
+    }
+
+    private func updateEmbeddedScrollCompensation(_ compensation: CGFloat) {
+        guard let scrollView = firstScrollView(in: host.view) else { return }
+        scrollView.contentInset.top = compensation
+        scrollView.verticalScrollIndicatorInsets.top = compensation
+    }
+
+    private func firstScrollView(in view: UIView) -> UIScrollView? {
+        if let scrollView = view as? UIScrollView {
+            return scrollView
+        }
+        for subview in view.subviews {
+            if let scrollView = firstScrollView(in: subview) {
+                return scrollView
+            }
+        }
+        return nil
     }
 }
 
