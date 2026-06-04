@@ -446,6 +446,10 @@ struct VideoDetailView: View {
                         contentBottomPadding: composerContentClearance,
                         collapseDistance: collapseDistance
                     ),
+                    collapseCompensation: tabCollapseCompensation(
+                        for: .comments,
+                        collapseCompensation: collapseCompensation
+                    ),
                     collapseDistance: collapseDistance
                 ) {
                     CommentView(
@@ -528,13 +532,14 @@ struct VideoDetailView: View {
     private func selfScrollingCommentsTabPage<Content: View>(
         contentBottomPadding: CGFloat,
         contentUpdateRevision: Int,
+        collapseCompensation: CGFloat,
         collapseDistance: CGFloat,
         @ViewBuilder content: @escaping () -> Content
     ) -> VideoDetailTabPage {
         VideoDetailTabPage(
             tab: .comments,
             contentBottomPadding: contentBottomPadding,
-            collapseCompensation: 0,
+            collapseCompensation: collapseCompensation,
             collapseDistance: collapseDistance,
             contentUpdateRevision: contentUpdateRevision,
             onOffsetChange: { tab, offset in
@@ -984,6 +989,7 @@ private final class VideoDetailHostedTabPageViewController: UIViewController {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
         }
+        host.view.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
     }
 }
 

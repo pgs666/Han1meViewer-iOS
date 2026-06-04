@@ -299,7 +299,8 @@ struct RelatedVideoCard: View {
                 .lineLimit(1)
                 .padding(.horizontal, 7)
                 .padding(.bottom, 5)
-
+            }
+            .overlay(alignment: .topLeading) {
                 if showPlaying && video.isPlaying {
                     Text("正在播放")
                         .font(.caption2.weight(.bold))
@@ -307,7 +308,6 @@ struct RelatedVideoCard: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(.regularMaterial, in: Capsule())
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .padding(6)
                 }
             }
