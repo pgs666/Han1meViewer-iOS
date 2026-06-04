@@ -964,6 +964,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 private final class VideoDetailHostedTabPageViewController: UIViewController {
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var contentUpdateRevision: Int?
+    private var embeddedScrollTopInset: CGFloat = 0
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -994,8 +995,12 @@ private final class VideoDetailHostedTabPageViewController: UIViewController {
 
     private func updateEmbeddedScrollCompensation(_ compensation: CGFloat) {
         guard let scrollView = firstScrollView(in: host.view) else { return }
+        guard abs(embeddedScrollTopInset - compensation) > 0.5 else { return }
+        let previousOffset = scrollView.contentOffset
+        embeddedScrollTopInset = compensation
         scrollView.contentInset.top = compensation
         scrollView.verticalScrollIndicatorInsets.top = compensation
+        scrollView.setContentOffset(previousOffset, animated: false)
     }
 
     private func firstScrollView(in view: UIView) -> UIScrollView? {
