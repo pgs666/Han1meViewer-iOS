@@ -871,7 +871,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        onOffsetChange(tab, max(0, scrollView.contentOffset.y))
+        onOffsetChange(tab, scrollView.verticalContentOffsetExcludingBounce)
     }
 }
 
@@ -1000,6 +1000,15 @@ private final class VerticalScrollView: UIScrollView {
             return shouldBeginVerticalPan?(panGestureRecognizer, self) ?? true
         }
         return super.gestureRecognizerShouldBegin(gestureRecognizer)
+    }
+}
+
+private extension UIScrollView {
+    var verticalContentOffsetExcludingBounce: CGFloat {
+        let inset = adjustedContentInset
+        let minOffsetY = -inset.top
+        let maxOffsetY = max(minOffsetY, contentSize.height - bounds.height + inset.bottom)
+        return min(max(contentOffset.y, minOffsetY), maxOffsetY) + inset.top
     }
 }
 

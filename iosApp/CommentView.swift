@@ -21,6 +21,13 @@ final class VideoDetailCommentTableView: UITableView {
             cell.transform = transform
         }
     }
+
+    var verticalContentOffsetExcludingBounce: CGFloat {
+        let inset = adjustedContentInset
+        let minOffsetY = -inset.top
+        let maxOffsetY = max(minOffsetY, contentSize.height - bounds.height + inset.bottom)
+        return min(max(contentOffset.y, minOffsetY), maxOffsetY) + inset.top
+    }
 }
 
 struct CommentView: View {
@@ -300,7 +307,9 @@ private struct CommentTableView: UIViewRepresentable {
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            parent.onScrollOffsetChange(max(0, scrollView.contentOffset.y))
+            let offset = (scrollView as? VideoDetailCommentTableView)?.verticalContentOffsetExcludingBounce
+                ?? max(0, scrollView.contentOffset.y)
+            parent.onScrollOffsetChange(offset)
             (scrollView as? VideoDetailCommentTableView)?.applyPlayerCollapseCompensation()
         }
 
