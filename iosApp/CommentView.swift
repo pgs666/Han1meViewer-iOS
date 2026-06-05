@@ -172,7 +172,8 @@ private struct CommentTableView: UIViewRepresentable {
         tableView.showsVerticalScrollIndicator = false
         tableView.contentInsetAdjustmentBehavior = .never
         tableView.keyboardDismissMode = .interactive
-        tableView.alwaysBounceVertical = true
+        tableView.bounces = false
+        tableView.alwaysBounceVertical = false
         tableView.estimatedRowHeight = 120
         tableView.rowHeight = UITableView.automaticDimension
         tableView.dataSource = context.coordinator
@@ -270,6 +271,9 @@ private struct CommentTableView: UIViewRepresentable {
             if deltaY > 0, remainingCollapseDistance > 0.5 {
                 let consumedByCollapse = min(deltaY, remainingCollapseDistance)
                 targetContentOffsetY = appliedContentOffsetY + deltaY - consumedByCollapse
+            } else if deltaY < 0, currentCollapseOffset > 0.5 {
+                let consumedByExpansion = max(deltaY, -currentCollapseOffset)
+                targetContentOffsetY = appliedContentOffsetY + deltaY - consumedByExpansion
             }
 
             reportedContentOffsetY = max(0, reportedContentOffsetY + deltaY)
