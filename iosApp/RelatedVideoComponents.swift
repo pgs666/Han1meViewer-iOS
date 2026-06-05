@@ -313,18 +313,11 @@ struct RelatedVideoCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            Group {
-                if #available(iOS 17.0, *) {
-                    Text(video.title)
-                        .lineLimit(2, reservesSpace: true)
-                } else {
-                    Text(video.title)
-                        .lineLimit(2)
-                }
-            }
+            Text(video.title)
+                .lineLimit(2)
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
 
             if showsMetadataFooter {
                 HStack(spacing: 6) {
