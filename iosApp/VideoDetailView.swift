@@ -754,6 +754,10 @@ private struct VideoDetailPagerState: Equatable {
         Self.clamp(tabOffsets[tab] ?? 0, upperBound: playerScrollAway)
     }
 
+    func storedOffset(for tab: VideoPageTab) -> CGFloat? {
+        tabOffsets[tab]
+    }
+
     mutating func setPlayerPlaying(_ isPlaying: Bool) {
         isPlayerPlaying = isPlaying
         if isPlaying {
@@ -771,9 +775,9 @@ private struct VideoDetailPagerState: Equatable {
     }
 
     mutating func updateTabOffset(_ tab: VideoPageTab, offset: CGFloat, collapseDistance: CGFloat) {
-        let previousActiveOffset = tabOffsets[selectedTab]
-        tabOffsets[tab] = offset
         guard tab == selectedTab else { return }
+        let previousActiveOffset = tabOffsets[tab]
+        tabOffsets[tab] = offset
         updateCollapseOffset(
             activeTabOffset: offset,
             previousActiveTabOffset: previousActiveOffset,
@@ -858,6 +862,8 @@ private struct VideoDetailTabPage {
     let tab: VideoPageTab
     let contentBottomPadding: CGFloat
     let contentTopInset: CGFloat
+    let storedContentOffset: CGFloat?
+    let isSelected: Bool
     let collapseDistance: CGFloat
     let contentUpdateRevision: Int
     let onOffsetChange: (VideoPageTab, CGFloat) -> Void
@@ -869,6 +875,8 @@ private struct VideoDetailTabPage {
         tab: VideoPageTab,
         contentBottomPadding: CGFloat,
         contentTopInset: CGFloat,
+        storedContentOffset: CGFloat?,
+        isSelected: Bool,
         collapseDistance: CGFloat,
         contentUpdateRevision: Int,
         onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void,
@@ -879,6 +887,8 @@ private struct VideoDetailTabPage {
         self.tab = tab
         self.contentBottomPadding = contentBottomPadding
         self.contentTopInset = contentTopInset
+        self.storedContentOffset = storedContentOffset
+        self.isSelected = isSelected
         self.collapseDistance = collapseDistance
         self.contentUpdateRevision = contentUpdateRevision
         self.onOffsetChange = onOffsetChange
@@ -954,6 +964,8 @@ private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: Vi
             tab: tab,
             contentBottomPadding: contentBottomPadding,
             contentTopInset: state.contentTopInset(for: tab, playerScrollAway: playerScrollAway),
+            storedContentOffset: state.storedOffset(for: tab),
+            isSelected: state.selectedTab == tab,
             collapseDistance: collapseDistance,
             contentUpdateRevision: contentUpdateRevision,
             onOffsetChange: { tab, offset in
@@ -1046,6 +1058,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var bottomPaddingHeightConstraint: NSLayoutConstraint!
     private var collapseSpacerHeightConstraint: NSLayoutConstraint!
     private var contentUpdateRevision: Int?
+    private var wasSelected = false
+    private var topAlignmentGeneration = 0
 
     init(tab: VideoPageTab) {
         coordinator = VideoDetailVerticalScrollPageCoordinator(
@@ -1143,6 +1157,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onOffsetChange = page.onOffsetChange
         coordinator.onInteractionBegan = page.onInteractionBegan
         coordinator.onTopPullDelta = page.onTopPullDelta
+        let shouldAlignTopOnActivation = page.isSelected
+            && !wasSelected
+            && (page.storedContentOffset ?? 0) <= 0.5
+        wasSelected = page.isSelected
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
@@ -1152,12 +1170,34 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         hostTopConstraint.constant = contentTopInset
         bottomPaddingHeightConstraint.constant = page.contentBottomPadding
         collapseSpacerHeightConstraint.constant = max(page.collapseDistance - contentTopInset + 1, 1)
+        if shouldAlignTopOnActivation {
+            alignToTopAfterActivation()
+        }
     }
 
     private func effectiveContentTopInset(for page: VideoDetailTabPage) -> CGFloat {
         let desiredInset = min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
         let currentOffset = max(scrollView.verticalContentOffsetExcludingBounce, 0)
         return min(desiredInset, currentOffset)
+    }
+
+    private func alignToTopAfterActivation() {
+        topAlignmentGeneration &+= 1
+        let generation = topAlignmentGeneration
+        alignToTopIfIdle()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.topAlignmentGeneration == generation else { return }
+            self.alignToTopIfIdle()
+        }
+    }
+
+    private func alignToTopIfIdle() {
+        guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+        let topOffsetY = -scrollView.adjustedContentInset.top
+        guard abs(scrollView.contentOffset.y - topOffsetY) > 0.5 else { return }
+        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: topOffsetY), animated: false)
     }
 }
 
