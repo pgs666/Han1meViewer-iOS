@@ -163,6 +163,7 @@ private struct CommentTableView: UIViewRepresentable {
         tableView.showsVerticalScrollIndicator = false
         tableView.contentInsetAdjustmentBehavior = .never
         tableView.keyboardDismissMode = .interactive
+        tableView.alwaysBounceVertical = true
         tableView.estimatedRowHeight = 120
         tableView.rowHeight = UITableView.automaticDimension
         tableView.dataSource = context.coordinator
@@ -174,6 +175,7 @@ private struct CommentTableView: UIViewRepresentable {
     func updateUIView(_ tableView: UITableView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.rows = rows
+        context.coordinator.syncCollapseDistance(with: self, tableView: tableView)
         tableView.contentInset.bottom = contentBottomPadding + collapseDistance + 1
         tableView.verticalScrollIndicatorInsets.bottom = contentBottomPadding
         tableView.reloadData()
@@ -211,9 +213,20 @@ private struct CommentTableView: UIViewRepresentable {
 
         var parent: CommentTableView
         var rows: [Row] = []
+        private var logicalContentOffsetY: CGFloat = 0
+        private var appliedContentOffsetY: CGFloat = 0
+        private var isApplyingContentOffset = false
 
         init(parent: CommentTableView) {
             self.parent = parent
+        }
+
+        func syncCollapseDistance(with parent: CommentTableView, tableView: UITableView) {
+            let physicalOffsetY = max(0, tableView.contentOffset.y)
+            if logicalContentOffsetY <= 0, physicalOffsetY > 0 {
+                logicalContentOffsetY = physicalOffsetY + max(parent.collapseDistance, 0)
+            }
+            applyPhysicalOffsetIfNeeded(to: tableView)
         }
 
         func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -232,7 +245,34 @@ private struct CommentTableView: UIViewRepresentable {
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            parent.onScrollOffsetChange(max(0, scrollView.contentOffset.y))
+            guard !isApplyingContentOffset else { return }
+
+            let observedContentOffsetY = scrollView.contentOffset.y
+            let deltaY = observedContentOffsetY - appliedContentOffsetY
+            guard abs(deltaY) > 0.01 else {
+                parent.onScrollOffsetChange(logicalContentOffsetY)
+                return
+            }
+
+            logicalContentOffsetY = max(0, logicalContentOffsetY + deltaY)
+            parent.onScrollOffsetChange(logicalContentOffsetY)
+            applyPhysicalOffsetIfNeeded(to: scrollView)
+        }
+
+        private func applyPhysicalOffsetIfNeeded(to scrollView: UIScrollView) {
+            let targetContentOffsetY = max(0, logicalContentOffsetY - max(parent.collapseDistance, 0))
+            guard abs(scrollView.contentOffset.y - targetContentOffsetY) > 0.5 else {
+                appliedContentOffsetY = scrollView.contentOffset.y
+                return
+            }
+
+            isApplyingContentOffset = true
+            scrollView.setContentOffset(
+                CGPoint(x: scrollView.contentOffset.x, y: targetContentOffsetY),
+                animated: false
+            )
+            isApplyingContentOffset = false
+            appliedContentOffsetY = targetContentOffsetY
         }
 
         @ViewBuilder
