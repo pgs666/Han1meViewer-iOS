@@ -268,8 +268,14 @@ struct RelatedVideoCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
+                Color(.secondarySystemBackground)
+                    .opacity(0.5)
                     .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                    .overlay {
+                        CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                    }
 
                 LinearGradient(
                     colors: [
@@ -333,7 +339,7 @@ struct RelatedVideoCard: View {
                 .frame(height: 16)
             }
         }
-        .frame(width: width, alignment: .leading)
+        .frame(width: width, maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .padding(8)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
