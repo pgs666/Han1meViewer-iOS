@@ -770,11 +770,35 @@ private struct VideoDetailPagerState: Equatable {
 
     mutating func updateTabOffset(_ tab: VideoPageTab, offset: CGFloat, collapseDistance: CGFloat) {
         guard tab == selectedTab else { return }
+        guard !isPlayerPlaying else {
+            collapseOffset = 0
+            return
+        }
+        let trackedOffset = Self.clamp(offset, upperBound: collapseDistance)
         let previousActiveOffset = tabOffsets[tab]
-        tabOffsets[tab] = offset
-        updateCollapseOffset(
-            activeTabOffset: offset,
+        let previousCollapseOffset = collapseOffset
+        let nextCollapseOffset = nextCollapseOffset(
+            activeTabOffset: trackedOffset,
             previousActiveTabOffset: previousActiveOffset,
+            collapseDistance: collapseDistance
+        )
+        guard previousActiveOffset != trackedOffset
+            || abs(previousCollapseOffset - nextCollapseOffset) > 0.5 else {
+            return
+        }
+        tabOffsets[tab] = trackedOffset
+        collapseOffset = nextCollapseOffset
+    }
+
+    private func nextCollapseOffset(
+        activeTabOffset: CGFloat,
+        previousActiveTabOffset: CGFloat?,
+        collapseDistance: CGFloat
+    ) -> CGFloat {
+        VideoPlayerCollapseModel.nextCollapseOffset(
+            currentCollapseOffset: collapseOffset,
+            activeTabOffset: activeTabOffset,
+            previousActiveTabOffset: previousActiveTabOffset,
             collapseDistance: collapseDistance
         )
     }
@@ -791,24 +815,6 @@ private struct VideoDetailPagerState: Equatable {
 
     mutating func clampCollapse(to collapseDistance: CGFloat) {
         collapseOffset = Self.clamp(collapseOffset, upperBound: collapseDistance)
-    }
-
-    private mutating func updateCollapseOffset(
-        activeTabOffset: CGFloat,
-        previousActiveTabOffset: CGFloat?,
-        collapseDistance: CGFloat
-    ) {
-        guard !isPlayerPlaying else {
-            collapseOffset = 0
-            return
-        }
-
-        collapseOffset = VideoPlayerCollapseModel.nextCollapseOffset(
-            currentCollapseOffset: collapseOffset,
-            activeTabOffset: activeTabOffset,
-            previousActiveTabOffset: previousActiveTabOffset,
-            collapseDistance: collapseDistance
-        )
     }
 
     private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
@@ -985,7 +991,9 @@ private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: Vi
         withTransaction(Transaction(animation: nil)) {
             var nextState = state
             mutation(&nextState)
-            state = nextState
+            if nextState != state {
+                state = nextState
+            }
         }
     }
 }
