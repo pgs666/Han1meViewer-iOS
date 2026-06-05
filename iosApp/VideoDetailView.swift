@@ -1249,15 +1249,18 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
 private extension UIView {
     func hasScrollableHorizontalDescendant(at location: CGPoint, excluding excludedView: UIView) -> Bool {
-        guard let hitView = hitTest(location, with: nil) else { return false }
-        var current: UIView? = hitView
-        while let view = current, view !== excludedView {
-            if let scrollView = view as? UIScrollView,
+        for subview in subviews.reversed() where subview !== excludedView && !subview.isHidden && subview.alpha > 0.01 {
+            let localLocation = subview.convert(location, from: self)
+            guard subview.point(inside: localLocation, with: nil) else { continue }
+            if let scrollView = subview as? UIScrollView,
                scrollView.isScrollEnabled,
+               scrollView.panGestureRecognizer.isEnabled,
                scrollView.contentSize.width > scrollView.bounds.width + 1 {
                 return true
             }
-            current = view.superview
+            if subview.hasScrollableHorizontalDescendant(at: localLocation, excluding: excludedView) {
+                return true
+            }
         }
         return false
     }
