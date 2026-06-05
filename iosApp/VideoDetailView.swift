@@ -265,12 +265,11 @@ struct VideoDetailView: View {
                             panelWidth: leftWidth,
                             parentHeight: proxy.size.height
                         )
-                        let currentPlayerShrink = playerVisualShrink(panelWidth: leftWidth)
-                        let currentBottomScrollHeight = proxy.size.height - (
-                            isPlayerCollapsed || isPlayerPlaying
-                                ? currentPlayerHeight
-                                : playerMinimumHeight(panelWidth: leftWidth)
-                        )
+                        let currentPlayerScrollAway = playerVisualShrink(panelWidth: leftWidth)
+                        let currentBottomScrollOffset = isPlayerCollapsed
+                            ? currentPlayerHeight
+                            : max(currentPlayerHeight - currentPlayerScrollAway, 0)
+                        let currentBottomScrollHeight = proxy.size.height - currentBottomScrollOffset
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
@@ -284,14 +283,14 @@ struct VideoDetailView: View {
                             belowPlayerScroll(
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
-                                collapseDistance: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerCollapseDistance,
-                                collapseCompensation: isPlayerCollapsed || isPlayerPlaying ? 0 : currentPlayerShrink,
+                                collapseDistance: isPlayerCollapsed ? 0 : currentPlayerCollapseDistance,
+                                collapseCompensation: isPlayerCollapsed ? 0 : currentPlayerScrollAway,
                                 composerContentClearance: commentComposerContentClearance(
                                     safeAreaBottom: proxy.safeAreaInsets.bottom
                                 )
                             )
                             .frame(height: max(0, currentBottomScrollHeight))
-                            .offset(y: currentPlayerHeight)
+                            .offset(y: currentBottomScrollOffset)
                         }
                     }
                     .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
@@ -331,28 +330,16 @@ struct VideoDetailView: View {
 
     /// Player 高度：
     /// - 全屏：撑满整个父容器
-    /// - 折叠：50pt 标题 strip
-    /// - inline：左 panel 宽度的 16:9（不再依赖父容器 height）
+    /// - 手动折叠：50pt 标题 strip
+    /// - inline：固定为左 panel 宽度的 16:9，不随底部内容滚动缩小
     private func playerHeight(panelWidth: CGFloat, parentHeight: CGFloat) -> CGFloat {
         if isPlayerFullscreen { return parentHeight }
         if isPlayerCollapsed { return 50 }
-        let baseHeight = panelWidth * 9 / 16
-        // While playing, lock to full 16:9 — never shrink with scroll.
-        if isPlayerPlaying { return baseHeight }
-        // Paused: follow the user's scroll. As bottomScrollOffset grows
-        // (content scrolled up), the player shrinks proportionally, never
-        // below playerCollapsedFollowMinHeight so its overlay controls
-        // remain at least partly visible.
-        return baseHeight - playerVisualShrink(panelWidth: panelWidth)
+        return panelWidth * 9 / 16
     }
 
     private func playerCollapseDistance(panelWidth: CGFloat) -> CGFloat {
-        let baseHeight = panelWidth * 9 / 16
-        return max(baseHeight - playerMinimumHeight(panelWidth: panelWidth), 1)
-    }
-
-    private func playerMinimumHeight(panelWidth: CGFloat) -> CGFloat {
-        max((panelWidth * 9 / 16) * 0.32, 80)
+        max(panelWidth * 9 / 16, 1)
     }
 
     private func playerVisualShrink(panelWidth: CGFloat) -> CGFloat {
@@ -360,13 +347,6 @@ struct VideoDetailView: View {
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
-        // Shrunken iff the follow-finger collapse has actually engaged
-        // (paused, not fullscreen / strip-collapsed, and the user has
-        // scrolled the bottom content up).
-        let shrunken = !isPlayerFullscreen
-            && !isPlayerCollapsed
-            && !isPlayerPlaying
-            && bottomScrollOffset > 1
         return KSPlayerView(
             snapshot: snapshot,
             isFullscreen: $isPlayerFullscreen,
@@ -379,7 +359,7 @@ struct VideoDetailView: View {
                 }
             },
             onBack: { dismiss() },
-            isShrunken: shrunken,
+            isShrunken: false,
             onRequestExpand: {
                 // First tap on a shrunken player expands it back to 16:9
                 // by zeroing the scroll-driven shrink amount — and animate
