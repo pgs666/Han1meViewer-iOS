@@ -2,11 +2,16 @@ import SwiftUI
 import UIKit
 import Han1meShared
 
+final class VideoDetailCommentTableView: UITableView {
+    var playerCollapseOffset: CGFloat = 0
+}
+
 struct CommentView: View {
     @ObservedObject private var viewModel: CommentViewModel
     private let onOverlayActivityChanged: (Bool) -> Void
     private let contentBottomPadding: CGFloat
     private let collapseDistance: CGFloat
+    private let collapseOffset: CGFloat
     private let onScrollOffsetChange: (CGFloat) -> Void
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
@@ -17,12 +22,14 @@ struct CommentView: View {
         viewModel: CommentViewModel,
         contentBottomPadding: CGFloat = 24,
         collapseDistance: CGFloat = 0,
+        collapseOffset: CGFloat = 0,
         onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in },
         onOverlayActivityChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
         self.contentBottomPadding = contentBottomPadding
         self.collapseDistance = collapseDistance
+        self.collapseOffset = collapseOffset
         self.onScrollOffsetChange = onScrollOffsetChange
         self.onOverlayActivityChanged = onOverlayActivityChanged
     }
@@ -35,6 +42,7 @@ struct CommentView: View {
             runningActionIDs: viewModel.runningActionIDs,
             contentBottomPadding: contentBottomPadding,
             collapseDistance: collapseDistance,
+            collapseOffset: collapseOffset,
             onSortModeChange: { viewModel.changeSortMode($0) },
             onRefresh: { viewModel.load() },
             onRetry: { viewModel.load() },
@@ -142,6 +150,7 @@ private struct CommentTableView: UIViewRepresentable {
     let runningActionIDs: Set<String>
     let contentBottomPadding: CGFloat
     let collapseDistance: CGFloat
+    let collapseOffset: CGFloat
     let onSortModeChange: (CommentViewModel.SortMode) -> Void
     let onRefresh: () -> Void
     let onRetry: () -> Void
@@ -157,7 +166,7 @@ private struct CommentTableView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITableView {
-        let tableView = UITableView(frame: .zero, style: .plain)
+        let tableView = VideoDetailCommentTableView(frame: .zero, style: .plain)
         tableView.backgroundColor = .clear
         tableView.separatorStyle = .none
         tableView.showsVerticalScrollIndicator = false
@@ -213,7 +222,7 @@ private struct CommentTableView: UIViewRepresentable {
 
         var parent: CommentTableView
         var rows: [Row] = []
-        private var logicalContentOffsetY: CGFloat = 0
+        private var reportedContentOffsetY: CGFloat = 0
         private var appliedContentOffsetY: CGFloat = 0
         private var isApplyingContentOffset = false
 
@@ -223,10 +232,10 @@ private struct CommentTableView: UIViewRepresentable {
 
         func syncCollapseDistance(with parent: CommentTableView, tableView: UITableView) {
             let physicalOffsetY = max(0, tableView.contentOffset.y)
-            if logicalContentOffsetY <= 0, physicalOffsetY > 0 {
-                logicalContentOffsetY = physicalOffsetY + max(parent.collapseDistance, 0)
+            if reportedContentOffsetY <= 0, physicalOffsetY > 0 {
+                reportedContentOffsetY = physicalOffsetY + max(parent.collapseOffset, 0)
             }
-            applyPhysicalOffsetIfNeeded(to: tableView)
+            appliedContentOffsetY = tableView.contentOffset.y
         }
 
         func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -250,28 +259,30 @@ private struct CommentTableView: UIViewRepresentable {
             let observedContentOffsetY = scrollView.contentOffset.y
             let deltaY = observedContentOffsetY - appliedContentOffsetY
             guard abs(deltaY) > 0.01 else {
-                parent.onScrollOffsetChange(logicalContentOffsetY)
+                parent.onScrollOffsetChange(reportedContentOffsetY)
                 return
             }
 
-            logicalContentOffsetY = max(0, logicalContentOffsetY + deltaY)
-            parent.onScrollOffsetChange(logicalContentOffsetY)
-            applyPhysicalOffsetIfNeeded(to: scrollView)
-        }
-
-        private func applyPhysicalOffsetIfNeeded(to scrollView: UIScrollView) {
-            let targetContentOffsetY = max(0, logicalContentOffsetY - max(parent.collapseDistance, 0))
-            guard abs(scrollView.contentOffset.y - targetContentOffsetY) > 0.5 else {
-                appliedContentOffsetY = scrollView.contentOffset.y
-                return
+            var targetContentOffsetY = observedContentOffsetY
+            let currentCollapseOffset = (scrollView as? VideoDetailCommentTableView)?.playerCollapseOffset
+                ?? parent.collapseOffset
+            let remainingCollapseDistance = max(parent.collapseDistance - currentCollapseOffset, 0)
+            if deltaY > 0, remainingCollapseDistance > 0.5 {
+                let consumedByCollapse = min(deltaY, remainingCollapseDistance)
+                targetContentOffsetY = appliedContentOffsetY + deltaY - consumedByCollapse
             }
 
-            isApplyingContentOffset = true
-            scrollView.setContentOffset(
-                CGPoint(x: scrollView.contentOffset.x, y: targetContentOffsetY),
-                animated: false
-            )
-            isApplyingContentOffset = false
+            reportedContentOffsetY = max(0, reportedContentOffsetY + deltaY)
+            parent.onScrollOffsetChange(reportedContentOffsetY)
+
+            if abs(scrollView.contentOffset.y - targetContentOffsetY) > 0.5 {
+                isApplyingContentOffset = true
+                scrollView.setContentOffset(
+                    CGPoint(x: scrollView.contentOffset.x, y: targetContentOffsetY),
+                    animated: false
+                )
+                isApplyingContentOffset = false
+            }
             appliedContentOffsetY = targetContentOffsetY
         }
 

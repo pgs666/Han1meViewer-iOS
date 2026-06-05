@@ -456,6 +456,10 @@ struct VideoDetailView: View {
                         viewModel: commentViewModel,
                         contentBottomPadding: composerContentClearance,
                         collapseDistance: collapseDistance,
+                        collapseOffset: tabCollapseCompensation(
+                            for: .comments,
+                            collapseCompensation: collapseCompensation
+                        ),
                         onScrollOffsetChange: { offset in
                             updateTabOffset(.comments, offset: offset, collapseDistance: collapseDistance)
                         },
@@ -964,6 +968,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 private final class VideoDetailHostedTabPageViewController: UIViewController {
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var contentUpdateRevision: Int?
+    private weak var commentTableView: VideoDetailCommentTableView?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -989,6 +994,26 @@ private final class VideoDetailHostedTabPageViewController: UIViewController {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
         }
+        updateCommentTableCollapseOffset(page.collapseCompensation)
+    }
+
+    private func updateCommentTableCollapseOffset(_ collapseOffset: CGFloat) {
+        let tableView = commentTableView ?? firstCommentTableView(in: host.view)
+        guard let tableView else { return }
+        commentTableView = tableView
+        tableView.playerCollapseOffset = collapseOffset
+    }
+
+    private func firstCommentTableView(in view: UIView) -> VideoDetailCommentTableView? {
+        if let tableView = view as? VideoDetailCommentTableView {
+            return tableView
+        }
+        for subview in view.subviews {
+            if let tableView = firstCommentTableView(in: subview) {
+                return tableView
+            }
+        }
+        return nil
     }
 }
 
