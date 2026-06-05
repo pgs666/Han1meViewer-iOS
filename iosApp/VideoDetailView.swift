@@ -857,7 +857,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
 
 private final class VideoDetailVerticalScrollPageViewController: UIViewController {
     private let coordinator: VideoDetailVerticalScrollPageCoordinator
-    private let scrollView = UIScrollView()
+    private let scrollView = VerticalScrollView()
     private let contentView = UIView()
     private let bottomPaddingView = UIView()
     private let collapseSpacerView = UIView()
@@ -893,6 +893,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         scrollView.contentInsetAdjustmentBehavior = .never
         scrollView.keyboardDismissMode = .interactive
         scrollView.delegate = coordinator
+        scrollView.shouldBeginVerticalPan = { panGestureRecognizer, view in
+            let velocity = panGestureRecognizer.velocity(in: view)
+            guard abs(velocity.x) > abs(velocity.y) * 1.05 else { return true }
+            let startLocation = panGestureRecognizer.location(in: view)
+            return !view.hasScrollableHorizontalDescendant(at: startLocation, excluding: view)
+        }
         view.addSubview(scrollView)
 
         contentView.translatesAutoresizingMaskIntoConstraints = false
@@ -962,6 +968,18 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         bottomPaddingView.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
         bottomPaddingHeightConstraint.constant = page.contentBottomPadding
         collapseSpacerHeightConstraint.constant = page.collapseDistance + 1
+    }
+}
+
+private final class VerticalScrollView: UIScrollView {
+    var shouldBeginVerticalPan: ((UIPanGestureRecognizer, UIView) -> Bool)?
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if let panGestureRecognizer = gestureRecognizer as? UIPanGestureRecognizer,
+           panGestureRecognizer === self.panGestureRecognizer {
+            return shouldBeginVerticalPan?(panGestureRecognizer, self) ?? true
+        }
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
 }
 
