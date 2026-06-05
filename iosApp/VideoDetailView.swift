@@ -9,7 +9,7 @@ struct VideoDetailView: View {
     private let tabletLeftMinimumWidth: CGFloat = 620
     private let tabletSidebarMinimumWidth: CGFloat = 360
     private let playerContinuationStripHeight: CGFloat = 56
-    private let commentComposerBottomSlack: CGFloat = 24
+    private let commentComposerBottomSlack: CGFloat = 96
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
     @State private var pagerState = VideoDetailPagerState()
@@ -607,39 +607,30 @@ private extension View {
 
     @ViewBuilder
     func commentComposerFieldChrome() -> some View {
-        if #available(iOS 26.0, *) {
-            contentShape(Capsule())
-                .glassEffect(.regular.interactive(), in: Capsule())
-        } else {
-            background(Color(.secondarySystemBackground), in: Capsule())
-                .overlay {
-                    Capsule()
-                        .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
-                }
-        }
+        background(Color(.secondarySystemBackground), in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
+            }
+            .contentShape(Capsule())
     }
 
-    @ViewBuilder
-    func commentComposerSendButtonChrome(isEnabled: Bool) -> some View {
-        if #available(iOS 26.0, *) {
-            buttonStyle(.plain)
-                .contentShape(Circle())
-                .glassEffect(.regular.interactive(isEnabled), in: Circle())
-        } else {
-            buttonStyle(.plain)
-        }
+    func commentComposerSendButtonChrome(isEnabled _: Bool) -> some View {
+        buttonStyle(.plain)
+            .background(Color(.secondarySystemBackground), in: Circle())
+            .overlay {
+                Circle()
+                    .strokeBorder(Color.secondary.opacity(0.14), lineWidth: 0.5)
+            }
+            .contentShape(Circle())
     }
 
-    @ViewBuilder
     func commentComposerBarChrome() -> some View {
-        if #available(iOS 26.0, *) {
-            background(.clear)
-        } else {
-            background(.bar)
-                .overlay(alignment: .top) {
-                    Divider()
-                }
-        }
+        background(Color(.systemGroupedBackground).opacity(0.96))
+            .overlay(alignment: .top) {
+                Divider()
+                    .opacity(0.35)
+            }
     }
 }
 
@@ -1004,6 +995,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     var onOffsetChange: (VideoPageTab, CGFloat) -> Void
     var onInteractionBegan: (VideoPageTab) -> Void
     var onTopPullDelta: (VideoPageTab, CGFloat) -> Void
+    var onVerticalInteractionBegan: () -> Void = {}
     var visualTopContentOffsetY: CGFloat = 0
     private var lastReportedOffset: CGFloat?
     private var lastTopPullTranslationY: CGFloat = 0
@@ -1031,6 +1023,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
         guard let scrollView = panGestureRecognizer.view as? UIScrollView else { return }
         switch panGestureRecognizer.state {
         case .began:
+            onVerticalInteractionBegan()
             onInteractionBegan(tab)
             lastTopPullTranslationY = 0
         case .changed:
@@ -1064,6 +1057,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentUpdateRevision: Int?
     private var wasSelected = false
     private var topAlignmentGeneration = 0
+    private var pendingTopAlignmentTargetOffsetY: CGFloat?
 
     init(tab: VideoPageTab) {
         coordinator = VideoDetailVerticalScrollPageCoordinator(
@@ -1086,8 +1080,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
-        scrollView.bounces = false
-        scrollView.alwaysBounceVertical = false
+        scrollView.bounces = true
+        scrollView.alwaysBounceVertical = true
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.showsVerticalScrollIndicator = false
@@ -1155,14 +1149,25 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         ])
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        resolvePendingTopAlignmentIfPossible()
+    }
+
     func update(page: VideoDetailTabPage) {
         loadViewIfNeeded()
         coordinator.tab = page.tab
         coordinator.onOffsetChange = page.onOffsetChange
         coordinator.onInteractionBegan = page.onInteractionBegan
         coordinator.onTopPullDelta = page.onTopPullDelta
+        coordinator.onVerticalInteractionBegan = { [weak self] in
+            self?.cancelPendingTopAlignment()
+        }
         let wasPageSelected = wasSelected
         wasSelected = page.isSelected
+        if !page.isSelected {
+            pendingTopAlignmentTargetOffsetY = nil
+        }
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
@@ -1178,7 +1183,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         bottomPaddingHeightConstraint.constant = page.contentBottomPadding
         collapseSpacerHeightConstraint.constant = max(page.collapseDistance - contentTopInset + 1, 1)
         if shouldAlignTopOnActivation {
-            alignToTopAfterActivation(targetOffsetY: contentTopInset)
+            requestTopAlignment(targetOffsetY: contentTopInset)
+        } else if pendingTopAlignmentTargetOffsetY != nil {
+            pendingTopAlignmentTargetOffsetY = contentTopInset
+            resolvePendingTopAlignmentSoon()
         } else if page.isSelected {
             preserveVisualTopIfNeeded(
                 previousOffsetY: previousVisualTopContentOffsetY,
@@ -1191,23 +1199,36 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
     }
 
-    private func alignToTopAfterActivation(targetOffsetY: CGFloat) {
+    private func requestTopAlignment(targetOffsetY: CGFloat) {
         topAlignmentGeneration &+= 1
+        pendingTopAlignmentTargetOffsetY = targetOffsetY
+        resolvePendingTopAlignmentSoon()
+    }
+
+    private func resolvePendingTopAlignmentSoon() {
         let generation = topAlignmentGeneration
-        alignToTopIfIdle(targetOffsetY: targetOffsetY)
+        resolvePendingTopAlignmentIfPossible()
         DispatchQueue.main.async { [weak self] in
             guard let self, self.topAlignmentGeneration == generation else { return }
-            self.alignToTopIfIdle(targetOffsetY: targetOffsetY)
+            self.resolvePendingTopAlignmentIfPossible()
         }
     }
 
-    private func alignToTopIfIdle(targetOffsetY: CGFloat) {
+    private func resolvePendingTopAlignmentIfPossible() {
+        guard let targetOffsetY = pendingTopAlignmentTargetOffsetY else { return }
         guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
-        view.setNeedsLayout()
-        view.layoutIfNeeded()
         let topOffsetY = clampedContentOffsetY(targetOffsetY)
-        guard abs(scrollView.contentOffset.y - topOffsetY) > 0.5 else { return }
-        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: topOffsetY), animated: false)
+        guard abs(topOffsetY - targetOffsetY) <= 0.5 else { return }
+        if abs(scrollView.contentOffset.y - topOffsetY) > 0.5 {
+            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: topOffsetY), animated: false)
+        }
+        if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
+            pendingTopAlignmentTargetOffsetY = nil
+        }
+    }
+
+    private func cancelPendingTopAlignment() {
+        pendingTopAlignmentTargetOffsetY = nil
     }
 
     private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
