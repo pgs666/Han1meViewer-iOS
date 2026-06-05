@@ -454,34 +454,22 @@ struct VideoDetailView: View {
                 } collapseDistance: {
                     collapseDistance
                 },
-                comments: selfScrollingCommentsTabPage(
+                comments: tabPage(
+                    .comments,
                     contentBottomPadding: composerContentClearance,
-                    contentUpdateRevision: commentsContentRevision(
-                        baseRevision: contentRevision.comments,
-                        contentBottomPadding: composerContentClearance,
-                        collapseDistance: collapseDistance
-                    ),
-                    collapseCompensation: tabCollapseCompensation(
-                        for: .comments,
-                        collapseCompensation: collapseCompensation
-                    ),
-                    collapseDistance: collapseDistance
+                    contentUpdateRevision: contentRevision.comments
                 ) {
                     CommentView(
                         viewModel: commentViewModel,
-                        contentBottomPadding: composerContentClearance,
-                        collapseDistance: collapseDistance,
-                        collapseOffset: tabCollapseCompensation(
-                            for: .comments,
-                            collapseCompensation: collapseCompensation
-                        ),
-                        onScrollOffsetChange: { offset in
-                            updateTabOffset(.comments, offset: offset, collapseDistance: collapseDistance)
-                        },
                         onOverlayActivityChanged: { isActive in
                             isCommentInternalOverlayActive = isActive
                         }
                     )
+                    .padding(.top, 16)
+                } collapseCompensation: {
+                    tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
+                } collapseDistance: {
+                    collapseDistance
                 }
             )
             .frame(maxHeight: .infinity)
@@ -551,38 +539,6 @@ struct VideoDetailView: View {
             },
             content: content
         )
-    }
-
-    private func selfScrollingCommentsTabPage<Content: View>(
-        contentBottomPadding: CGFloat,
-        contentUpdateRevision: Int,
-        collapseCompensation: CGFloat,
-        collapseDistance: CGFloat,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> VideoDetailTabPage {
-        VideoDetailTabPage(
-            tab: .comments,
-            contentBottomPadding: contentBottomPadding,
-            collapseCompensation: collapseCompensation,
-            collapseDistance: collapseDistance,
-            contentUpdateRevision: contentUpdateRevision,
-            onOffsetChange: { tab, offset in
-                updateTabOffset(tab, offset: offset, collapseDistance: collapseDistance)
-            },
-            content: content
-        )
-    }
-
-    private func commentsContentRevision(
-        baseRevision: Int,
-        contentBottomPadding: CGFloat,
-        collapseDistance: CGFloat
-    ) -> Int {
-        var hasher = Hasher()
-        hasher.combine(baseRevision)
-        hasher.combine(Int((contentBottomPadding * 100).rounded()))
-        hasher.combine(Int((collapseDistance * 100).rounded()))
-        return hasher.finalize()
     }
 
     private func updateTabOffset(_ tab: VideoPageTab, offset: CGFloat, collapseDistance: CGFloat) {
@@ -1012,58 +968,6 @@ private extension UIScrollView {
     }
 }
 
-private final class VideoDetailHostedTabPageViewController: UIViewController {
-    private let host = UIHostingController(rootView: AnyView(EmptyView()))
-    private var contentUpdateRevision: Int?
-    private weak var commentTableView: VideoDetailCommentTableView?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-
-        addChild(host)
-        host.view.translatesAutoresizingMaskIntoConstraints = false
-        host.view.backgroundColor = .clear
-        view.addSubview(host.view)
-        host.didMove(toParent: self)
-
-        NSLayoutConstraint.activate([
-            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            host.view.topAnchor.constraint(equalTo: view.topAnchor),
-            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        ])
-    }
-
-    func update(page: VideoDetailTabPage) {
-        loadViewIfNeeded()
-        if contentUpdateRevision != page.contentUpdateRevision {
-            contentUpdateRevision = page.contentUpdateRevision
-            host.rootView = page.content()
-        }
-        updateCommentTableCollapseOffset(page.collapseCompensation)
-    }
-
-    private func updateCommentTableCollapseOffset(_ collapseOffset: CGFloat) {
-        let tableView = commentTableView ?? firstCommentTableView(in: host.view)
-        guard let tableView else { return }
-        commentTableView = tableView
-        tableView.playerCollapseOffset = collapseOffset
-    }
-
-    private func firstCommentTableView(in view: UIView) -> VideoDetailCommentTableView? {
-        if let tableView = view as? VideoDetailCommentTableView {
-            return tableView
-        }
-        for subview in view.subviews {
-            if let tableView = firstCommentTableView(in: subview) {
-                return tableView
-            }
-        }
-        return nil
-    }
-}
-
 private struct VideoDetailTabPager: UIViewControllerRepresentable {
     @Binding var selectedTab: VideoPageTab
     let excludedDragStartFrames: [CGRect]
@@ -1167,7 +1071,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private let scrollView = PagingScrollView()
         private let contentView = UIView()
         private let introductionPage = VideoDetailVerticalScrollPageViewController(tab: .introduction)
-        private let commentsPage = VideoDetailHostedTabPageViewController()
+        private let commentsPage = VideoDetailVerticalScrollPageViewController(tab: .comments)
         private var selectedIndex = 0
         private var pendingSelectedIndex: Int?
 

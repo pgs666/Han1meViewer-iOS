@@ -1,93 +1,31 @@
 import SwiftUI
-import UIKit
 import Han1meShared
-
-final class VideoDetailCommentTableView: UITableView {
-    var playerCollapseOffset: CGFloat = 0 {
-        didSet {
-            guard abs(playerCollapseOffset - oldValue) > 0.1 else { return }
-            applyPlayerCollapseCompensation()
-        }
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        applyPlayerCollapseCompensation()
-    }
-
-    func applyPlayerCollapseCompensation() {
-        let transform = CGAffineTransform(translationX: 0, y: max(playerCollapseOffset, 0))
-        visibleCells.forEach { cell in
-            cell.transform = transform
-        }
-    }
-
-    var verticalContentOffsetExcludingBounce: CGFloat {
-        let inset = adjustedContentInset
-        let minOffsetY = -inset.top
-        let maxOffsetY = max(minOffsetY, contentSize.height - bounds.height + inset.bottom)
-        return min(max(contentOffset.y, minOffsetY), maxOffsetY) + inset.top
-    }
-}
 
 struct CommentView: View {
     @ObservedObject private var viewModel: CommentViewModel
     private let onOverlayActivityChanged: (Bool) -> Void
-    private let contentBottomPadding: CGFloat
-    private let collapseDistance: CGFloat
-    private let collapseOffset: CGFloat
-    private let onScrollOffsetChange: (CGFloat) -> Void
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
+    @State private var renderedCommentCount = 24
+    @State private var commentRenderSignature = ""
+    @State private var commentRenderTask: Task<Void, Never>?
 
     init(
         viewModel: CommentViewModel,
-        contentBottomPadding: CGFloat = 24,
-        collapseDistance: CGFloat = 0,
-        collapseOffset: CGFloat = 0,
-        onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in },
         onOverlayActivityChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
-        self.contentBottomPadding = contentBottomPadding
-        self.collapseDistance = collapseDistance
-        self.collapseOffset = collapseOffset
-        self.onScrollOffsetChange = onScrollOffsetChange
         self.onOverlayActivityChanged = onOverlayActivityChanged
     }
 
     var body: some View {
-        CommentTableView(
-            state: viewModel.state,
-            sortMode: viewModel.sortMode,
-            sortedComments: viewModel.sortedComments,
-            runningActionIDs: viewModel.runningActionIDs,
-            contentBottomPadding: contentBottomPadding,
-            collapseDistance: collapseDistance,
-            collapseOffset: collapseOffset,
-            onSortModeChange: { viewModel.changeSortMode($0) },
-            onRefresh: { viewModel.load() },
-            onRetry: { viewModel.load() },
-            onReply: { comment in
-                replyText = "@\(comment.username) "
-                replyTarget = comment
-            },
-            onShowReplies: { comment in
-                repliesTarget = comment
-            },
-            onLike: { comment in
-                viewModel.like(comment: comment, isPositive: true)
-            },
-            onDislike: { comment in
-                viewModel.like(comment: comment, isPositive: false)
-            },
-            onReport: { comment in
-                reportTarget = comment
-            },
-            onScrollOffsetChange: onScrollOffsetChange
-        )
+        VStack(alignment: .leading, spacing: 12) {
+            header
+            content
+        }
+        .padding(.horizontal, 16)
         .task {
             viewModel.loadIfNeeded()
         }
@@ -99,6 +37,8 @@ struct CommentView: View {
         }
         .onDisappear {
             onOverlayActivityChanged(false)
+            commentRenderTask?.cancel()
+            commentRenderTask = nil
         }
         .alert("提示", isPresented: actionMessageBinding) {
             Button("好", role: .cancel) {
@@ -148,6 +88,141 @@ struct CommentView: View {
         }
     }
 
+    private var header: some View {
+        HStack(spacing: 12) {
+            Menu {
+                ForEach(CommentViewModel.SortMode.allCases) { mode in
+                    Button {
+                        viewModel.changeSortMode(mode)
+                    } label: {
+                        if mode == viewModel.sortMode {
+                            Label(mode.title, systemImage: "checkmark")
+                        } else {
+                            Text(mode.title)
+                        }
+                    }
+                }
+            } label: {
+                Label(viewModel.sortMode.title, systemImage: "arrow.up.arrow.down")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            Spacer()
+
+            TapOnlyControl {
+                viewModel.load()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch viewModel.state {
+        case .idle, .loading:
+            HStack {
+                Spacer()
+                ProgressView()
+                Spacer()
+            }
+            .padding(.vertical, 60)
+        case .failed(let message):
+            VStack(spacing: 12) {
+                Image(systemName: "text.bubble")
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
+                Text("评论加载失败")
+                    .font(.headline)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                TapOnlyControl {
+                    viewModel.load()
+                } label: {
+                    Text("重试")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                CloudflareVerifyButton(errorMessage: message)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 60)
+        case .loaded:
+            let comments = viewModel.sortedComments
+            if comments.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("暂无评论")
+                        .font(.headline)
+                    Text("成为第一个评论的人。")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 60)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(comments.prefix(renderedCommentCount))) { comment in
+                        CommentRowView(
+                            comment: comment,
+                            isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)"),
+                            onReply: {
+                                replyText = "@\(comment.username) "
+                                replyTarget = comment
+                            },
+                            onShowReplies: {
+                                repliesTarget = comment
+                            },
+                            onLike: {
+                                viewModel.like(comment: comment, isPositive: true)
+                            },
+                            onDislike: {
+                                viewModel.like(comment: comment, isPositive: false)
+                            },
+                            onReport: {
+                                reportTarget = comment
+                            }
+                        )
+                    }
+
+                    if renderedCommentCount < comments.count {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    } else {
+                        Text("comment.no_more")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .id(viewModel.sortMode.id)
+                .onAppear {
+                    scheduleCommentRendering(for: comments)
+                }
+                .onValueChange(of: commentRenderSignature(for: comments)) { _ in
+                    scheduleCommentRendering(for: comments)
+                }
+            }
+        }
+    }
+
     private var actionMessageBinding: Binding<Bool> {
         Binding(
             get: { viewModel.actionMessage != nil },
@@ -165,301 +240,35 @@ struct CommentView: View {
     private func notifyOverlayActivityChanged() {
         onOverlayActivityChanged(replyTarget != nil || repliesTarget != nil)
     }
-}
 
-private struct CommentTableView: UIViewRepresentable {
-    let state: CommentViewModel.State
-    let sortMode: CommentViewModel.SortMode
-    let sortedComments: [CommentRow]
-    let runningActionIDs: Set<String>
-    let contentBottomPadding: CGFloat
-    let collapseDistance: CGFloat
-    let collapseOffset: CGFloat
-    let onSortModeChange: (CommentViewModel.SortMode) -> Void
-    let onRefresh: () -> Void
-    let onRetry: () -> Void
-    let onReply: (CommentRow) -> Void
-    let onShowReplies: (CommentRow) -> Void
-    let onLike: (CommentRow) -> Void
-    let onDislike: (CommentRow) -> Void
-    let onReport: (CommentRow) -> Void
-    let onScrollOffsetChange: (CGFloat) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
+    private func commentRenderSignature(for comments: [CommentRow]) -> String {
+        [
+            viewModel.sortMode.id,
+            "\(comments.count)",
+            comments.first?.id ?? "",
+            comments.last?.id ?? ""
+        ].joined(separator: "|")
     }
 
-    func makeUIView(context: Context) -> UITableView {
-        let tableView = VideoDetailCommentTableView(frame: .zero, style: .plain)
-        tableView.backgroundColor = .systemGroupedBackground
-        tableView.separatorStyle = .none
-        tableView.showsVerticalScrollIndicator = false
-        tableView.contentInsetAdjustmentBehavior = .never
-        tableView.keyboardDismissMode = .interactive
-        tableView.bounces = true
-        tableView.alwaysBounceVertical = true
-        tableView.estimatedRowHeight = 120
-        tableView.rowHeight = UITableView.automaticDimension
-        tableView.dataSource = context.coordinator
-        tableView.delegate = context.coordinator
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: Coordinator.cellReuseIdentifier)
-        return tableView
-    }
+    private func scheduleCommentRendering(for comments: [CommentRow]) {
+        let signature = commentRenderSignature(for: comments)
+        guard commentRenderSignature != signature else { return }
+        commentRenderSignature = signature
+        commentRenderTask?.cancel()
+        renderedCommentCount = min(24, comments.count)
+        guard renderedCommentCount < comments.count else {
+            commentRenderTask = nil
+            return
+        }
 
-    func updateUIView(_ tableView: UITableView, context: Context) {
-        context.coordinator.parent = self
-        let commentTableView = tableView as? VideoDetailCommentTableView
-        commentTableView?.playerCollapseOffset = collapseOffset
-        tableView.contentInset.bottom = contentBottomPadding + collapseDistance + 1
-        tableView.verticalScrollIndicatorInsets.bottom = contentBottomPadding
-        context.coordinator.reloadIfNeeded(on: tableView, rows: rows, reloadKey: reloadKey)
-        commentTableView?.applyPlayerCollapseCompensation()
-    }
-
-    private var rows: [Row] {
-        var rows: [Row] = [.header]
-        switch state {
-        case .idle, .loading:
-            rows.append(.loading)
-        case .failed(let message):
-            rows.append(.failed(message))
-        case .loaded:
-            if sortedComments.isEmpty {
-                rows.append(.empty)
-            } else {
-                rows.append(contentsOf: sortedComments.map(Row.comment))
-                rows.append(.footer)
+        commentRenderTask = Task { @MainActor in
+            while !Task.isCancelled, renderedCommentCount < comments.count {
+                try? await Task.sleep(nanoseconds: 45_000_000)
+                guard !Task.isCancelled else { return }
+                renderedCommentCount = min(renderedCommentCount + 16, comments.count)
             }
+            commentRenderTask = nil
         }
-        return rows
-    }
-
-    private var reloadKey: [String] {
-        var key = ["sort:\(sortMode.rawValue)", "running:\(runningActionIDs.sorted().joined(separator: ","))"]
-        switch state {
-        case .idle:
-            key.append("state:idle")
-        case .loading:
-            key.append("state:loading")
-        case .failed(let message):
-            key.append("state:failed:\(message)")
-        case .loaded:
-            key.append("state:loaded")
-        }
-        key.append(contentsOf: sortedComments.map { comment in
-            [
-                "id=\(comment.id)",
-                "avatar=\(comment.avatarUrl)",
-                "user=\(comment.username)",
-                "date=\(comment.date)",
-                "content=\(comment.content)",
-                "thumb=\(comment.thumbUp ?? -1)",
-                "child=\(comment.isChildComment)",
-                "more=\(comment.hasMoreReplies)",
-                "replies=\(comment.replyCount ?? -1)",
-                "liked=\(comment.likeCommentStatus)",
-                "disliked=\(comment.unlikeCommentStatus)"
-            ].joined(separator: "|")
-        })
-        return key
-    }
-
-    enum Row {
-        case header
-        case loading
-        case failed(String)
-        case empty
-        case comment(CommentRow)
-        case footer
-    }
-
-    final class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate {
-        static let cellReuseIdentifier = "CommentTableCell"
-
-        var parent: CommentTableView
-        var rows: [Row] = []
-        private var reloadKey: [String] = []
-
-        init(parent: CommentTableView) {
-            self.parent = parent
-        }
-
-        func reloadIfNeeded(on tableView: UITableView, rows: [Row], reloadKey: [String]) {
-            guard self.reloadKey != reloadKey else { return }
-            self.reloadKey = reloadKey
-            self.rows = rows
-            tableView.reloadData()
-        }
-
-        func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-            rows.count
-        }
-
-        func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-            let cell = tableView.dequeueReusableCell(withIdentifier: Self.cellReuseIdentifier, for: indexPath)
-            cell.backgroundColor = .clear
-            cell.selectionStyle = .none
-            cell.contentConfiguration = UIHostingConfiguration {
-                view(for: rows[indexPath.row])
-            }
-            .margins(.all, 0)
-            return cell
-        }
-
-        func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            let offset = (scrollView as? VideoDetailCommentTableView)?.verticalContentOffsetExcludingBounce
-                ?? max(0, scrollView.contentOffset.y)
-            parent.onScrollOffsetChange(offset)
-            (scrollView as? VideoDetailCommentTableView)?.applyPlayerCollapseCompensation()
-        }
-
-        func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            cell.transform = CGAffineTransform(
-                translationX: 0,
-                y: max((tableView as? VideoDetailCommentTableView)?.playerCollapseOffset ?? parent.collapseOffset, 0)
-            )
-        }
-
-        @ViewBuilder
-        private func view(for row: Row) -> some View {
-            switch row {
-            case .header:
-                CommentHeaderView(
-                    sortMode: parent.sortMode,
-                    onSortModeChange: parent.onSortModeChange,
-                    onRefresh: parent.onRefresh
-                )
-                .padding(.top, 16)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-            case .loading:
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .padding(.vertical, 60)
-                .padding(.horizontal, 16)
-            case .failed(let message):
-                CommentFailureView(message: message, onRetry: parent.onRetry)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 60)
-            case .empty:
-                CommentEmptyView()
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 60)
-            case .comment(let comment):
-                CommentRowView(
-                    comment: comment,
-                    isRunningLike: parent.runningActionIDs.contains("like-\(comment.id)"),
-                    onReply: { self.parent.onReply(comment) },
-                    onShowReplies: { self.parent.onShowReplies(comment) },
-                    onLike: { self.parent.onLike(comment) },
-                    onDislike: { self.parent.onDislike(comment) },
-                    onReport: { self.parent.onReport(comment) }
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-            case .footer:
-                Text("comment.no_more")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-            }
-        }
-    }
-}
-
-private struct CommentHeaderView: View {
-    let sortMode: CommentViewModel.SortMode
-    let onSortModeChange: (CommentViewModel.SortMode) -> Void
-    let onRefresh: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Menu {
-                ForEach(CommentViewModel.SortMode.allCases) { mode in
-                    Button {
-                        onSortModeChange(mode)
-                    } label: {
-                        if mode == sortMode {
-                            Label(mode.title, systemImage: "checkmark")
-                        } else {
-                            Text(mode.title)
-                        }
-                    }
-                }
-            } label: {
-                Label(sortMode.title, systemImage: "arrow.up.arrow.down")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
-            Spacer()
-
-            TapOnlyControl {
-                onRefresh()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-        }
-    }
-}
-
-private struct CommentFailureView: View {
-    let message: String
-    let onRetry: () -> Void
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "text.bubble")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text("评论加载失败")
-                .font(.headline)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            TapOnlyControl {
-                onRetry()
-            } label: {
-                Text("重试")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            CloudflareVerifyButton(errorMessage: message)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private struct CommentEmptyView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text("暂无评论")
-                .font(.headline)
-            Text("成为第一个评论的人。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
