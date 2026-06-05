@@ -528,6 +528,16 @@ private struct CommentComposerBar: View {
             .frame(minHeight: Self.compactHeight)
             .frame(maxWidth: .infinity)
             .commentComposerBarChrome()
+            .onValueChange(of: isFieldFocused) { isFocused in
+                guard isFocused else { return }
+                CommentKeyboardTransparency.applySoon()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                CommentKeyboardTransparency.applySoon()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                CommentKeyboardTransparency.applySoon()
+            }
             .onDisappear {
                 isFieldFocused = false
             }
@@ -627,6 +637,47 @@ private extension View {
                     Divider()
                 }
         }
+    }
+}
+
+private enum CommentKeyboardTransparency {
+    @MainActor
+    static func applySoon() {
+        guard #available(iOS 26.0, *) else { return }
+        apply()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            apply()
+        }
+    }
+
+    @MainActor
+    private static func apply() {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .filter { isKeyboardWindow($0) }
+            .forEach { window in
+                clearKeyboardChrome(in: window, depth: 0)
+            }
+    }
+
+    private static func isKeyboardWindow(_ window: UIWindow) -> Bool {
+        let className = NSStringFromClass(type(of: window))
+        return className.contains("UIRemoteKeyboardWindow")
+            || className.contains("UITextEffectsWindow")
+    }
+
+    private static func clearKeyboardChrome(in view: UIView, depth: Int) {
+        let className = NSStringFromClass(type(of: view))
+        if depth <= 2
+            || className.contains("InputSet")
+            || className.contains("Keyboard")
+            || className.contains("TextEffects") {
+            view.backgroundColor = .clear
+            view.isOpaque = false
+        }
+        view.subviews.forEach { clearKeyboardChrome(in: $0, depth: depth + 1) }
     }
 }
 
@@ -1097,10 +1148,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             host.rootView = page.content()
         }
 
-        let contentTopInset = min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
+        let contentTopInset = effectiveContentTopInset(for: page)
         hostTopConstraint.constant = contentTopInset
         bottomPaddingHeightConstraint.constant = page.contentBottomPadding
         collapseSpacerHeightConstraint.constant = max(page.collapseDistance - contentTopInset + 1, 1)
+    }
+
+    private func effectiveContentTopInset(for page: VideoDetailTabPage) -> CGFloat {
+        let desiredInset = min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
+        let currentOffset = max(scrollView.verticalContentOffsetExcludingBounce, 0)
+        return min(desiredInset, currentOffset)
     }
 }
 
