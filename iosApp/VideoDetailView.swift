@@ -13,8 +13,9 @@ struct VideoDetailView: View {
     @StateObject private var commentViewModel: CommentViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
-    @State private var isPlayerCollapsed = false
+    @State private var isPlayerPlaying = false
     @State private var horizontalPagerExclusionFrames: [CGRect] = []
+    @State private var playerPlayRequestToken = 0
     /// Global collapse offset for the inline player, decoupled from any
     /// single tab's ScrollView offset. If one tab has already collapsed the
     /// player, switching to another tab must not snap it back open just
@@ -261,10 +262,10 @@ struct VideoDetailView: View {
                             panelWidth: leftWidth,
                             parentHeight: proxy.size.height
                         )
-                        let currentPlayerScrollAway = playerVisualShrink(panelWidth: leftWidth)
-                        let currentBottomScrollOffset = isPlayerCollapsed
-                            ? currentPlayerHeight
-                            : max(currentPlayerHeight - currentPlayerScrollAway, 0)
+                        let currentPlayerScrollAway = isPlayerPlaying
+                            ? 0
+                            : playerVisualShrink(panelWidth: leftWidth)
+                        let currentBottomScrollOffset = max(currentPlayerHeight - currentPlayerScrollAway, 0)
                         let currentBottomScrollHeight = proxy.size.height - currentBottomScrollOffset
                         let currentContinuationProgress = continuationStripProgress(
                             scrollAway: currentPlayerScrollAway,
@@ -283,8 +284,8 @@ struct VideoDetailView: View {
                             belowPlayerScroll(
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
-                                collapseDistance: isPlayerCollapsed ? 0 : currentPlayerCollapseDistance,
-                                collapseCompensation: isPlayerCollapsed ? 0 : currentPlayerScrollAway,
+                                collapseDistance: currentPlayerCollapseDistance,
+                                collapseCompensation: currentPlayerScrollAway,
                                 composerContentClearance: commentComposerContentClearance(
                                     safeAreaBottom: proxy.safeAreaInsets.bottom
                                 )
@@ -294,7 +295,6 @@ struct VideoDetailView: View {
                         }
 
                         if !isPlayerFullscreen,
-                           !isPlayerCollapsed,
                            currentContinuationProgress > 0 {
                             continuePlayingStrip(snapshot: snapshot, progress: currentContinuationProgress)
                                 .frame(width: leftWidth, height: playerContinuationStripHeight)
@@ -337,11 +337,9 @@ struct VideoDetailView: View {
 
     /// Player 高度：
     /// - 全屏：撑满整个父容器
-    /// - 手动折叠：50pt 标题 strip
     /// - inline：固定为左 panel 宽度的 16:9，不随底部内容滚动缩小
     private func playerHeight(panelWidth: CGFloat, parentHeight: CGFloat) -> CGFloat {
         if isPlayerFullscreen { return parentHeight }
-        if isPlayerCollapsed { return 50 }
         return panelWidth * 9 / 16
     }
 
@@ -364,19 +362,18 @@ struct VideoDetailView: View {
         return KSPlayerView(
             snapshot: snapshot,
             isFullscreen: $isPlayerFullscreen,
-            isCollapsed: $isPlayerCollapsed,
             onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
             onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) },
-            onBack: { dismiss() },
-            isShrunken: false,
-            onRequestExpand: {
-                // Reveal the full player when an older collapse state asks
-                // for expansion. The player itself no longer shrinks; the
-                // lower detail panel scrolls over it instead.
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    bottomScrollOffset = 0
+            onPlayingChanged: { newValue in
+                if isPlayerPlaying != newValue {
+                    isPlayerPlaying = newValue
+                    if newValue {
+                        bottomScrollOffset = 0
+                    }
                 }
             },
+            onBack: { dismiss() },
+            playRequestToken: playerPlayRequestToken,
             onNaturalSize: { size in
                 videoNaturalSize = size
             }
@@ -388,6 +385,7 @@ struct VideoDetailView: View {
             withAnimation(.easeInOut(duration: 0.25)) {
                 bottomScrollOffset = 0
             }
+            playerPlayRequestToken &+= 1
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "play.circle.fill")
@@ -501,6 +499,10 @@ struct VideoDetailView: View {
         previousActiveTabOffset: CGFloat?,
         collapseDistance: CGFloat
     ) {
+        guard !isPlayerPlaying else {
+            bottomScrollOffset = 0
+            return
+        }
         bottomScrollOffset = VideoPlayerCollapseModel.nextCollapseOffset(
             currentCollapseOffset: bottomScrollOffset,
             activeTabOffset: activeTabOffset,
