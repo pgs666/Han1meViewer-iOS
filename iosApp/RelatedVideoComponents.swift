@@ -315,9 +315,9 @@ struct RelatedVideoCard: View {
 
             Text(video.title)
                 .lineLimit(2)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40, alignment: .topLeading)
 
             if showsMetadataFooter {
                 HStack(spacing: 6) {
@@ -330,6 +330,7 @@ struct RelatedVideoCard: View {
                             .layoutPriority(1)
                     }
                 }
+                .frame(height: 16)
             }
         }
         .frame(width: width, alignment: .leading)

@@ -14,7 +14,6 @@ struct VideoDetailView: View {
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
     @State private var isPlayerPlaying = false
-    @State private var horizontalPagerExclusionFrames: [CGRect] = []
     @State private var playerPlayRequestToken = 0
     /// Global collapse offset for the inline player, decoupled from any
     /// single tab's ScrollView offset. If one tab has already collapsed the
@@ -63,9 +62,6 @@ struct VideoDetailView: View {
                 rootCommentComposer(layoutSize: proxy.size)
             }
             .animation(.easeInOut(duration: 0.2), value: shouldShowRootCommentComposer)
-            .onPreferenceChange(HorizontalPagerExclusionFramePreferenceKey.self) { frames in
-                horizontalPagerExclusionFrames = frames
-            }
             .onPreferenceChange(CommentComposerHeightPreferenceKey.self) { height in
                 guard height > 0, abs(commentComposerHeight - height) > 0.5 else { return }
                 commentComposerHeight = height
@@ -208,7 +204,6 @@ struct VideoDetailView: View {
             )
             .frame(width: leftPanelWidth(for: layoutSize))
             .reportCommentComposerHeight()
-            .horizontalPagerExclusionArea()
             .frame(maxWidth: .infinity, alignment: .leading)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(1)
@@ -265,6 +260,9 @@ struct VideoDetailView: View {
                         let currentPlayerScrollAway = isPlayerPlaying
                             ? 0
                             : playerVisualShrink(panelWidth: leftWidth)
+                        let currentCollapseDistance = isPlayerPlaying
+                            ? 0
+                            : currentPlayerCollapseDistance
                         let currentBottomScrollOffset = max(currentPlayerHeight - currentPlayerScrollAway, 0)
                         let currentBottomScrollHeight = proxy.size.height - currentBottomScrollOffset
                         let currentContinuationProgress = continuationStripProgress(
@@ -284,7 +282,7 @@ struct VideoDetailView: View {
                             belowPlayerScroll(
                                 snapshot: snapshot,
                                 showsRelated: !isWide,
-                                collapseDistance: currentPlayerCollapseDistance,
+                                collapseDistance: currentCollapseDistance,
                                 collapseCompensation: currentPlayerScrollAway,
                                 composerContentClearance: commentComposerContentClearance(
                                     safeAreaBottom: proxy.safeAreaInsets.bottom
@@ -367,7 +365,7 @@ struct VideoDetailView: View {
             onPlayingChanged: { newValue in
                 if isPlayerPlaying != newValue {
                     isPlayerPlaying = newValue
-                    if newValue {
+                    if newValue, abs(bottomScrollOffset) > 0.5 {
                         bottomScrollOffset = 0
                     }
                 }
@@ -431,7 +429,6 @@ struct VideoDetailView: View {
 
             VideoDetailTabPager(
                 selectedTab: $selectedTab,
-                excludedDragStartFrames: horizontalPagerExclusionFrames,
                 introduction: tabPage(
                     .introduction,
                     contentUpdateRevision: contentRevision.introduction
@@ -488,16 +485,24 @@ struct VideoDetailView: View {
         collapseDistance: CGFloat
     ) {
         guard !isPlayerPlaying else {
-            bottomScrollOffset = 0
+            if abs(bottomScrollOffset) > 0.5 {
+                withTransaction(Transaction(animation: nil)) {
+                    bottomScrollOffset = 0
+                }
+            }
             return
         }
-        bottomScrollOffset = VideoPlayerCollapseModel.nextCollapseOffset(
+        let nextOffset = VideoPlayerCollapseModel.nextCollapseOffset(
             currentCollapseOffset: bottomScrollOffset,
             activeTabOffset: activeTabOffset,
             previousActiveTabOffset: previousActiveTabOffset,
             collapseDistance: collapseDistance,
             switchedTabsRecently: Date().timeIntervalSince(lastSelectedTabChangeAt) < 0.35
         )
+        guard abs(bottomScrollOffset - nextOffset) > 0.5 else { return }
+        withTransaction(Transaction(animation: nil)) {
+            bottomScrollOffset = nextOffset
+        }
     }
 
     private func submitComment() {
@@ -543,13 +548,15 @@ struct VideoDetailView: View {
 
     private func updateTabOffset(_ tab: VideoPageTab, offset: CGFloat, collapseDistance: CGFloat) {
         let previousActiveOffset = bottomScrollOffsetsByTab[selectedTab]
-        bottomScrollOffsetsByTab[tab] = offset
-        guard tab == selectedTab else { return }
-        updatePlayerCollapseOffset(
-            activeTabOffset: offset,
-            previousActiveTabOffset: previousActiveOffset,
-            collapseDistance: collapseDistance
-        )
+        withTransaction(Transaction(animation: nil)) {
+            bottomScrollOffsetsByTab[tab] = offset
+            guard tab == selectedTab else { return }
+            updatePlayerCollapseOffset(
+                activeTabOffset: offset,
+                previousActiveTabOffset: previousActiveOffset,
+                collapseDistance: collapseDistance
+            )
+        }
     }
 
     private func tabCollapseCompensation(for tab: VideoPageTab, collapseCompensation: CGFloat) -> CGFloat {
@@ -820,6 +827,7 @@ private struct VideoDetailTabPage {
 private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScrollViewDelegate {
     var tab: VideoPageTab
     var onOffsetChange: (VideoPageTab, CGFloat) -> Void
+    private var lastReportedOffset: CGFloat?
 
     init(tab: VideoPageTab, onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void) {
         self.tab = tab
@@ -827,7 +835,10 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        onOffsetChange(tab, scrollView.verticalContentOffsetExcludingBounce)
+        let offset = scrollView.verticalContentOffsetExcludingBounce
+        guard lastReportedOffset.map({ abs($0 - offset) > 0.5 }) ?? true else { return }
+        lastReportedOffset = offset
+        onOffsetChange(tab, offset)
     }
 }
 
@@ -860,8 +871,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
-        scrollView.bounces = true
-        scrollView.alwaysBounceVertical = true
+        scrollView.bounces = false
+        scrollView.alwaysBounceVertical = false
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.showsVerticalScrollIndicator = false
@@ -970,18 +981,15 @@ private extension UIScrollView {
 
 private struct VideoDetailTabPager: UIViewControllerRepresentable {
     @Binding var selectedTab: VideoPageTab
-    let excludedDragStartFrames: [CGRect]
     let introduction: VideoDetailTabPage
     let comments: VideoDetailTabPage
 
     init(
         selectedTab: Binding<VideoPageTab>,
-        excludedDragStartFrames: [CGRect],
         introduction: VideoDetailTabPage,
         comments: VideoDetailTabPage
     ) {
         _selectedTab = selectedTab
-        self.excludedDragStartFrames = excludedDragStartFrames
         self.introduction = introduction
         self.comments = comments
     }
@@ -996,7 +1004,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: PagingViewController, context: Context) {
         context.coordinator.selectedTab = $selectedTab
-        context.coordinator.excludedDragStartFrames = excludedDragStartFrames
         uiViewController.updatePages(
             introduction: introduction,
             comments: comments,
@@ -1007,7 +1014,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
         var selectedTab: Binding<VideoPageTab>
-        var excludedDragStartFrames: [CGRect] = []
         private var lastProgrammaticIndex: Int?
 
         init(selectedTab: Binding<VideoPageTab>) {
@@ -1041,10 +1047,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let startLocation = panGestureRecognizer.location(in: view)
             guard startLocation.x > 24 else { return false }
             guard !view.hasScrollableHorizontalDescendant(at: startLocation, excluding: view) else {
-                return false
-            }
-            let globalStartLocation = view.convert(startLocation, to: nil)
-            guard !excludedDragStartFrames.contains(where: { $0.contains(globalStartLocation) }) else {
                 return false
             }
 
@@ -1200,44 +1202,19 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
 private extension UIView {
     func hasScrollableHorizontalDescendant(at location: CGPoint, excluding excludedView: UIView) -> Bool {
-        for subview in subviews.reversed() where subview !== excludedView && !subview.isHidden && subview.alpha > 0.01 {
-            let localLocation = subview.convert(location, from: self)
-            guard subview.point(inside: localLocation, with: nil) else { continue }
-            if let scrollView = subview as? UIScrollView,
+        guard let hitView = hitTest(location, with: nil) else { return false }
+        var current: UIView? = hitView
+        while let view = current, view !== excludedView {
+            if let scrollView = view as? UIScrollView,
                scrollView.isScrollEnabled,
                scrollView.panGestureRecognizer.isEnabled,
-               scrollView.contentSize.width > scrollView.bounds.width + 1 {
+               scrollView.contentSize.width > scrollView.bounds.width + 1,
+               scrollView.contentSize.width > scrollView.contentSize.height {
                 return true
             }
-            if subview.hasScrollableHorizontalDescendant(at: localLocation, excluding: excludedView) {
-                return true
-            }
+            current = view.superview
         }
         return false
-    }
-}
-
-private struct HorizontalPagerExclusionFramePreferenceKey: PreferenceKey {
-    static var defaultValue: [CGRect] = []
-    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
-        value.append(contentsOf: nextValue())
-    }
-}
-
-private struct HorizontalPagerExclusionFrameReader: View {
-    var body: some View {
-        GeometryReader { proxy in
-            Color.clear.preference(
-                key: HorizontalPagerExclusionFramePreferenceKey.self,
-                value: [proxy.frame(in: .global)]
-            )
-        }
-    }
-}
-
-extension View {
-    func horizontalPagerExclusionArea() -> some View {
-        background(HorizontalPagerExclusionFrameReader())
     }
 }
 
@@ -1382,9 +1359,6 @@ private struct AndroidStyleIntroduction: View {
                     showPlaying: true,
                     showsMetadataFooter: false
                 )
-                // Temporarily disabled for scroll-jank CI probe: this section
-                // lives inside the vertical ScrollView, so its global frame
-                // preference changes on every scroll tick.
             }
 
             if showsRelated && !snapshot.relatedVideos.isEmpty {
