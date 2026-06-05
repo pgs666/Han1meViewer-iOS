@@ -201,11 +201,12 @@ private struct CommentTableView: UIViewRepresentable {
 
     func updateUIView(_ tableView: UITableView, context: Context) {
         context.coordinator.parent = self
-        tableView.playerCollapseOffset = collapseOffset
+        let commentTableView = tableView as? VideoDetailCommentTableView
+        commentTableView?.playerCollapseOffset = collapseOffset
         tableView.contentInset.bottom = contentBottomPadding + collapseDistance + 1
         tableView.verticalScrollIndicatorInsets.bottom = contentBottomPadding
         context.coordinator.reloadIfNeeded(on: tableView, rows: rows, reloadKey: reloadKey)
-        tableView.applyPlayerCollapseCompensation()
+        commentTableView?.applyPlayerCollapseCompensation()
     }
 
     private var rows: [Row] {
