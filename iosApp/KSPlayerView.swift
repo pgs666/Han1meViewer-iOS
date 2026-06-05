@@ -71,6 +71,8 @@ struct KSPlayerView: View {
     /// Whether `onNaturalSize` has been fired already. We only want to
     /// notify the parent once — the natural size won't change mid-playback.
     @State private var naturalSizeReported = false
+    @State private var lastProgressReportSeconds: TimeInterval?
+    @State private var lastProgressReportAt = Date.distantPast
     /// User-picked playback source (quality). Nil = use the snapshot's
     /// default-marked source via primarySource(). Wired up from the
     /// quality menu in bottomBar; switching value re-evaluates `body` and
@@ -260,7 +262,7 @@ struct KSPlayerView: View {
                         // user rewind to 0 (or below ~2s) silently failed to
                         // persist, so the saved resume position kept its
                         // previous value across re-entry.
-                        onProgress(current)
+                        reportPlaybackProgress(current)
                     }
                     .onFinish { _, _ in
                         setPlayingState(false)
@@ -449,6 +451,8 @@ struct KSPlayerView: View {
             lastLoadedEnd = 0
             lastSampleAt = nil
             currentSpeedText = nil
+            lastProgressReportSeconds = nil
+            lastProgressReportAt = Date.distantPast
             // Bind the status observer eagerly if a layer already exists
             // (re-appear after navigation pop); fresh mounts will pick
             // it up via the onStateChanged callback once the layer is
@@ -869,7 +873,7 @@ struct KSPlayerView: View {
         Menu {
             ForEach(snapshot.playbackSources) { source in
                 Button {
-                    selectedSourceID = source.id
+                    selectPlaybackSource(id: source.id)
                 } label: {
                     HStack {
                         Text(source.label)
@@ -1022,6 +1026,48 @@ struct KSPlayerView: View {
             return picked
         }
         return primarySource()
+    }
+
+    private func reportPlaybackProgress(_ current: TimeInterval) {
+        let now = Date()
+        let shouldReportImmediately = current <= 2
+            && (lastProgressReportSeconds.map { abs(current - $0) >= 0.5 } ?? true)
+        let movedEnough = lastProgressReportSeconds.map { abs(current - $0) >= 5 } ?? true
+        let waitedEnough = now.timeIntervalSince(lastProgressReportAt) >= 5
+        guard shouldReportImmediately || movedEnough || waitedEnough else { return }
+
+        lastProgressReportSeconds = current
+        lastProgressReportAt = now
+        onProgress(current)
+    }
+
+    private func selectPlaybackSource(id: String) {
+        guard activeSource?.id != id else { return }
+        selectedSourceID = id
+        resetPlaybackSessionForSourceChange()
+    }
+
+    private func resetPlaybackSessionForSourceChange() {
+        hideControlsTask?.cancel()
+        speedSampleTask?.cancel()
+        speedSampleTask = nil
+        currentSpeedText = nil
+        statusObserver.observe(nil)
+        hasReachedStartPlayTime = false
+        hasAppliedResumeSeek = false
+        naturalSizeReported = false
+        autoPlayApplied = false
+        stateLogBudget = 8
+        lastLoadedEnd = 0
+        lastSampleAt = nil
+        lastProgressReportSeconds = nil
+        lastProgressReportAt = Date.distantPast
+        sliderValue = 0
+        isSliderEditing = false
+        resetSwipeHUDState()
+        coordinator.playerLayer?.pause()
+        setPlayingState(false)
+        scheduleAutoHide()
     }
 
     /// Unified down/move handler. Called from `DragGesture(minimumDistance: 0)`

@@ -11,23 +11,14 @@ struct VideoDetailView: View {
     private let playerContinuationStripHeight: CGFloat = 56
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
-    @State private var selectedTab = VideoPageTab.introduction
+    @State private var pagerState = VideoDetailPagerState()
     @State private var isPlayerFullscreen = false
-    @State private var isPlayerPlaying = false
     @State private var playerPlayRequestToken = 0
-    /// Global collapse offset for the inline player, decoupled from any
-    /// single tab's ScrollView offset. If one tab has already collapsed the
-    /// player, switching to another tab must not snap it back open just
-    /// because that tab's own content is still at the top.
-    @State private var bottomScrollOffset: CGFloat = 0
-    /// Each tab owns an independent vertical ScrollView below the player, so
-    /// switching between intro / comments preserves their separate scroll
-    /// positions instead of sharing one outer ScrollView offset.
-    @State private var bottomScrollOffsetsByTab: [VideoPageTab: CGFloat] = [:]
     @State private var commentComposeText = ""
     @State private var isCommentInternalOverlayActive = false
     @State private var commentComposerHeight: CGFloat = CommentComposerBar.compactHeight
     @State private var fullscreenOrientationTask: Task<Void, Never>?
+    @State private var isFullscreenOrientationLocked = false
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -96,8 +87,9 @@ struct VideoDetailView: View {
                 fullscreenOrientationTask = nil
                 // KSPlayer pauses itself in its own .onDisappear; the
                 // detail VM no longer owns a player.
-                if isPlayerFullscreen {
+                if isPlayerFullscreen || isFullscreenOrientationLocked {
                     AppOrientationController.shared.unlockAfterFullscreen()
+                    isFullscreenOrientationLocked = false
                 }
             }
             // Apple-Music-style centred HUD for action results
@@ -161,8 +153,12 @@ struct VideoDetailView: View {
     /// 2. The user has the "force portrait fullscreen for vertical
     ///    videos" preference enabled (default ON).
     private var fullscreenOrientation: VideoFullscreenOrientation {
+        fullscreenOrientation(forNaturalSize: videoNaturalSize)
+    }
+
+    private func fullscreenOrientation(forNaturalSize naturalSize: CGSize?) -> VideoFullscreenOrientation {
         let isPortraitVideo: Bool = {
-            guard let size = videoNaturalSize else { return false }
+            guard let size = naturalSize else { return false }
             return size.height > size.width
         }()
         if isPortraitVideo && forcePortraitForVerticalVideos {
@@ -176,7 +172,7 @@ struct VideoDetailView: View {
     }
 
     private var shouldShowRootCommentComposer: Bool {
-        guard !isPlayerFullscreen, selectedTab == .comments else { return false }
+        guard !isPlayerFullscreen, pagerState.selectedTab == .comments else { return false }
         guard !isCommentInternalOverlayActive else { return false }
         guard isCommentComposerReady else { return false }
         if case .loaded = viewModel.state {
@@ -248,26 +244,18 @@ struct VideoDetailView: View {
             GeometryReader { proxy in
                 let isWide = usesTabletRelatedSidebar(for: proxy.size)
                 let leftWidth = leftPanelWidth(for: proxy.size)
+                let inlineHeight = inlinePlayerHeight(panelWidth: leftWidth)
+                let pagerMetrics = pagerState.layoutMetrics(
+                    inlinePlayerHeight: inlineHeight,
+                    containerHeight: proxy.size.height,
+                    rawCollapseDistance: playerCollapseDistance(panelWidth: leftWidth)
+                )
 
                 HStack(alignment: .top, spacing: 0) {
                     ZStack(alignment: .top) {
-                        let currentPlayerCollapseDistance = playerCollapseDistance(panelWidth: leftWidth)
-                        let currentInlinePlayerHeight = inlinePlayerHeight(panelWidth: leftWidth)
                         let currentPlayerHeight = playerHeight(
                             panelWidth: leftWidth,
                             parentHeight: proxy.size.height
-                        )
-                        let currentPlayerScrollAway = isPlayerPlaying
-                            ? 0
-                            : playerVisualShrink(panelWidth: leftWidth)
-                        let currentCollapseDistance = isPlayerPlaying
-                            ? 0
-                            : currentPlayerCollapseDistance
-                        let currentBottomScrollOffset = max(currentInlinePlayerHeight - currentPlayerScrollAway, 0)
-                        let currentBottomScrollHeight = proxy.size.height - currentBottomScrollOffset
-                        let currentContinuationProgress = continuationStripProgress(
-                            scrollAway: currentPlayerScrollAway,
-                            panelWidth: leftWidth
                         )
                         playerArea(snapshot: snapshot)
                             .frame(
@@ -283,20 +271,21 @@ struct VideoDetailView: View {
                         belowPlayerScroll(
                             snapshot: snapshot,
                             showsRelated: !isWide,
-                            collapseDistance: currentCollapseDistance,
-                            collapseCompensation: currentPlayerScrollAway,
+                            collapseDistance: pagerMetrics.collapseDistance,
+                            playerScrollAway: pagerMetrics.playerScrollAway,
+                            introductionContentClearance: introductionContentClearance(),
                             composerContentClearance: commentComposerContentClearance(
                                 safeAreaBottom: proxy.safeAreaInsets.bottom
                             )
                         )
-                        .frame(height: max(0, currentBottomScrollHeight))
-                        .offset(y: currentBottomScrollOffset)
+                        .frame(height: pagerMetrics.belowPlayerHeight)
+                        .offset(y: pagerMetrics.belowPlayerTopOffset)
                         .opacity(isPlayerFullscreen ? 0 : 1)
                         .allowsHitTesting(!isPlayerFullscreen)
 
                         if !isPlayerFullscreen,
-                           currentContinuationProgress > 0 {
-                            continuePlayingStrip(snapshot: snapshot, progress: currentContinuationProgress)
+                           pagerMetrics.continuationProgress > 0 {
+                            continuePlayingStrip(snapshot: snapshot, progress: pagerMetrics.continuationProgress)
                                 .frame(width: leftWidth, height: playerContinuationStripHeight)
                         }
                     }
@@ -351,17 +340,6 @@ struct VideoDetailView: View {
         max(panelWidth * 9 / 16 - playerContinuationStripHeight, 1)
     }
 
-    private func playerVisualShrink(panelWidth: CGFloat) -> CGFloat {
-        min(max(bottomScrollOffset, 0), playerCollapseDistance(panelWidth: panelWidth))
-    }
-
-    private func continuationStripProgress(scrollAway: CGFloat, panelWidth: CGFloat) -> CGFloat {
-        let collapseDistance = playerCollapseDistance(panelWidth: panelWidth)
-        let fadeDistance: CGFloat = 72
-        guard collapseDistance > 1 else { return 0 }
-        return min(max((scrollAway - (collapseDistance - fadeDistance)) / fadeDistance, 0), 1)
-    }
-
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
         return KSPlayerView(
             snapshot: snapshot,
@@ -369,17 +347,20 @@ struct VideoDetailView: View {
             onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
             onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) },
             onPlayingChanged: { newValue in
-                if isPlayerPlaying != newValue {
-                    isPlayerPlaying = newValue
-                    if newValue, abs(bottomScrollOffset) > 0.5 {
-                        bottomScrollOffset = 0
-                    }
+                guard pagerState.isPlayerPlaying != newValue else { return }
+                withTransaction(Transaction(animation: nil)) {
+                    pagerState.setPlayerPlaying(newValue)
                 }
             },
             onBack: { dismiss() },
             playRequestToken: playerPlayRequestToken,
             onNaturalSize: { size in
+                let orientation = fullscreenOrientation(forNaturalSize: size)
                 videoNaturalSize = size
+                if isPlayerFullscreen {
+                    AppOrientationController.shared.lockForFullscreen(to: orientation)
+                    isFullscreenOrientationLocked = true
+                }
             }
         )
     }
@@ -387,7 +368,7 @@ struct VideoDetailView: View {
     private func continuePlayingStrip(snapshot: VideoDetailScreenSnapshot, progress: CGFloat) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.25)) {
-                bottomScrollOffset = 0
+                pagerState.expandPlayer()
             }
             playerPlayRequestToken &+= 1
         } label: {
@@ -417,98 +398,45 @@ struct VideoDetailView: View {
         snapshot: VideoDetailScreenSnapshot,
         showsRelated: Bool,
         collapseDistance: CGFloat,
-        collapseCompensation: CGFloat,
+        playerScrollAway: CGFloat,
+        introductionContentClearance: CGFloat,
         composerContentClearance: CGFloat
     ) -> some View {
         let contentRevision = tabContentRevision(snapshot: snapshot, showsRelated: showsRelated)
 
-        return VStack(spacing: 0) {
-            Picker("Content", selection: $selectedTab) {
-                ForEach(VideoPageTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
-                }
+        return VideoDetailPagerContainer(
+            state: $pagerState,
+            collapseDistance: collapseDistance,
+            playerScrollAway: playerScrollAway,
+            introductionContentBottomPadding: introductionContentClearance,
+            commentsContentBottomPadding: composerContentClearance,
+            introductionContentRevision: contentRevision.introduction,
+            commentsContentRevision: contentRevision.comments,
+            introduction: {
+                AndroidStyleIntroduction(
+                    snapshot: snapshot,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature,
+                    isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                    onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                    onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                    onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                    onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                    onShowMessage: { viewModel.showActionMessage($0) },
+                    showsRelated: showsRelated
+                )
+                .padding(.top, 16)
+            },
+            comments: {
+                CommentView(
+                    viewModel: commentViewModel,
+                    onOverlayActivityChanged: { isActive in
+                        isCommentInternalOverlayActive = isActive
+                    }
+                )
+                .padding(.top, 16)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.background)
-
-            VideoDetailTabPager(
-                selectedTab: $selectedTab,
-                introduction: tabPage(
-                    .introduction,
-                    contentUpdateRevision: contentRevision.introduction
-                ) {
-                    AndroidStyleIntroduction(
-                        snapshot: snapshot,
-                        videoFeature: videoFeature,
-                        commentFeature: commentFeature,
-                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                        onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                        onShowMessage: { viewModel.showActionMessage($0) },
-                        showsRelated: showsRelated
-                    )
-                    .padding(.top, 16)
-                } collapseCompensation: {
-                    tabCollapseCompensation(for: .introduction, collapseCompensation: collapseCompensation)
-                } collapseDistance: {
-                    collapseDistance
-                },
-                comments: tabPage(
-                    .comments,
-                    contentBottomPadding: composerContentClearance,
-                    contentUpdateRevision: contentRevision.comments
-                ) {
-                    CommentView(
-                        viewModel: commentViewModel,
-                        onOverlayActivityChanged: { isActive in
-                            isCommentInternalOverlayActive = isActive
-                        }
-                    )
-                    .padding(.top, 16)
-                } collapseCompensation: {
-                    tabCollapseCompensation(for: .comments, collapseCompensation: collapseCompensation)
-                } collapseDistance: {
-                    collapseDistance
-                }
-            )
-            .frame(maxHeight: .infinity)
-        }
-        .frame(maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
-        .onValueChange(of: selectedTab) { _ in
-            withTransaction(Transaction(animation: nil)) {
-                bottomScrollOffset = min(max(bottomScrollOffset, 0), collapseDistance)
-            }
-        }
-    }
-
-    private func updatePlayerCollapseOffset(
-        activeTabOffset: CGFloat,
-        previousActiveTabOffset: CGFloat?,
-        collapseDistance: CGFloat
-    ) {
-        guard !isPlayerPlaying else {
-            if abs(bottomScrollOffset) > 0.5 {
-                withTransaction(Transaction(animation: nil)) {
-                    bottomScrollOffset = 0
-                }
-            }
-            return
-        }
-        let nextOffset = VideoPlayerCollapseModel.nextCollapseOffset(
-            currentCollapseOffset: bottomScrollOffset,
-            activeTabOffset: activeTabOffset,
-            previousActiveTabOffset: previousActiveTabOffset,
-            collapseDistance: collapseDistance
         )
-        guard abs(bottomScrollOffset - nextOffset) > 0.5 else { return }
-        withTransaction(Transaction(animation: nil)) {
-            bottomScrollOffset = nextOffset
-        }
     }
 
     private func submitComment() {
@@ -525,69 +453,11 @@ struct VideoDetailView: View {
             guard !Task.isCancelled, isPlayerFullscreen == isFullscreen else { return }
             if isFullscreen {
                 AppOrientationController.shared.lockForFullscreen(to: fullscreenOrientation)
-            } else {
+                isFullscreenOrientationLocked = true
+            } else if isFullscreenOrientationLocked {
                 AppOrientationController.shared.unlockAfterFullscreen()
+                isFullscreenOrientationLocked = false
             }
-        }
-    }
-
-    private func tabPage<Content: View>(
-        _ tab: VideoPageTab,
-        contentBottomPadding: CGFloat = 24,
-        contentUpdateRevision: Int,
-        @ViewBuilder content: @escaping () -> Content,
-        collapseCompensation: @escaping () -> CGFloat = { 0 },
-        collapseDistance: @escaping () -> CGFloat = { 0 }
-    ) -> VideoDetailTabPage {
-        VideoDetailTabPage(
-            tab: tab,
-            contentBottomPadding: contentBottomPadding,
-            collapseCompensation: collapseCompensation(),
-            collapseDistance: collapseDistance(),
-            contentUpdateRevision: contentUpdateRevision,
-            onOffsetChange: { tab, offset in
-                updateTabOffset(tab, offset: offset, collapseDistance: collapseDistance())
-            },
-            onInteractionBegan: { tab in
-                updateInteractingTab(tab)
-            },
-            onTopPullDelta: { tab, delta in
-                updateTabTopPull(tab, delta: delta, collapseDistance: collapseDistance())
-            },
-            content: content
-        )
-    }
-
-    private func updateTabOffset(_ tab: VideoPageTab, offset: CGFloat, collapseDistance: CGFloat) {
-        let previousActiveOffset = bottomScrollOffsetsByTab[selectedTab]
-        withTransaction(Transaction(animation: nil)) {
-            bottomScrollOffsetsByTab[tab] = offset
-            guard tab == selectedTab else { return }
-            updatePlayerCollapseOffset(
-                activeTabOffset: offset,
-                previousActiveTabOffset: previousActiveOffset,
-                collapseDistance: collapseDistance
-            )
-        }
-    }
-
-    private func tabCollapseCompensation(for tab: VideoPageTab, collapseCompensation: CGFloat) -> CGFloat {
-        min(max(bottomScrollOffsetsByTab[tab] ?? 0, 0), collapseCompensation)
-    }
-
-    private func updateInteractingTab(_ tab: VideoPageTab) {
-        guard selectedTab != tab else { return }
-        withTransaction(Transaction(animation: nil)) {
-            selectedTab = tab
-        }
-    }
-
-    private func updateTabTopPull(_ tab: VideoPageTab, delta: CGFloat, collapseDistance: CGFloat) {
-        guard !isPlayerPlaying, delta > 0, bottomScrollOffset > 0 else { return }
-        let nextOffset = min(max(bottomScrollOffset - delta, 0), collapseDistance)
-        guard abs(bottomScrollOffset - nextOffset) > 0.5 else { return }
-        withTransaction(Transaction(animation: nil)) {
-            bottomScrollOffset = nextOffset
         }
     }
 
@@ -596,6 +466,10 @@ struct VideoDetailView: View {
         let isKeyboardSafeAreaActive = safeAreaBottom > containerBottomInset + 1
         let composerHeight = max(commentComposerHeight, CommentComposerBar.compactHeight)
         return composerHeight + (isKeyboardSafeAreaActive ? 0 : containerBottomInset)
+    }
+
+    private func introductionContentClearance() -> CGFloat {
+        currentWindowBottomSafeAreaInset() + 24
     }
 
     private func currentWindowBottomSafeAreaInset() -> CGFloat {
@@ -783,6 +657,116 @@ private enum VideoPlayerCollapseModel {
     }
 }
 
+private struct VideoDetailPagerLayoutMetrics {
+    let collapseDistance: CGFloat
+    let playerScrollAway: CGFloat
+    let belowPlayerTopOffset: CGFloat
+    let belowPlayerHeight: CGFloat
+    let continuationProgress: CGFloat
+}
+
+private struct VideoDetailPagerState: Equatable {
+    var selectedTab: VideoPageTab = .introduction
+    var collapseOffset: CGFloat = 0
+    var tabOffsets: [VideoPageTab: CGFloat] = [:]
+    var isPlayerPlaying: Bool = false
+
+    func layoutMetrics(
+        inlinePlayerHeight: CGFloat,
+        containerHeight: CGFloat,
+        rawCollapseDistance: CGFloat
+    ) -> VideoDetailPagerLayoutMetrics {
+        let collapseDistance = isPlayerPlaying ? 0 : max(rawCollapseDistance, 0)
+        let playerScrollAway = isPlayerPlaying ? 0 : Self.clamp(collapseOffset, upperBound: collapseDistance)
+        let belowPlayerTopOffset = max(inlinePlayerHeight - playerScrollAway, 0)
+        let fadeDistance: CGFloat = 72
+        let continuationProgress: CGFloat
+        if rawCollapseDistance > 1 {
+            continuationProgress = min(
+                max((playerScrollAway - (rawCollapseDistance - fadeDistance)) / fadeDistance, 0),
+                1
+            )
+        } else {
+            continuationProgress = 0
+        }
+
+        return VideoDetailPagerLayoutMetrics(
+            collapseDistance: collapseDistance,
+            playerScrollAway: playerScrollAway,
+            belowPlayerTopOffset: belowPlayerTopOffset,
+            belowPlayerHeight: max(0, containerHeight - belowPlayerTopOffset),
+            continuationProgress: continuationProgress
+        )
+    }
+
+    func contentTopInset(for tab: VideoPageTab, playerScrollAway: CGFloat) -> CGFloat {
+        Self.clamp(tabOffsets[tab] ?? 0, upperBound: playerScrollAway)
+    }
+
+    mutating func setPlayerPlaying(_ isPlaying: Bool) {
+        isPlayerPlaying = isPlaying
+        if isPlaying {
+            collapseOffset = 0
+        }
+    }
+
+    mutating func expandPlayer() {
+        collapseOffset = 0
+    }
+
+    mutating func selectTab(_ tab: VideoPageTab, collapseDistance: CGFloat) {
+        selectedTab = tab
+        clampCollapse(to: collapseDistance)
+    }
+
+    mutating func updateTabOffset(_ tab: VideoPageTab, offset: CGFloat, collapseDistance: CGFloat) {
+        let previousActiveOffset = tabOffsets[selectedTab]
+        tabOffsets[tab] = offset
+        guard tab == selectedTab else { return }
+        updateCollapseOffset(
+            activeTabOffset: offset,
+            previousActiveTabOffset: previousActiveOffset,
+            collapseDistance: collapseDistance
+        )
+    }
+
+    mutating func beginInteracting(with tab: VideoPageTab, collapseDistance: CGFloat) {
+        guard selectedTab != tab else { return }
+        selectTab(tab, collapseDistance: collapseDistance)
+    }
+
+    mutating func handleTopPull(tab: VideoPageTab, delta: CGFloat, collapseDistance: CGFloat) {
+        guard tab == selectedTab, !isPlayerPlaying, delta > 0, collapseOffset > 0 else { return }
+        collapseOffset = Self.clamp(collapseOffset - delta, upperBound: collapseDistance)
+    }
+
+    mutating func clampCollapse(to collapseDistance: CGFloat) {
+        collapseOffset = Self.clamp(collapseOffset, upperBound: collapseDistance)
+    }
+
+    private mutating func updateCollapseOffset(
+        activeTabOffset: CGFloat,
+        previousActiveTabOffset: CGFloat?,
+        collapseDistance: CGFloat
+    ) {
+        guard !isPlayerPlaying else {
+            collapseOffset = 0
+            return
+        }
+
+        collapseOffset = VideoPlayerCollapseModel.nextCollapseOffset(
+            currentCollapseOffset: collapseOffset,
+            activeTabOffset: activeTabOffset,
+            previousActiveTabOffset: previousActiveTabOffset,
+            collapseDistance: collapseDistance
+        )
+    }
+
+    private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
+        min(max(value, 0), max(upperBound, 0))
+    }
+}
+
 private enum VideoPageTab: String, CaseIterable, Identifiable {
     case introduction
     case comments
@@ -822,7 +806,7 @@ private struct VideoDetailTabContentRevision: Equatable {
 private struct VideoDetailTabPage {
     let tab: VideoPageTab
     let contentBottomPadding: CGFloat
-    let collapseCompensation: CGFloat
+    let contentTopInset: CGFloat
     let collapseDistance: CGFloat
     let contentUpdateRevision: Int
     let onOffsetChange: (VideoPageTab, CGFloat) -> Void
@@ -833,7 +817,7 @@ private struct VideoDetailTabPage {
     init<Content: View>(
         tab: VideoPageTab,
         contentBottomPadding: CGFloat,
-        collapseCompensation: CGFloat,
+        contentTopInset: CGFloat,
         collapseDistance: CGFloat,
         contentUpdateRevision: Int,
         onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void,
@@ -843,13 +827,109 @@ private struct VideoDetailTabPage {
     ) {
         self.tab = tab
         self.contentBottomPadding = contentBottomPadding
-        self.collapseCompensation = collapseCompensation
+        self.contentTopInset = contentTopInset
         self.collapseDistance = collapseDistance
         self.contentUpdateRevision = contentUpdateRevision
         self.onOffsetChange = onOffsetChange
         self.onInteractionBegan = onInteractionBegan
         self.onTopPullDelta = onTopPullDelta
         self.content = { AnyView(content()) }
+    }
+}
+
+private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: View {
+    @Binding var state: VideoDetailPagerState
+    let collapseDistance: CGFloat
+    let playerScrollAway: CGFloat
+    let introductionContentBottomPadding: CGFloat
+    let commentsContentBottomPadding: CGFloat
+    let introductionContentRevision: Int
+    let commentsContentRevision: Int
+    let introduction: () -> Introduction
+    let comments: () -> Comments
+
+    private var selectedTabBinding: Binding<VideoPageTab> {
+        Binding(
+            get: { state.selectedTab },
+            set: { newTab in
+                mutateState { $0.selectTab(newTab, collapseDistance: collapseDistance) }
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Content", selection: selectedTabBinding) {
+                ForEach(VideoPageTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.background)
+
+            VideoDetailTabPager(
+                selectedTab: selectedTabBinding,
+                introduction: tabPage(
+                    .introduction,
+                    contentBottomPadding: introductionContentBottomPadding,
+                    contentUpdateRevision: introductionContentRevision,
+                    content: introduction
+                ),
+                comments: tabPage(
+                    .comments,
+                    contentBottomPadding: commentsContentBottomPadding,
+                    contentUpdateRevision: commentsContentRevision,
+                    content: comments
+                )
+            )
+            .frame(maxHeight: .infinity)
+        }
+        .frame(maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+        .onValueChange(of: collapseDistance) { newValue in
+            mutateState { $0.clampCollapse(to: newValue) }
+        }
+    }
+
+    private func tabPage<Content: View>(
+        _ tab: VideoPageTab,
+        contentBottomPadding: CGFloat,
+        contentUpdateRevision: Int,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> VideoDetailTabPage {
+        VideoDetailTabPage(
+            tab: tab,
+            contentBottomPadding: contentBottomPadding,
+            contentTopInset: state.contentTopInset(for: tab, playerScrollAway: playerScrollAway),
+            collapseDistance: collapseDistance,
+            contentUpdateRevision: contentUpdateRevision,
+            onOffsetChange: { tab, offset in
+                mutateState {
+                    $0.updateTabOffset(tab, offset: offset, collapseDistance: collapseDistance)
+                }
+            },
+            onInteractionBegan: { tab in
+                mutateState {
+                    $0.beginInteracting(with: tab, collapseDistance: collapseDistance)
+                }
+            },
+            onTopPullDelta: { tab, delta in
+                mutateState {
+                    $0.handleTopPull(tab: tab, delta: delta, collapseDistance: collapseDistance)
+                }
+            },
+            content: content
+        )
+    }
+
+    private func mutateState(_ mutation: (inout VideoDetailPagerState) -> Void) {
+        withTransaction(Transaction(animation: nil)) {
+            var nextState = state
+            mutation(&nextState)
+            state = nextState
+        }
     }
 }
 
@@ -949,9 +1029,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         scrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
         scrollView.shouldBeginVerticalPan = { panGestureRecognizer, view in
             let velocity = panGestureRecognizer.velocity(in: view)
-            guard abs(velocity.x) > abs(velocity.y) * 1.05 else { return true }
-            let startLocation = panGestureRecognizer.location(in: view)
-            return !view.hasScrollableHorizontalDescendant(at: startLocation, excluding: view)
+            return abs(velocity.x) <= abs(velocity.y) * 1.05
         }
         view.addSubview(scrollView)
 
@@ -1019,11 +1097,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             host.rootView = page.content()
         }
 
-        hostTopConstraint.constant = 0
-        host.view.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
-        bottomPaddingView.transform = CGAffineTransform(translationX: 0, y: page.collapseCompensation)
+        let contentTopInset = min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
+        hostTopConstraint.constant = contentTopInset
         bottomPaddingHeightConstraint.constant = page.contentBottomPadding
-        collapseSpacerHeightConstraint.constant = page.collapseDistance + 1
+        collapseSpacerHeightConstraint.constant = max(page.collapseDistance - contentTopInset + 1, 1)
     }
 }
 
@@ -1145,6 +1222,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private let commentsPage = VideoDetailVerticalScrollPageViewController(tab: .comments)
         private var selectedIndex = 0
         private var pendingSelectedIndex: Int?
+        private var lastLaidOutWidth: CGFloat = 0
 
         init(coordinator: Coordinator) {
             self.coordinator = coordinator
@@ -1215,10 +1293,13 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         override func viewDidLayoutSubviews() {
             super.viewDidLayoutSubviews()
+            let width = scrollView.bounds.width
+            let widthChanged = abs(width - lastLaidOutWidth) > 0.5
+            lastLaidOutWidth = width
             if let pendingSelectedIndex {
                 self.pendingSelectedIndex = nil
                 setSelectedIndex(pendingSelectedIndex, animated: false)
-            } else {
+            } else if widthChanged {
                 setSelectedIndex(selectedIndex, animated: false)
             }
         }
@@ -1232,6 +1313,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             loadViewIfNeeded()
             introductionPage.update(page: introduction)
             commentsPage.update(page: comments)
+            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
             setSelectedIndex(selectedIndex, animated: animated)
         }
 

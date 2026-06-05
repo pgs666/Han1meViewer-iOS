@@ -69,8 +69,7 @@ struct CommentView: View {
                 comment: comment,
                 viewModel: viewModel
             ) { reply in
-                    replyText = "@\(reply.username) "
-                    replyTarget = reply
+                beginReplyFromRepliesSheet(reply)
             }
         }
         .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
@@ -239,6 +238,15 @@ struct CommentView: View {
 
     private func notifyOverlayActivityChanged() {
         onOverlayActivityChanged(replyTarget != nil || repliesTarget != nil)
+    }
+
+    private func beginReplyFromRepliesSheet(_ reply: CommentRow) {
+        replyText = "@\(reply.username) "
+        repliesTarget = nil
+        Task { @MainActor in
+            await Task.yield()
+            replyTarget = reply
+        }
     }
 
     private func commentRenderSignature(for comments: [CommentRow]) -> String {
