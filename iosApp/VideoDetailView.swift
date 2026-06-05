@@ -8,6 +8,7 @@ struct VideoDetailView: View {
     private let commentFeature: CommentFeature
     private let tabletLeftMinimumWidth: CGFloat = 620
     private let tabletSidebarMinimumWidth: CGFloat = 360
+    private let playerContinuationStripHeight: CGFloat = 56
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
     @State private var selectedTab = VideoPageTab.introduction
@@ -270,6 +271,10 @@ struct VideoDetailView: View {
                             ? currentPlayerHeight
                             : max(currentPlayerHeight - currentPlayerScrollAway, 0)
                         let currentBottomScrollHeight = proxy.size.height - currentBottomScrollOffset
+                        let currentContinuationProgress = continuationStripProgress(
+                            scrollAway: currentPlayerScrollAway,
+                            panelWidth: leftWidth
+                        )
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
@@ -291,6 +296,13 @@ struct VideoDetailView: View {
                             )
                             .frame(height: max(0, currentBottomScrollHeight))
                             .offset(y: currentBottomScrollOffset)
+                        }
+
+                        if !isPlayerFullscreen,
+                           !isPlayerCollapsed,
+                           currentContinuationProgress > 0 {
+                            continuePlayingStrip(snapshot: snapshot, progress: currentContinuationProgress)
+                                .frame(width: leftWidth, height: playerContinuationStripHeight)
                         }
                     }
                     .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
@@ -339,11 +351,18 @@ struct VideoDetailView: View {
     }
 
     private func playerCollapseDistance(panelWidth: CGFloat) -> CGFloat {
-        max(panelWidth * 9 / 16, 1)
+        max(panelWidth * 9 / 16 - playerContinuationStripHeight, 1)
     }
 
     private func playerVisualShrink(panelWidth: CGFloat) -> CGFloat {
         min(max(bottomScrollOffset, 0), playerCollapseDistance(panelWidth: panelWidth))
+    }
+
+    private func continuationStripProgress(scrollAway: CGFloat, panelWidth: CGFloat) -> CGFloat {
+        let collapseDistance = playerCollapseDistance(panelWidth: panelWidth)
+        let fadeDistance: CGFloat = 72
+        guard collapseDistance > 1 else { return 0 }
+        return min(max((scrollAway - (collapseDistance - fadeDistance)) / fadeDistance, 0), 1)
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
@@ -361,9 +380,9 @@ struct VideoDetailView: View {
             onBack: { dismiss() },
             isShrunken: false,
             onRequestExpand: {
-                // First tap on a shrunken player expands it back to 16:9
-                // by zeroing the scroll-driven shrink amount — and animate
-                // it so the player smoothly grows.
+                // Reveal the full player when an older collapse state asks
+                // for expansion. The player itself no longer shrinks; the
+                // lower detail panel scrolls over it instead.
                 withAnimation(.easeInOut(duration: 0.25)) {
                     bottomScrollOffset = 0
                 }
@@ -372,6 +391,34 @@ struct VideoDetailView: View {
                 videoNaturalSize = size
             }
         )
+    }
+
+    private func continuePlayingStrip(snapshot: VideoDetailScreenSnapshot, progress: CGFloat) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                bottomScrollOffset = 0
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "play.circle.fill")
+                    .font(.title3)
+                Text("继续播放")
+                    .font(.subheadline.weight(.semibold))
+                Text(snapshot.title)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.ultraThinMaterial)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(progress)
+        .offset(y: -8 * (1 - progress))
     }
 
     private func belowPlayerScroll(
