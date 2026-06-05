@@ -252,6 +252,7 @@ struct RelatedVideoCard: View {
     let showPlaying: Bool
     let showsMetadataFooter: Bool
     let width: CGFloat?
+    @State private var coverNaturalSize: CGSize?
 
     init(
         video: VideoRelatedRow,
@@ -272,7 +273,14 @@ struct RelatedVideoCard: View {
                     .opacity(0.5)
                     .aspectRatio(16.0 / 9.0, contentMode: .fit)
                     .overlay {
-                        CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
+                        CachedRemoteImage(
+                            urlString: video.coverUrl,
+                            contentMode: coverContentMode,
+                            resizeWidth: 240,
+                            onImageLoaded: { size in
+                                coverNaturalSize = size
+                            }
+                        )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .clipped()
                     }
@@ -339,10 +347,19 @@ struct RelatedVideoCard: View {
                 .frame(height: 16)
             }
         }
-        .frame(width: width, maxWidth: width == nil ? .infinity : nil, alignment: .leading)
+        .relatedVideoCardWidth(width)
         .padding(8)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var coverContentMode: ContentMode {
+        guard let coverNaturalSize,
+              coverNaturalSize.width > 0,
+              coverNaturalSize.height > coverNaturalSize.width * 1.1 else {
+            return .fill
+        }
+        return .fit
     }
 }
 
@@ -352,6 +369,17 @@ private extension VideoRelatedRow {
             return String(localized: "common.artist")
         }
         return artist
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func relatedVideoCardWidth(_ width: CGFloat?) -> some View {
+        if let width {
+            frame(width: width, alignment: .leading)
+        } else {
+            frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
