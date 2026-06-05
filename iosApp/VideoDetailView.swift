@@ -15,11 +15,6 @@ struct VideoDetailView: View {
     @State private var isPlayerFullscreen = false
     @State private var isPlayerCollapsed = false
     @State private var horizontalPagerExclusionFrames: [CGRect] = []
-    /// True iff the player is currently playing (not paused / buffering).
-    /// Driven from KSPlayerView via the @Binding below. Used to lock the
-    /// player at full 16:9 height while playing — only paused state lets the
-    /// scroll-driven shrink behaviour engage.
-    @State private var isPlayerPlaying = false
     /// Global collapse offset for the inline player, decoupled from any
     /// single tab's ScrollView offset. If one tab has already collapsed the
     /// player, switching to another tab must not snap it back open just
@@ -372,11 +367,6 @@ struct VideoDetailView: View {
             isCollapsed: $isPlayerCollapsed,
             onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
             onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) },
-            onPlayingChanged: { newValue in
-                if isPlayerPlaying != newValue {
-                    isPlayerPlaying = newValue
-                }
-            },
             onBack: { dismiss() },
             isShrunken: false,
             onRequestExpand: {
@@ -499,6 +489,7 @@ struct VideoDetailView: View {
             .frame(maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
         .onValueChange(of: selectedTab) { _ in
             lastSelectedTabChangeAt = Date()
             bottomScrollOffset = min(max(bottomScrollOffset, 0), collapseDistance)
@@ -911,8 +902,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
-        scrollView.bounces = false
-        scrollView.alwaysBounceVertical = false
+        scrollView.bounces = true
+        scrollView.alwaysBounceVertical = true
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.showsVerticalScrollIndicator = false
