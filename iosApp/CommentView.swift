@@ -8,9 +8,6 @@ struct CommentView: View {
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var renderedCommentCount = 24
-    @State private var commentRenderSignature = ""
-    @State private var commentRenderTask: Task<Void, Never>?
 
     init(
         viewModel: CommentViewModel,
@@ -37,8 +34,6 @@ struct CommentView: View {
         }
         .onDisappear {
             onOverlayActivityChanged(false)
-            commentRenderTask?.cancel()
-            commentRenderTask = nil
         }
         .alert("提示", isPresented: actionMessageBinding) {
             Button("好", role: .cancel) {
@@ -176,7 +171,7 @@ struct CommentView: View {
                 .padding(.vertical, 60)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(comments.prefix(renderedCommentCount))) { comment in
+                    ForEach(comments) { comment in
                         CommentRowView(
                             comment: comment,
                             isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)"),
@@ -199,25 +194,13 @@ struct CommentView: View {
                         )
                     }
 
-                    if renderedCommentCount < comments.count {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    } else {
-                        Text("comment.no_more")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
+                    Text("comment.no_more")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                 }
                 .id(viewModel.sortMode.id)
-                .onAppear {
-                    scheduleCommentRendering(for: comments)
-                }
-                .onValueChange(of: commentRenderSignature(for: comments)) { _ in
-                    scheduleCommentRendering(for: comments)
-                }
             }
         }
     }
@@ -249,35 +232,6 @@ struct CommentView: View {
         }
     }
 
-    private func commentRenderSignature(for comments: [CommentRow]) -> String {
-        [
-            viewModel.sortMode.id,
-            "\(comments.count)",
-            comments.first?.id ?? "",
-            comments.last?.id ?? ""
-        ].joined(separator: "|")
-    }
-
-    private func scheduleCommentRendering(for comments: [CommentRow]) {
-        let signature = commentRenderSignature(for: comments)
-        guard commentRenderSignature != signature else { return }
-        commentRenderSignature = signature
-        commentRenderTask?.cancel()
-        renderedCommentCount = min(24, comments.count)
-        guard renderedCommentCount < comments.count else {
-            commentRenderTask = nil
-            return
-        }
-
-        commentRenderTask = Task { @MainActor in
-            while !Task.isCancelled, renderedCommentCount < comments.count {
-                try? await Task.sleep(nanoseconds: 45_000_000)
-                guard !Task.isCancelled else { return }
-                renderedCommentCount = min(renderedCommentCount + 16, comments.count)
-            }
-            commentRenderTask = nil
-        }
-    }
 }
 
 private struct CommentRowView: View {
