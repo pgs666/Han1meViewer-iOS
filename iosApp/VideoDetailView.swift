@@ -639,9 +639,11 @@ private enum CommentKeyboardTransparency {
     static func applySoon() {
         guard #available(iOS 26.0, *) else { return }
         apply()
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            apply()
+        for delay in [40_000_000, 120_000_000, 260_000_000] {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(delay))
+                apply()
+            }
         }
     }
 
@@ -667,9 +669,16 @@ private enum CommentKeyboardTransparency {
         if depth <= 2
             || className.contains("InputSet")
             || className.contains("Keyboard")
-            || className.contains("TextEffects") {
+            || className.contains("TextEffects")
+            || className.contains("VisualEffect")
+            || className.contains("Backdrop")
+            || className.contains("Material") {
             view.backgroundColor = .clear
             view.isOpaque = false
+        }
+        if let visualEffectView = view as? UIVisualEffectView {
+            visualEffectView.effect = nil
+            visualEffectView.contentView.backgroundColor = .clear
         }
         view.subviews.forEach { clearKeyboardChrome(in: $0, depth: depth + 1) }
     }
@@ -1055,16 +1064,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private let coordinator: VideoDetailVerticalScrollPageCoordinator
     private let scrollView = VerticalScrollView()
     private let contentView = UIView()
-    private let bottomPaddingView = UIView()
     private let collapseSpacerView = UIView()
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var hostTopConstraint: NSLayoutConstraint!
     private var hostMinimumHeightConstraint: NSLayoutConstraint!
-    private var bottomPaddingHeightConstraint: NSLayoutConstraint!
+    private var contentMinimumHeightConstraint: NSLayoutConstraint!
     private var collapseSpacerHeightConstraint: NSLayoutConstraint!
     private var contentUpdateRevision: Int?
     private var wasSelected = false
     private var topAlignmentGeneration = 0
+    private var pendingTopAlignmentRetryCount = 0
     private var pendingTopAlignmentTargetOffsetY: CGFloat?
 
     init(tab: VideoPageTab) {
@@ -1098,7 +1107,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         scrollView.keyboardDismissMode = .interactive
         scrollView.delegate = coordinator
         scrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
-        scrollView.shouldBeginVerticalPan = { panGestureRecognizer, view in
+        scrollView.shouldBeginVerticalPan = { [weak self] panGestureRecognizer, view in
+            self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
             let velocity = panGestureRecognizer.velocity(in: view)
             return abs(velocity.x) <= abs(velocity.y) * 1.05
         }
@@ -1114,17 +1124,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         contentView.addSubview(host.view)
         host.didMove(toParent: self)
 
-        bottomPaddingView.translatesAutoresizingMaskIntoConstraints = false
-        bottomPaddingView.backgroundColor = .clear
-        contentView.addSubview(bottomPaddingView)
-
         collapseSpacerView.translatesAutoresizingMaskIntoConstraints = false
         collapseSpacerView.backgroundColor = .clear
         contentView.addSubview(collapseSpacerView)
 
         hostTopConstraint = host.view.topAnchor.constraint(equalTo: contentView.topAnchor)
         hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor)
-        bottomPaddingHeightConstraint = bottomPaddingView.heightAnchor.constraint(equalToConstant: 24)
+        contentMinimumHeightConstraint = contentView.heightAnchor.constraint(
+            greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor,
+            constant: 1
+        )
         collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
 
         NSLayoutConstraint.activate([
@@ -1138,20 +1147,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
             contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
             contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            contentMinimumHeightConstraint,
 
             host.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             host.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             hostTopConstraint,
             hostMinimumHeightConstraint,
 
-            bottomPaddingView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            bottomPaddingView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            bottomPaddingView.topAnchor.constraint(equalTo: host.view.bottomAnchor),
-            bottomPaddingHeightConstraint,
-
             collapseSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             collapseSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            collapseSpacerView.topAnchor.constraint(equalTo: bottomPaddingView.bottomAnchor),
+            collapseSpacerView.topAnchor.constraint(equalTo: host.view.bottomAnchor),
             collapseSpacerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             collapseSpacerHeightConstraint
         ])
@@ -1169,12 +1174,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onInteractionBegan = page.onInteractionBegan
         coordinator.onTopPullDelta = page.onTopPullDelta
         coordinator.onVerticalInteractionBegan = { [weak self] in
-            self?.cancelPendingTopAlignment()
+            self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
         }
         let wasPageSelected = wasSelected
         wasSelected = page.isSelected
         if !page.isSelected {
-            pendingTopAlignmentTargetOffsetY = nil
+            cancelPendingTopAlignment()
         }
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
@@ -1184,18 +1189,22 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let previousVisualTopContentOffsetY = coordinator.visualTopContentOffsetY
         let contentTopInset = resolvedContentTopInset(for: page)
         coordinator.visualTopContentOffsetY = contentTopInset
+        let storedContentOffset = page.storedContentOffset ?? 0
         let shouldAlignTopOnActivation = page.isSelected
             && !wasPageSelected
-            && (page.storedContentOffset ?? 0) <= 0.5
+            && storedContentOffset <= contentTopInset + 0.5
         hostTopConstraint.constant = contentTopInset
-        bottomPaddingHeightConstraint.constant = page.contentBottomPadding
-        collapseSpacerHeightConstraint.constant = max(page.collapseDistance - contentTopInset + 1, 1)
+        applyBottomContentInset(page.contentBottomPadding)
+        let collapseSpacerHeight = max(page.collapseDistance - contentTopInset + 1, 1)
+        collapseSpacerHeightConstraint.constant = collapseSpacerHeight
+        contentMinimumHeightConstraint.constant = contentTopInset
+            + collapseSpacerHeight
         if shouldAlignTopOnActivation {
             requestTopAlignment(targetOffsetY: contentTopInset)
         } else if pendingTopAlignmentTargetOffsetY != nil {
             pendingTopAlignmentTargetOffsetY = contentTopInset
             resolvePendingTopAlignmentSoon()
-        } else if page.isSelected {
+        } else {
             preserveVisualTopIfNeeded(
                 previousOffsetY: previousVisualTopContentOffsetY,
                 targetOffsetY: contentTopInset
@@ -1207,8 +1216,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
     }
 
+    private func applyBottomContentInset(_ bottomInset: CGFloat) {
+        let resolvedBottomInset = max(bottomInset, 0)
+        guard abs(scrollView.contentInset.bottom - resolvedBottomInset) > 0.5 else { return }
+        scrollView.contentInset.bottom = resolvedBottomInset
+        scrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomInset
+    }
+
     private func requestTopAlignment(targetOffsetY: CGFloat) {
         topAlignmentGeneration &+= 1
+        pendingTopAlignmentRetryCount = 0
         pendingTopAlignmentTargetOffsetY = targetOffsetY
         resolvePendingTopAlignmentSoon()
     }
@@ -1216,27 +1233,52 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func resolvePendingTopAlignmentSoon() {
         let generation = topAlignmentGeneration
         resolvePendingTopAlignmentIfPossible()
-        DispatchQueue.main.async { [weak self] in
+        schedulePendingTopAlignmentRetry(generation: generation)
+    }
+
+    private func schedulePendingTopAlignmentRetry(generation: Int) {
+        guard pendingTopAlignmentTargetOffsetY != nil,
+              pendingTopAlignmentRetryCount < 8 else {
+            return
+        }
+        pendingTopAlignmentRetryCount += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16)) { [weak self] in
             guard let self, self.topAlignmentGeneration == generation else { return }
             self.resolvePendingTopAlignmentIfPossible()
+            self.schedulePendingTopAlignmentRetry(generation: generation)
         }
     }
 
-    private func resolvePendingTopAlignmentIfPossible() {
+    private func resolvePendingTopAlignmentIfPossible(allowDuringInteraction: Bool = false) {
         guard let targetOffsetY = pendingTopAlignmentTargetOffsetY else { return }
-        guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+        if !allowDuringInteraction {
+            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+        }
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+        scrollView.layoutIfNeeded()
+        contentView.layoutIfNeeded()
         let topOffsetY = clampedContentOffsetY(targetOffsetY)
         guard abs(topOffsetY - targetOffsetY) <= 0.5 else { return }
         if abs(scrollView.contentOffset.y - topOffsetY) > 0.5 {
             scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: topOffsetY), animated: false)
         }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
-            pendingTopAlignmentTargetOffsetY = nil
+            cancelPendingTopAlignment()
         }
     }
 
     private func cancelPendingTopAlignment() {
+        pendingTopAlignmentRetryCount = 0
         pendingTopAlignmentTargetOffsetY = nil
+    }
+
+    func settleAfterHorizontalActivation() {
+        loadViewIfNeeded()
+        let targetOffsetY = coordinator.visualTopContentOffsetY
+        guard scrollView.verticalContentOffsetExcludingBounce <= targetOffsetY + 0.5 else { return }
+        requestTopAlignment(targetOffsetY: targetOffsetY)
+        resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
     }
 
     private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
@@ -1313,6 +1355,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
         var selectedTab: Binding<VideoPageTab>
+        var onSelectedIndexSettled: ((Int) -> Void)?
         private var lastProgrammaticIndex: Int?
 
         init(selectedTab: Binding<VideoPageTab>) {
@@ -1364,6 +1407,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             if selectedTab.wrappedValue != tab {
                 selectedTab.wrappedValue = tab
             }
+            DispatchQueue.main.async { [weak self] in
+                self?.onSelectedIndexSettled?(index)
+            }
         }
     }
 
@@ -1374,6 +1420,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private let introductionPage = VideoDetailVerticalScrollPageViewController(tab: .introduction)
         private let commentsPage = VideoDetailVerticalScrollPageViewController(tab: .comments)
         private var selectedIndex = 0
+        private var lastSettledSelectedIndex: Int?
         private var pendingSelectedIndex: Int?
         private var lastLaidOutWidth: CGFloat = 0
 
@@ -1402,6 +1449,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             scrollView.isDirectionalLockEnabled = true
             scrollView.contentInsetAdjustmentBehavior = .never
             scrollView.delegate = coordinator
+            coordinator.onSelectedIndexSettled = { [weak self] index in
+                self?.settlePageAfterHorizontalSelection(index)
+            }
             scrollView.shouldBeginPagingPan = { [weak self] panGestureRecognizer, view in
                 self?.coordinator.shouldBeginHorizontalPagingPan(
                     panGestureRecognizer: panGestureRecognizer,
@@ -1464,10 +1514,12 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             animated: Bool
         ) {
             loadViewIfNeeded()
+            self.selectedIndex = min(max(selectedIndex, 0), VideoPageTab.allCases.count - 1)
             introductionPage.update(page: introduction)
             commentsPage.update(page: comments)
+            settleSelectedPageIfNeeded(self.selectedIndex)
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
-            setSelectedIndex(selectedIndex, animated: animated)
+            setSelectedIndex(self.selectedIndex, animated: animated)
         }
 
         private func addPage(_ page: UIViewController) {
@@ -1488,6 +1540,23 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let targetOffset = CGPoint(x: CGFloat(selectedIndex) * width, y: 0)
             guard abs(scrollView.contentOffset.x - targetOffset.x) > 0.5 else { return }
             scrollView.setContentOffset(targetOffset, animated: animated)
+        }
+
+        private func settleSelectedPageIfNeeded(_ index: Int) {
+            let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            guard lastSettledSelectedIndex != clampedIndex else { return }
+            lastSettledSelectedIndex = clampedIndex
+            settlePageAfterHorizontalSelection(clampedIndex)
+        }
+
+        private func settlePageAfterHorizontalSelection(_ index: Int) {
+            lastSettledSelectedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            switch VideoPageTab.page(at: index) {
+            case .introduction:
+                introductionPage.settleAfterHorizontalActivation()
+            case .comments:
+                commentsPage.settleAfterHorizontalActivation()
+            }
         }
     }
 
