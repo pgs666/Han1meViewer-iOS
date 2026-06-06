@@ -1075,6 +1075,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var topAlignmentGeneration = 0
     private var pendingTopAlignmentRetryCount = 0
     private var pendingTopAlignmentTargetOffsetY: CGFloat?
+    private var isInLayoutPass = false
 
     init(tab: VideoPageTab) {
         coordinator = VideoDetailVerticalScrollPageCoordinator(
@@ -1164,7 +1165,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        resolvePendingTopAlignmentIfPossible()
+        guard pendingTopAlignmentTargetOffsetY != nil else { return }
+        let generation = topAlignmentGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.topAlignmentGeneration == generation else { return }
+            self.resolvePendingTopAlignmentIfPossible()
+        }
     }
 
     func update(page: VideoDetailTabPage) {
@@ -1251,11 +1257,19 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func resolvePendingTopAlignmentIfPossible(allowDuringInteraction: Bool = false) {
         guard let targetOffsetY = pendingTopAlignmentTargetOffsetY else { return }
+        guard !isInLayoutPass else {
+            let generation = topAlignmentGeneration
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.topAlignmentGeneration == generation else { return }
+                self.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: allowDuringInteraction)
+            }
+            return
+        }
         if !allowDuringInteraction {
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
         }
-        view.setNeedsLayout()
-        view.layoutIfNeeded()
+        isInLayoutPass = true
+        defer { isInLayoutPass = false }
         scrollView.layoutIfNeeded()
         contentView.layoutIfNeeded()
         let topOffsetY = clampedContentOffsetY(targetOffsetY)
@@ -1284,8 +1298,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
         guard abs(previousOffsetY - targetOffsetY) > 0.5 else { return }
         guard abs(scrollView.verticalContentOffsetExcludingBounce - previousOffsetY) <= 1 else { return }
-        view.setNeedsLayout()
-        view.layoutIfNeeded()
+        scrollView.layoutIfNeeded()
+        contentView.layoutIfNeeded()
         let topOffsetY = clampedContentOffsetY(targetOffsetY)
         guard abs(scrollView.contentOffset.y - topOffsetY) > 0.5 else { return }
         scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: topOffsetY), animated: false)
