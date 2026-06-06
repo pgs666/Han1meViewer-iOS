@@ -1199,12 +1199,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let shouldAlignTopOnActivation = page.isSelected
             && !wasPageSelected
             && storedContentOffset <= contentTopInset + 0.5
-        hostTopConstraint.constant = contentTopInset
+        hostTopConstraint.constant = 0
+        applyTopContentInset(contentTopInset)
         applyBottomContentInset(page.contentBottomPadding)
         let collapseSpacerHeight = max(page.collapseDistance - contentTopInset + 1, 1)
         collapseSpacerHeightConstraint.constant = collapseSpacerHeight
-        contentMinimumHeightConstraint.constant = contentTopInset
-            + collapseSpacerHeight
+        contentMinimumHeightConstraint.constant = collapseSpacerHeight
         if shouldAlignTopOnActivation {
             requestTopAlignment(targetOffsetY: contentTopInset)
         } else if pendingTopAlignmentTargetOffsetY != nil {
@@ -1220,6 +1220,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func resolvedContentTopInset(for page: VideoDetailTabPage) -> CGFloat {
         min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
+    }
+
+    private func applyTopContentInset(_ topInset: CGFloat) {
+        let resolvedTopInset = max(topInset, 0)
+        guard abs(scrollView.contentInset.top - resolvedTopInset) > 0.5 else { return }
+        scrollView.contentInset.top = resolvedTopInset
+        scrollView.verticalScrollIndicatorInsets.top = resolvedTopInset
     }
 
     private func applyBottomContentInset(_ bottomInset: CGFloat) {
@@ -1272,10 +1279,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         defer { isInLayoutPass = false }
         scrollView.layoutIfNeeded()
         contentView.layoutIfNeeded()
-        let topOffsetY = clampedContentOffsetY(targetOffsetY)
-        guard abs(topOffsetY - targetOffsetY) <= 0.5 else { return }
-        if abs(scrollView.contentOffset.y - topOffsetY) > 0.5 {
-            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: topOffsetY), animated: false)
+        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: targetOffsetY)
+        guard abs(normalizedContentOffsetY(forRawOffsetY: rawTopOffsetY) - targetOffsetY) <= 0.5 else { return }
+        if abs(scrollView.contentOffset.y - rawTopOffsetY) > 0.5 {
+            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
         }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             cancelPendingTopAlignment()
@@ -1290,7 +1297,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     func settleAfterHorizontalActivation() {
         loadViewIfNeeded()
         let targetOffsetY = coordinator.visualTopContentOffsetY
-        guard scrollView.verticalContentOffsetExcludingBounce <= targetOffsetY + 0.5 else { return }
+        guard scrollView.verticalContentOffsetExcludingBounce <= targetOffsetY + 8 else { return }
         requestTopAlignment(targetOffsetY: targetOffsetY)
         resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
     }
@@ -1300,16 +1307,21 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard abs(scrollView.verticalContentOffsetExcludingBounce - previousOffsetY) <= 1 else { return }
         scrollView.layoutIfNeeded()
         contentView.layoutIfNeeded()
-        let topOffsetY = clampedContentOffsetY(targetOffsetY)
-        guard abs(scrollView.contentOffset.y - topOffsetY) > 0.5 else { return }
-        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: topOffsetY), animated: false)
+        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: targetOffsetY)
+        guard abs(scrollView.contentOffset.y - rawTopOffsetY) > 0.5 else { return }
+        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
     }
 
-    private func clampedContentOffsetY(_ offsetY: CGFloat) -> CGFloat {
+    private func clampedRawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat) -> CGFloat {
         let inset = scrollView.adjustedContentInset
         let minOffsetY = -inset.top
         let maxOffsetY = max(minOffsetY, scrollView.contentSize.height - scrollView.bounds.height + inset.bottom)
-        return min(max(offsetY, minOffsetY), maxOffsetY)
+        let rawOffsetY = offsetY - inset.top
+        return min(max(rawOffsetY, minOffsetY), maxOffsetY)
+    }
+
+    private func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat) -> CGFloat {
+        rawOffsetY + scrollView.adjustedContentInset.top
     }
 }
 
