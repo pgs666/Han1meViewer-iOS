@@ -9,6 +9,7 @@ struct VideoDetailView: View {
     @StateObject private var viewModel: VideoDetailViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
+    @State private var isPlayerPlaying = false
     @State private var pageScrollOffsets: [VideoPageTab: CGFloat] = [:]
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
@@ -228,6 +229,11 @@ struct VideoDetailView: View {
         showsRelated: Bool
     ) -> some View {
         let currentPlayerHeight = playerHeight(panelWidth: panelWidth, parentHeight: panelHeight)
+        let allowsVideoOverlay = !isPlayerPlaying
+        let pagingTopOffset = allowsVideoOverlay ? 0 : currentPlayerHeight
+        let pagingHeight = max(0, panelHeight - pagingTopOffset)
+        let pagingTopInset = allowsVideoOverlay ? currentPlayerHeight : 0
+        let pagingMinimumHitY = allowsVideoOverlay ? pagingTabOffset(topInset: currentPlayerHeight) : 0
 
         return ZStack(alignment: .top) {
             playerArea(snapshot: snapshot)
@@ -235,15 +241,17 @@ struct VideoDetailView: View {
                 .zIndex(0)
 
             if !isPlayerFullscreen {
-                TopPassthroughContainer(minimumHitY: pagingTabOffset(topInset: currentPlayerHeight)) {
+                TopPassthroughContainer(minimumHitY: pagingMinimumHitY) {
                     pagingLayer(
                         snapshot: snapshot,
-                        topInset: currentPlayerHeight,
+                        topInset: pagingTopInset,
                         showsRelated: showsRelated
                     )
                 }
-                .frame(width: panelWidth, height: panelHeight)
+                .frame(width: panelWidth, height: pagingHeight)
+                .offset(y: pagingTopOffset)
                 .zIndex(1)
+                .animation(.easeInOut(duration: 0.25), value: isPlayerPlaying)
             }
         }
         .frame(width: panelWidth, height: panelHeight, alignment: .top)
@@ -261,6 +269,12 @@ struct VideoDetailView: View {
             isFullscreen: $isPlayerFullscreen,
             onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
             onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) },
+            onPlayingChanged: { newValue in
+                guard isPlayerPlaying != newValue else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isPlayerPlaying = newValue
+                }
+            },
             onBack: { dismiss() },
             onNaturalSize: { size in
                 videoNaturalSize = size
