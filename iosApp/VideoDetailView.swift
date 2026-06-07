@@ -1075,6 +1075,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     var onVerticalInteractionBegan: () -> Void = {}
     var visualTopContentOffsetY: CGFloat = 0
     var isApplyingExternalOffset = false
+    var isHorizontalPagingActive = false
     private var lastReportedOffset: CGFloat?
     private var lastTopPullTranslationY: CGFloat = 0
 
@@ -1091,7 +1092,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        guard !isApplyingExternalOffset else { return }
+        guard !isApplyingExternalOffset, !isHorizontalPagingActive else { return }
         let offset = scrollView.verticalContentOffsetExcludingBounce
         guard lastReportedOffset.map({ abs($0 - offset) > 0.5 }) ?? true else { return }
         lastReportedOffset = offset
@@ -1362,6 +1363,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         setNormalizedContentOffsetY(page.headerGeometry.syncOffset(fromActiveOffset: offsetY))
     }
 
+    func setHorizontalPagingActive(_ isActive: Bool) {
+        coordinator.isHorizontalPagingActive = isActive
+        if !isActive {
+            coordinator.resetReportedOffset(scrollView.verticalContentOffsetExcludingBounce)
+        }
+    }
+
     private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
         guard abs(previousOffsetY - targetOffsetY) > 0.5 else { return }
         guard abs(scrollView.verticalContentOffsetExcludingBounce - previousOffsetY) <= 1 else { return }
@@ -1467,6 +1475,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
     final class Coordinator: NSObject, UIScrollViewDelegate {
         var selectedTab: Binding<VideoPageTab>
         var onSelectedIndexSettled: ((Int) -> Void)?
+        var onPagingActivityChanged: ((Bool) -> Void)?
         private var lastProgrammaticIndex: Int?
         private var pendingSettledIndex: Int?
 
@@ -1480,16 +1489,23 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             return lastProgrammaticIndex != index
         }
 
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            onPagingActivityChanged?(true)
+        }
+
         func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            onPagingActivityChanged?(false)
             updateSelectedTab(from: scrollView)
         }
 
         func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+            onPagingActivityChanged?(false)
             updateSelectedTab(from: scrollView)
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
             if !decelerate {
+                onPagingActivityChanged?(false)
                 updateSelectedTab(from: scrollView)
             }
         }
@@ -1542,6 +1558,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private var lastSettledSelectedIndex: Int?
         private var pendingSelectedIndex: Int?
         private var lastLaidOutWidth: CGFloat = 0
+        private var isHorizontalPagingActive = false
 
         init(coordinator: Coordinator) {
             self.coordinator = coordinator
@@ -1576,6 +1593,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                     panGestureRecognizer: panGestureRecognizer,
                     in: view
                 ) ?? true
+            }
+            coordinator.onPagingActivityChanged = { [weak self] isActive in
+                self?.setHorizontalPagingActive(isActive)
             }
             view.addSubview(scrollView)
 
@@ -1662,6 +1682,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             }
             let targetOffset = CGPoint(x: CGFloat(selectedIndex) * width, y: 0)
             guard abs(scrollView.contentOffset.x - targetOffset.x) > 0.5 else { return }
+            if animated {
+                setHorizontalPagingActive(true)
+            }
             scrollView.setContentOffset(targetOffset, animated: animated)
         }
 
@@ -1680,6 +1703,16 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 introductionPage.settleAfterHorizontalActivation()
             case .comments:
                 commentsPage.settleAfterHorizontalActivation()
+            }
+        }
+
+        private func setHorizontalPagingActive(_ isActive: Bool) {
+            guard isHorizontalPagingActive != isActive else { return }
+            isHorizontalPagingActive = isActive
+            introductionPage.setHorizontalPagingActive(isActive)
+            commentsPage.setHorizontalPagingActive(isActive)
+            if !isActive {
+                syncInactivePageHeaderOffset()
             }
         }
 
