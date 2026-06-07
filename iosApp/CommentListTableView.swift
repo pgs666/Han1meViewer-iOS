@@ -92,6 +92,9 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         static let failed: CGFloat = 230
         static let empty: CGFloat = 180
         static let footer: CGFloat = 44
+        static let failedMinimum: CGFloat = 230
+        static let failedLineHeight: CGFloat = 20
+        static let failedCharactersPerLine: CGFloat = 18
         static let commentMinimum: CGFloat = 118
         static let commentLineHeight: CGFloat = 22
         static let commentCharactersPerLine: CGFloat = 22
@@ -102,6 +105,11 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             let replyHeight: CGFloat = comment.hasMoreReplies ? 18 : 0
             let childReduction: CGFloat = comment.isChildComment ? 8 : 0
             return max(commentMinimum - childReduction, 92 + estimatedLines * commentLineHeight + replyHeight)
+        }
+
+        static func failed(_ message: String) -> CGFloat {
+            let estimatedLines = ceil(CGFloat(max(message.count, 1)) / failedCharactersPerLine)
+            return max(failedMinimum, 188 + estimatedLines * failedLineHeight)
         }
     }
 
@@ -289,37 +297,47 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         guard indexPath.row < rows.count else { return UITableView.automaticDimension }
-        if case .bottomSpacer(let height) = rows[indexPath.row] {
-            return max(height, 0)
-        }
-        if case .footer = rows[indexPath.row] {
-            return RowHeightEstimate.footer
-        }
-        if case .comment(let comment) = rows[indexPath.row],
-           let measuredHeight = measuredCommentHeights[comment.id],
-           measuredHeight.signature == CommentSignature(comment) {
-            return measuredHeight.height
-        }
-        return UITableView.automaticDimension
+        return height(for: rows[indexPath.row])
     }
 
     func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
         guard indexPath.row < rows.count else { return UITableView.automaticDimension }
-        switch rows[indexPath.row] {
+        return estimatedHeight(for: rows[indexPath.row])
+    }
+
+    private func height(for row: Row) -> CGFloat {
+        switch row {
         case .controls:
             return RowHeightEstimate.controls
         case .loading:
             return RowHeightEstimate.loading
-        case .failed:
-            return RowHeightEstimate.failed
+        case .failed(let message):
+            return RowHeightEstimate.failed(message)
         case .empty:
             return RowHeightEstimate.empty
-        case .comment(let comment):
-            return RowHeightEstimate.comment(comment)
         case .footer:
             return RowHeightEstimate.footer
         case .bottomSpacer(let height):
             return max(height, 0)
+        case .comment(let comment):
+            guard let measuredHeight = measuredCommentHeights[comment.id],
+                  measuredHeight.signature == CommentSignature(comment) else {
+                return UITableView.automaticDimension
+            }
+            return measuredHeight.height
+        }
+    }
+
+    private func estimatedHeight(for row: Row) -> CGFloat {
+        switch row {
+        case .comment(let comment):
+            if let measuredHeight = measuredCommentHeights[comment.id],
+               measuredHeight.signature == CommentSignature(comment) {
+                return measuredHeight.height
+            }
+            return RowHeightEstimate.comment(comment)
+        default:
+            return height(for: row)
         }
     }
 
