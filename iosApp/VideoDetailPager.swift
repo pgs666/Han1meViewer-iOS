@@ -346,6 +346,7 @@ private enum VideoDetailPendingTopAlignment {
 
 private enum VideoDetailTabPageContent {
     case swiftUI(() -> AnyView)
+    case nativeScrollView(listScrollView: UIScrollView, update: () -> Void)
 }
 
 private struct VideoDetailListAlignmentState {
@@ -499,6 +500,36 @@ private struct VideoDetailTabPage {
         self.onTopPullDelta = onTopPullDelta
         self.content = .swiftUI({ AnyView(content()) })
     }
+
+    init(
+        tab: VideoPageTab,
+        contentBottomPadding: CGFloat,
+        isSelected: Bool,
+        headerGeometry: VideoDetailSmoothHeaderGeometry,
+        contentUpdateRevision: Int,
+        onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void,
+        onInteractionBegan: @escaping (VideoPageTab) -> Void,
+        onTopPullDelta: @escaping (VideoPageTab, CGFloat) -> Void,
+        listScrollView: UIScrollView,
+        nativeUpdate: @escaping () -> Void
+    ) {
+        self.tab = tab
+        self.contentBottomPadding = contentBottomPadding
+        self.isSelected = isSelected
+        self.headerGeometry = headerGeometry
+        self.contentUpdateRevision = contentUpdateRevision
+        self.onOffsetChange = onOffsetChange
+        self.onInteractionBegan = onInteractionBegan
+        self.onTopPullDelta = onTopPullDelta
+        self.content = .nativeScrollView(listScrollView: listScrollView, update: nativeUpdate)
+    }
+
+    var nativeListScrollView: UIScrollView? {
+        if case .nativeScrollView(let listScrollView, _) = content {
+            return listScrollView
+        }
+        return nil
+    }
 }
 
 struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, Comments: View>: View {
@@ -518,6 +549,8 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
     let isContinuationHeaderInteractive: Bool
     let introduction: () -> Introduction
     let comments: () -> Comments
+    let nativeCommentsListScrollView: UIScrollView?
+    let nativeCommentsUpdate: (() -> Void)?
 
     private var selectedTabBinding: Binding<VideoPageTab> {
         Binding(
@@ -542,12 +575,7 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
                 contentUpdateRevision: introductionContentRevision,
                 content: introduction
             ),
-            comments: tabPage(
-                .comments,
-                contentBottomPadding: commentsContentBottomPadding,
-                contentUpdateRevision: commentsContentRevision,
-                content: comments
-            )
+            comments: commentsPage
         )
         .frame(maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
@@ -603,6 +631,48 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
                 }
             },
             content: content
+        )
+    }
+
+    private var commentsPage: VideoDetailTabPage {
+        let geometry = VideoDetailSmoothHeaderGeometry(
+            headerHeight: headerHeight,
+            pinHeaderHeight: pinHeaderHeight,
+            collapseDistance: collapseDistance,
+            visualTopOffset: playerScrollAway,
+            pinnedVisibleHeight: pinnedVisibleHeight
+        )
+        if let nativeCommentsListScrollView, let nativeCommentsUpdate {
+            return VideoDetailTabPage(
+                tab: .comments,
+                contentBottomPadding: commentsContentBottomPadding,
+                isSelected: state.selectedTab == .comments,
+                headerGeometry: geometry,
+                contentUpdateRevision: commentsContentRevision,
+                onOffsetChange: { tab, offset in
+                    mutateState {
+                        $0.updateTabOffset(tab, offset: offset, collapseDistance: collapseDistance)
+                    }
+                },
+                onInteractionBegan: { tab in
+                    mutateState {
+                        $0.beginInteracting(with: tab, collapseDistance: collapseDistance)
+                    }
+                },
+                onTopPullDelta: { tab, delta in
+                    mutateState {
+                        $0.handleTopPull(tab: tab, delta: delta, collapseDistance: collapseDistance)
+                    }
+                },
+                listScrollView: nativeCommentsListScrollView,
+                nativeUpdate: nativeCommentsUpdate
+            )
+        }
+        return tabPage(
+            .comments,
+            contentBottomPadding: commentsContentBottomPadding,
+            contentUpdateRevision: commentsContentRevision,
+            content: comments
         )
     }
 
@@ -831,11 +901,18 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if !page.isSelected, !hasExplicitPendingTopAlignment {
             cancelPendingTopAlignment()
         }
+        if case .nativeScrollView(_, let update) = page.content {
+            update()
+        }
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             switch page.content {
             case .swiftUI(let content):
+                host.view.isHidden = false
                 host.rootView = content()
+            case .nativeScrollView:
+                host.view.isHidden = true
+                host.rootView = AnyView(EmptyView())
             }
             alignmentState.resetForContentUpdate()
             if !alignmentState.hasAppliedInitialListOffset && !alignmentState.hasExplicitPendingTopAlignment {
@@ -852,9 +929,18 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.visualTopContentOffsetY = visualTopOffset
         applyTopContentInset(offsetContext.contentTopInset)
         applyListHeaderFrame()
-        applyBottomContentSpacing(page.contentBottomPadding)
-        collapseSpacerHeightConstraint.constant = offsetContext.collapseSpacerHeight
-        contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
+        switch page.content {
+        case .swiftUI:
+            applyBottomContentSpacing(page.contentBottomPadding, usesContentSpacer: true)
+            collapseSpacerHeightConstraint.constant = offsetContext.collapseSpacerHeight
+            contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
+            hostMinimumHeightConstraint.isActive = true
+        case .nativeScrollView:
+            applyBottomContentSpacing(page.contentBottomPadding, usesContentSpacer: false)
+            collapseSpacerHeightConstraint.constant = 0
+            contentMinimumHeightConstraint.constant = 1
+            hostMinimumHeightConstraint.isActive = false
+        }
         if alignmentState.needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
         } else if alignmentState.pendingTopAlignment != nil {
@@ -901,13 +987,15 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         applyListHeaderFrame()
     }
 
-    private func applyBottomContentSpacing(_ bottomSpacing: CGFloat) {
+    private func applyBottomContentSpacing(_ bottomSpacing: CGFloat, usesContentSpacer: Bool) {
         let resolvedBottomSpacing = max(bottomSpacing, 0)
-        if abs(contentBottomSpacerHeightConstraint.constant - resolvedBottomSpacing) > 0.5 {
-            contentBottomSpacerHeightConstraint.constant = resolvedBottomSpacing
+        let contentSpacerHeight = usesContentSpacer ? resolvedBottomSpacing : 0
+        if abs(contentBottomSpacerHeightConstraint.constant - contentSpacerHeight) > 0.5 {
+            contentBottomSpacerHeightConstraint.constant = contentSpacerHeight
         }
-        if abs(listScrollView.contentInset.bottom) > 0.5 {
-            listScrollView.contentInset.bottom = 0
+        let bottomInset = usesContentSpacer ? 0 : resolvedBottomSpacing
+        if abs(listScrollView.contentInset.bottom - bottomInset) > 0.5 {
+            listScrollView.contentInset.bottom = bottomInset
         }
         if abs(listScrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
             listScrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
@@ -1344,7 +1432,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private let continuationHeaderHost = UIHostingController(rootView: AnyView(EmptyView()))
         private let pinHeaderHost = UIHostingController(rootView: AnyView(EmptyView()))
         private let introductionPage = VideoDetailVerticalScrollPageViewController(tab: .introduction)
-        private let commentsPage = VideoDetailVerticalScrollPageViewController(tab: .comments)
+        private var commentsPage: VideoDetailVerticalScrollPageViewController?
+        private weak var commentsListScrollView: UIScrollView?
         private var pagerPosition = VideoDetailHorizontalPagerPosition()
         private var pendingSelectedIndex: Int?
         private var lastLaidOutWidth: CGFloat = 0
@@ -1401,6 +1490,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             contentView.translatesAutoresizingMaskIntoConstraints = false
             contentView.backgroundColor = .clear
             scrollView.addSubview(contentView)
+            addPage(introductionPage)
 
             headerContainerView.backgroundColor = .clear
             headerContainerView.pinHeaderHeight = 48
@@ -1413,13 +1503,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             headerContainerView.addSubview(pinHeaderHost.view)
             pinHeaderHost.didMove(toParent: self)
 
-            addPage(introductionPage)
-            addPage(commentsPage)
             updateScrollsToTop(for: VideoPageTab.page(at: pagerPosition.selectedIndex))
             introductionPage.onHeaderOffsetChanged = { [weak self] tab, offset in
-                self?.updateHeaderContainerPosition(for: tab, offsetY: offset)
-            }
-            commentsPage.onHeaderOffsetChanged = { [weak self] tab, offset in
                 self?.updateHeaderContainerPosition(for: tab, offsetY: offset)
             }
 
@@ -1439,14 +1524,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 introductionPage.view.topAnchor.constraint(equalTo: contentView.topAnchor),
                 introductionPage.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
                 introductionPage.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
-                introductionPage.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
-
-                commentsPage.view.leadingAnchor.constraint(equalTo: introductionPage.view.trailingAnchor),
-                commentsPage.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-                commentsPage.view.topAnchor.constraint(equalTo: contentView.topAnchor),
-                commentsPage.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-                commentsPage.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
-                commentsPage.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+                introductionPage.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
             ])
         }
 
@@ -1484,6 +1562,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             }
             latestPages[.introduction] = introduction
             latestPages[.comments] = comments
+            prepareCommentsPageIfNeeded(for: comments)
             updateHeaderHosts(
                 headerContentRevision: headerContentRevision,
                 continuationHeader: continuationHeader,
@@ -1493,7 +1572,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 page: VideoPageTab.page(at: pagerPosition.selectedIndex)
             )
             introductionPage.update(page: introduction)
-            commentsPage.update(page: comments)
+            commentsPage?.update(page: comments)
             updateScrollsToTop(for: VideoPageTab.page(at: pagerPosition.selectedIndex))
             updateHeaderAttachmentForCurrentState()
             if !pagerPosition.isPagingActive {
@@ -1558,9 +1637,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 introductionPage.reportCurrentOffset()
             case .comments:
                 if didChangeSettledIndex {
-                    commentsPage.settleAfterHorizontalActivation()
+                    commentsPage?.settleAfterHorizontalActivation()
                 }
-                commentsPage.reportCurrentOffset()
+                commentsPage?.reportCurrentOffset()
             }
             updateHeaderAttachmentForCurrentState()
             syncInactivePageHeaderOffset()
@@ -1568,7 +1647,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func updateScrollsToTop(for activeTab: VideoPageTab) {
             introductionPage.setScrollsToTop(activeTab == .introduction)
-            commentsPage.setScrollsToTop(activeTab == .comments)
+            commentsPage?.setScrollsToTop(activeTab == .comments)
         }
 
         private func setHorizontalPagingActive(_ isActive: Bool) {
@@ -1577,7 +1656,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 settledIndex: isActive ? nil : settledIndexFromHorizontalOffset()
             ) else { return }
             introductionPage.setHorizontalPagingActive(isActive)
-            commentsPage.setHorizontalPagingActive(isActive)
+            commentsPage?.setHorizontalPagingActive(isActive)
             updateHeaderAttachmentForCurrentState()
             if !isActive {
                 syncInactivePageHeaderOffset()
@@ -1645,6 +1724,36 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             case .comments:
                 return commentsPage
             }
+        }
+
+        private func prepareCommentsPageIfNeeded(for comments: VideoDetailTabPage) {
+            let nativeScrollView = comments.nativeListScrollView
+            if let commentsPage, commentsListScrollView === nativeScrollView {
+                return
+            }
+            if let commentsPage {
+                commentsPage.willMove(toParent: nil)
+                commentsPage.view.removeFromSuperview()
+                commentsPage.removeFromParent()
+            }
+            let nextCommentsPage = VideoDetailVerticalScrollPageViewController(
+                tab: .comments,
+                listScrollView: nativeScrollView
+            )
+            nextCommentsPage.onHeaderOffsetChanged = { [weak self] tab, offset in
+                self?.updateHeaderContainerPosition(for: tab, offsetY: offset)
+            }
+            addPage(nextCommentsPage)
+            NSLayoutConstraint.activate([
+                nextCommentsPage.view.leadingAnchor.constraint(equalTo: introductionPage.view.trailingAnchor),
+                nextCommentsPage.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                nextCommentsPage.view.topAnchor.constraint(equalTo: contentView.topAnchor),
+                nextCommentsPage.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                nextCommentsPage.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+                nextCommentsPage.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+            ])
+            commentsPage = nextCommentsPage
+            commentsListScrollView = nativeScrollView
         }
 
         private func updateHeaderHosts(

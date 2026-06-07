@@ -130,6 +130,12 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         tableView.delegate = self
     }
 
+    func makeTableView() -> UITableView {
+        let tableView = UITableView(frame: .zero, style: .plain)
+        attach(tableView)
+        return tableView
+    }
+
     func update(_ model: CommentListTableModel) {
         sortMode = model.sortMode
         comments = model.comments

@@ -4,10 +4,6 @@ import Han1meShared
 struct CommentView: View {
     @ObservedObject private var viewModel: CommentViewModel
     private let onOverlayActivityChanged: (Bool) -> Void
-    @State private var replyTarget: CommentRow?
-    @State private var replyText = ""
-    @State private var reportTarget: CommentRow?
-    @State private var repliesTarget: CommentRow?
 
     init(
         viewModel: CommentViewModel,
@@ -18,69 +14,96 @@ struct CommentView: View {
     }
 
     var body: some View {
-        CommentListTableView(
-            model: tableModel
-        )
-        .task {
-            viewModel.loadIfNeeded()
+        CommentOverlayHost(
+            viewModel: viewModel,
+            onOverlayActivityChanged: onOverlayActivityChanged
+        ) { tableModel in
+            CommentListTableView(model: tableModel)
         }
-        .onValueChange(of: replyTarget?.id) { _ in
-            notifyOverlayActivityChanged()
-        }
-        .onValueChange(of: repliesTarget?.id) { _ in
-            notifyOverlayActivityChanged()
-        }
-        .onDisappear {
-            onOverlayActivityChanged(false)
-        }
-        .alert("提示", isPresented: actionMessageBinding) {
-            Button("好", role: .cancel) {
-                viewModel.actionMessage = nil
+    }
+}
+
+struct CommentOverlayHost<Content: View>: View {
+    @ObservedObject private var viewModel: CommentViewModel
+    private let onOverlayActivityChanged: (Bool) -> Void
+    private let content: (CommentListTableModel) -> Content
+    @State private var replyTarget: CommentRow?
+    @State private var replyText = ""
+    @State private var reportTarget: CommentRow?
+    @State private var repliesTarget: CommentRow?
+
+    init(
+        viewModel: CommentViewModel,
+        onOverlayActivityChanged: @escaping (Bool) -> Void = { _ in },
+        @ViewBuilder content: @escaping (CommentListTableModel) -> Content
+    ) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.onOverlayActivityChanged = onOverlayActivityChanged
+        self.content = content
+    }
+
+    var body: some View {
+        content(tableModel)
+            .task {
+                viewModel.loadIfNeeded()
             }
-        } message: {
-            Text(viewModel.actionMessage ?? "")
-        }
-        .sheet(item: $replyTarget) { comment in
-            CommentTextSheet(
-                title: "回复 \(comment.username)",
-                text: $replyText,
-                placeholder: "输入回复",
-                submitTitle: "回复",
-                onCancel: {
-                    replyTarget = nil
-                    replyText = ""
-                },
-                onSubmit: {
-                    viewModel.postReply(to: comment, text: replyText)
-                    replyTarget = nil
-                    replyText = ""
+            .onValueChange(of: replyTarget?.id) { _ in
+                notifyOverlayActivityChanged()
+            }
+            .onValueChange(of: repliesTarget?.id) { _ in
+                notifyOverlayActivityChanged()
+            }
+            .onDisappear {
+                onOverlayActivityChanged(false)
+            }
+            .alert("提示", isPresented: actionMessageBinding) {
+                Button("好", role: .cancel) {
+                    viewModel.actionMessage = nil
                 }
-            )
-        }
-        .sheet(item: $repliesTarget) { comment in
-            CommentRepliesSheet(
-                comment: comment,
-                viewModel: viewModel
-            ) { reply in
-                beginReplyFromRepliesSheet(reply)
+            } message: {
+                Text(viewModel.actionMessage ?? "")
             }
-        }
-        .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
-            ForEach(viewModel.reportReasons) { reason in
-                Button(reason.title) {
-                    if let reportTarget {
-                        viewModel.report(comment: reportTarget, reason: reason)
+            .sheet(item: $replyTarget) { comment in
+                CommentTextSheet(
+                    title: "回复 \(comment.username)",
+                    text: $replyText,
+                    placeholder: "输入回复",
+                    submitTitle: "回复",
+                    onCancel: {
+                        replyTarget = nil
+                        replyText = ""
+                    },
+                    onSubmit: {
+                        viewModel.postReply(to: comment, text: replyText)
+                        replyTarget = nil
+                        replyText = ""
                     }
+                )
+            }
+            .sheet(item: $repliesTarget) { comment in
+                CommentRepliesSheet(
+                    comment: comment,
+                    viewModel: viewModel
+                ) { reply in
+                    beginReplyFromRepliesSheet(reply)
+                }
+            }
+            .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
+                ForEach(viewModel.reportReasons) { reason in
+                    Button(reason.title) {
+                        if let reportTarget {
+                            viewModel.report(comment: reportTarget, reason: reason)
+                        }
+                        reportTarget = nil
+                    }
+                }
+                Button("取消", role: .cancel) {
                     reportTarget = nil
                 }
             }
-            Button("取消", role: .cancel) {
-                reportTarget = nil
-            }
-        }
     }
 
-    private var tableModel: CommentListTableModel {
+    var tableModel: CommentListTableModel {
         CommentListTableModel(
             state: viewModel.state,
             sortMode: viewModel.sortMode,
