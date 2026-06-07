@@ -81,6 +81,11 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         }
     }
 
+    private struct MeasuredCommentHeight {
+        let signature: CommentSignature
+        let height: CGFloat
+    }
+
     private enum RowHeightEstimate {
         static let controls: CGFloat = 61
         static let loading: CGFloat = 120
@@ -128,6 +133,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var commentActionSignatures: [CommentActionSignature] = []
     private var previousRunningActionIDs: Set<String> = []
     private var hasRenderedRows = false
+    private var measuredCommentHeights: [String: MeasuredCommentHeight] = [:]
+    private var isUpdatingMeasuredHeights = false
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -151,6 +158,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         let didChangeRunningActions = previousRunningActionIDs != model.runningActionIDs
         let resolvedBottomSpacerHeight = max(bottomSpacerHeight, 0)
         let didChangeBottomSpacerHeight = abs(self.bottomSpacerHeight - resolvedBottomSpacerHeight) > 0.5
+        pruneMeasuredCommentHeights(for: model)
         modelSignature = nextSignature
         commentActionSignatures = nextCommentActionSignatures
         previousRunningActionIDs = model.runningActionIDs
@@ -264,6 +272,9 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             cell.configure(
                 comment: comment,
                 isRunningLike: runningActionIDs.contains("like-\(comment.id)"),
+                onMeasuredHeight: { [weak self, weak tableView] height in
+                    self?.recordMeasuredCommentHeight(height, commentID: comment.id, tableView: tableView)
+                },
                 onReply: { [weak self] in self?.onReply(comment) },
                 onShowReplies: { [weak self] in self?.onShowReplies(comment) },
                 onLike: { [weak self] in self?.onLike(comment) },
@@ -278,6 +289,11 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         guard indexPath.row < rows.count else { return UITableView.automaticDimension }
         if case .bottomSpacer(let height) = rows[indexPath.row] {
             return max(height, 0)
+        }
+        if case .comment(let comment) = rows[indexPath.row],
+           let measuredHeight = measuredCommentHeights[comment.id],
+           measuredHeight.signature == CommentSignature(comment) {
+            return measuredHeight.height
         }
         return UITableView.automaticDimension
     }
@@ -368,6 +384,9 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             cell.configure(
                 comment: comment,
                 isRunningLike: runningActionIDs.contains("like-\(comment.id)"),
+                onMeasuredHeight: { [weak self, weak tableView] height in
+                    self?.recordMeasuredCommentHeight(height, commentID: comment.id, tableView: tableView)
+                },
                 onReply: { [weak self] in self?.onReply(comment) },
                 onShowReplies: { [weak self] in self?.onShowReplies(comment) },
                 onLike: { [weak self] in self?.onLike(comment) },
@@ -401,6 +420,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private func updateTableLayoutPreservingOffset() {
         guard let tableView else { return }
         let previousOffset = tableView.contentOffset
+        isUpdatingMeasuredHeights = true
+        defer { isUpdatingMeasuredHeights = false }
         UIView.performWithoutAnimation {
             tableView.beginUpdates()
             tableView.endUpdates()
@@ -420,10 +441,42 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             y: min(max(offset.y, minOffsetY), maxOffsetY)
         )
     }
+
+    private func pruneMeasuredCommentHeights(for model: CommentListTableModel) {
+        let validSignatures = Dictionary(uniqueKeysWithValues: model.comments.map { ($0.id, CommentSignature($0)) })
+        measuredCommentHeights = measuredCommentHeights.filter { id, measured in
+            validSignatures[id] == measured.signature
+        }
+    }
+
+    private func recordMeasuredCommentHeight(
+        _ height: CGFloat,
+        commentID: String,
+        tableView: UITableView?
+    ) {
+        guard height > 1 else { return }
+        let roundedHeight = ceil(height)
+        guard let comment = comments.first(where: { $0.id == commentID }) else { return }
+        let signature = CommentSignature(comment)
+        guard measuredCommentHeights[commentID].map({
+            $0.signature != signature || abs($0.height - roundedHeight) > 0.5
+        }) ?? true else { return }
+        measuredCommentHeights[commentID] = MeasuredCommentHeight(
+            signature: signature,
+            height: roundedHeight
+        )
+        guard let tableView,
+              !isUpdatingMeasuredHeights,
+              !tableView.isTracking,
+              !tableView.isDragging,
+              !tableView.isDecelerating else { return }
+        updateTableLayoutPreservingOffset()
+    }
 }
 
 private final class HostingCommentTableViewCell: UITableViewCell {
     static let reuseIdentifier = "HostingCommentTableViewCell"
+    private var onMeasuredHeight: ((CGFloat) -> Void)?
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -444,9 +497,16 @@ private final class HostingCommentTableViewCell: UITableViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         contentConfiguration = nil
+        onMeasuredHeight = nil
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onMeasuredHeight?(bounds.height)
     }
 
     func configure<Content: View>(@ViewBuilder content: () -> Content) {
+        onMeasuredHeight = nil
         contentConfiguration = UIHostingConfiguration {
             content()
         }
@@ -456,12 +516,14 @@ private final class HostingCommentTableViewCell: UITableViewCell {
     func configure(
         comment: CommentRow,
         isRunningLike: Bool,
+        onMeasuredHeight: @escaping (CGFloat) -> Void,
         onReply: @escaping () -> Void,
         onShowReplies: @escaping () -> Void,
         onLike: @escaping () -> Void,
         onDislike: @escaping () -> Void,
         onReport: @escaping () -> Void
     ) {
+        self.onMeasuredHeight = onMeasuredHeight
         let row = CommentRowView(
             comment: comment,
             isRunningLike: isRunningLike,
