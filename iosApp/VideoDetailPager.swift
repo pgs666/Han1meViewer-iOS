@@ -344,37 +344,21 @@ struct VideoDetailPagerContainer<Introduction: View, Comments: View>: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            VideoDetailTabPager(
-                selectedTab: selectedTabBinding,
-                introduction: tabPage(
-                    .introduction,
-                    contentBottomPadding: introductionContentBottomPadding,
-                    contentUpdateRevision: introductionContentRevision,
-                    content: introduction
-                ),
-                comments: tabPage(
-                    .comments,
-                    contentBottomPadding: commentsContentBottomPadding,
-                    contentUpdateRevision: commentsContentRevision,
-                    content: comments
-                )
+        VideoDetailTabPager(
+            selectedTab: selectedTabBinding,
+            introduction: tabPage(
+                .introduction,
+                contentBottomPadding: introductionContentBottomPadding,
+                contentUpdateRevision: introductionContentRevision,
+                content: introduction
+            ),
+            comments: tabPage(
+                .comments,
+                contentBottomPadding: commentsContentBottomPadding,
+                contentUpdateRevision: commentsContentRevision,
+                content: comments
             )
-            .frame(maxHeight: .infinity)
-
-            Picker("Content", selection: selectedTabBinding) {
-                ForEach(VideoPageTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .frame(height: pinHeaderHeight)
-            .frame(maxWidth: .infinity)
-            .background(.background)
-            .offset(y: max(headerHeight - playerScrollAway, pinnedVisibleHeight - pinHeaderHeight))
-            .zIndex(1)
-        }
+        )
         .frame(maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
         .onValueChange(of: collapseDistance) { newValue in
@@ -436,6 +420,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     var onInteractionBegan: (VideoPageTab) -> Void
     var onTopPullDelta: (VideoPageTab, CGFloat) -> Void
     var onVerticalInteractionBegan: () -> Void = {}
+    var onVisibleOffsetChange: (VideoPageTab, CGFloat) -> Void = { _, _ in }
     var visualTopContentOffsetY: CGFloat = 0
     var isApplyingExternalOffset = false
     var isHorizontalPagingActive = false
@@ -457,6 +442,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard !isApplyingExternalOffset, !isHorizontalPagingActive else { return }
         let offset = scrollView.verticalContentOffsetExcludingBounce
+        onVisibleOffsetChange(tab, offset)
         guard lastReportedOffset.map({ abs($0 - offset) > 0.5 }) ?? true else { return }
         lastReportedOffset = offset
         onOffsetChange(tab, offset)
@@ -505,6 +491,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var topAlignmentGeneration = 0
     private var pendingTopAlignment: VideoDetailPendingTopAlignment?
     private var needsInitialHeaderOffsetReset = true
+    var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab) {
         coordinator = VideoDetailVerticalScrollPageCoordinator(
@@ -552,7 +539,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         scrollView.addSubview(contentView)
 
         listHeaderView.backgroundColor = .clear
-        listHeaderView.isUserInteractionEnabled = false
+        listHeaderView.isUserInteractionEnabled = true
         scrollView.addSubview(listHeaderView)
 
         addChild(host)
@@ -609,6 +596,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onTopPullDelta = page.onTopPullDelta
         coordinator.onVerticalInteractionBegan = { [weak self] in
             self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
+        }
+        coordinator.onVisibleOffsetChange = { [weak self] tab, offset in
+            self?.onHeaderOffsetChanged(tab, offset)
         }
         if !page.isSelected, !hasExplicitPendingTopAlignment {
             cancelPendingTopAlignment()
@@ -851,6 +841,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         defer { coordinator.isApplyingExternalOffset = false }
         scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
         coordinator.resetReportedOffset(scrollView.verticalContentOffsetExcludingBounce)
+        onHeaderOffsetChanged(coordinator.tab, scrollView.verticalContentOffsetExcludingBounce)
+    }
+
+    func headerAttachmentView() -> UIView {
+        loadViewIfNeeded()
+        return listHeaderView
     }
 
     private func clampedRawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat) -> CGFloat {
@@ -1024,6 +1020,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private let coordinator: Coordinator
         private let scrollView = PagingScrollView()
         private let contentView = UIView()
+        private let headerContainerView = PagingHeaderContainerView()
+        private let pinHeaderHost = UIHostingController(rootView: AnyView(EmptyView()))
         private let introductionPage = VideoDetailVerticalScrollPageViewController(tab: .introduction)
         private let commentsPage = VideoDetailVerticalScrollPageViewController(tab: .comments)
         private var selectedIndex = 0
@@ -1031,6 +1029,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private var pendingSelectedIndex: Int?
         private var lastLaidOutWidth: CGFloat = 0
         private var isHorizontalPagingActive = false
+        private var latestPages: [VideoPageTab: VideoDetailTabPage] = [:]
+        private var selectedTabBinding: Binding<VideoPageTab>?
 
         init(coordinator: Coordinator) {
             self.coordinator = coordinator
@@ -1075,8 +1075,21 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             contentView.backgroundColor = .clear
             scrollView.addSubview(contentView)
 
+            headerContainerView.backgroundColor = .clear
+            headerContainerView.pinHeaderHeight = 48
+            addChild(pinHeaderHost)
+            pinHeaderHost.view.backgroundColor = .clear
+            headerContainerView.addSubview(pinHeaderHost.view)
+            pinHeaderHost.didMove(toParent: self)
+
             addPage(introductionPage)
             addPage(commentsPage)
+            introductionPage.onHeaderOffsetChanged = { [weak self] tab, offset in
+                self?.updateHeaderContainerPosition(for: tab, offsetY: offset)
+            }
+            commentsPage.onHeaderOffsetChanged = { [weak self] tab, offset in
+                self?.updateHeaderContainerPosition(for: tab, offsetY: offset)
+            }
 
             NSLayoutConstraint.activate([
                 scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -1110,6 +1123,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let width = scrollView.bounds.width
             let widthChanged = abs(width - lastLaidOutWidth) > 0.5
             lastLaidOutWidth = width
+            layoutPinHeaderHost()
+            updateHeaderAttachmentForCurrentState()
             if let pendingSelectedIndex {
                 self.pendingSelectedIndex = nil
                 setSelectedIndex(pendingSelectedIndex, animated: false)
@@ -1126,8 +1141,13 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         ) {
             loadViewIfNeeded()
             self.selectedIndex = min(max(selectedIndex, 0), VideoPageTab.allCases.count - 1)
+            selectedTabBinding = coordinator.selectedTab
+            latestPages[.introduction] = introduction
+            latestPages[.comments] = comments
+            updatePinHeaderHost(page: VideoPageTab.page(at: self.selectedIndex))
             introductionPage.update(page: introduction)
             commentsPage.update(page: comments)
+            updateHeaderAttachmentForCurrentState()
             syncInactivePageHeaderOffset()
             let consumedSettledIndex = coordinator.consumePendingSettledIndex(for: self.selectedIndex)
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
@@ -1169,7 +1189,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func settlePageAfterHorizontalSelection(_ index: Int) {
             lastSettledSelectedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
-            syncInactivePageHeaderOffset()
+            updatePinHeaderHost(page: VideoPageTab.page(at: index))
             switch VideoPageTab.page(at: index) {
             case .introduction:
                 introductionPage.settleAfterHorizontalActivation()
@@ -1178,6 +1198,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 commentsPage.settleAfterHorizontalActivation()
                 commentsPage.reportCurrentOffset()
             }
+            updateHeaderAttachmentForCurrentState()
+            syncInactivePageHeaderOffset()
         }
 
         private func setHorizontalPagingActive(_ isActive: Bool) {
@@ -1185,6 +1207,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             isHorizontalPagingActive = isActive
             introductionPage.setHorizontalPagingActive(isActive)
             commentsPage.setHorizontalPagingActive(isActive)
+            updateHeaderAttachmentForCurrentState()
             if !isActive {
                 syncInactivePageHeaderOffset()
             }
@@ -1209,6 +1232,90 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 return commentsPage
             }
         }
+
+        private func updatePinHeaderHost(page tab: VideoPageTab) {
+            guard let selectedTabBinding else { return }
+            guard let page = latestPages[tab] else { return }
+            headerContainerView.pinHeaderHeight = page.headerGeometry.pinHeaderHeight
+            pinHeaderHost.rootView = AnyView(
+                Picker("Content", selection: selectedTabBinding) {
+                    ForEach(VideoPageTab.allCases) { tab in
+                        Text(tab.title).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .frame(height: page.headerGeometry.pinHeaderHeight)
+                .frame(maxWidth: .infinity)
+                .background(.background)
+            )
+            layoutPinHeaderHost()
+        }
+
+        private func layoutPinHeaderHost() {
+            guard let page = latestPages[VideoPageTab.page(at: selectedIndex)] else { return }
+            let width = view.bounds.width
+            let contentTopInset = page.headerGeometry.contentTopInset
+            headerContainerView.frame = CGRect(
+                x: 0,
+                y: headerContainerView.frame.origin.y,
+                width: width,
+                height: contentTopInset
+            )
+            pinHeaderHost.view.frame = CGRect(
+                x: 0,
+                y: page.headerGeometry.headerHeight,
+                width: width,
+                height: page.headerGeometry.pinHeaderHeight
+            )
+        }
+
+        private func updateHeaderAttachmentForCurrentState() {
+            guard let page = latestPages[VideoPageTab.page(at: selectedIndex)] else { return }
+            layoutPinHeaderHost()
+            if isHorizontalPagingActive {
+                attachHeaderToPagerContainer(page: page)
+                return
+            }
+            let selectedPageController = verticalPageController(for: VideoPageTab.page(at: selectedIndex))
+            guard let selectedPageController else { return }
+            let selectedOffset = selectedPageController.normalizedContentOffsetY
+            let shouldAttachToListHeader = selectedOffset <= page.headerGeometry.collapseDistance + 0.5
+            if shouldAttachToListHeader {
+                attachHeader(to: selectedPageController.headerAttachmentView(), originY: 0)
+            } else {
+                attachHeaderToPagerContainer(page: page)
+            }
+        }
+
+        private func attachHeaderToPagerContainer(page: VideoDetailTabPage) {
+            let offset = verticalPageController(for: VideoPageTab.page(at: selectedIndex))?.normalizedContentOffsetY ?? 0
+            let headerOffset = min(max(offset, 0), page.headerGeometry.collapseDistance)
+            attachHeader(to: view, originY: -headerOffset)
+        }
+
+        private func attachHeader(to parentView: UIView, originY: CGFloat) {
+            if headerContainerView.superview !== parentView {
+                headerContainerView.removeFromSuperview()
+                parentView.addSubview(headerContainerView)
+            }
+            var frame = headerContainerView.frame
+            frame.origin = CGPoint(x: 0, y: originY)
+            frame.size.width = parentView.bounds.width
+            headerContainerView.frame = frame
+            parentView.bringSubviewToFront(headerContainerView)
+        }
+
+        private func updateHeaderContainerPosition(for tab: VideoPageTab, offsetY: CGFloat) {
+            guard tab.pageIndex == selectedIndex else { return }
+            guard let page = latestPages[tab] else { return }
+            if isHorizontalPagingActive {
+                let headerOffset = min(max(offsetY, 0), page.headerGeometry.collapseDistance)
+                attachHeader(to: view, originY: -headerOffset)
+            } else {
+                updateHeaderAttachmentForCurrentState()
+            }
+        }
     }
 
     final class PagingScrollView: UIScrollView {
@@ -1220,6 +1327,21 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 return shouldBeginPagingPan?(panGestureRecognizer, self) ?? true
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
+        }
+    }
+
+    final class PagingHeaderContainerView: UIView {
+        var pinHeaderHeight: CGFloat = 0
+
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            let pinHeaderFrame = CGRect(
+                x: 0,
+                y: bounds.height - pinHeaderHeight,
+                width: bounds.width,
+                height: pinHeaderHeight
+            )
+            guard pinHeaderFrame.contains(point) else { return nil }
+            return super.hitTest(point, with: event)
         }
     }
 }
