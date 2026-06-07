@@ -1513,11 +1513,11 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             return min(max(index, 0), VideoPageTab.allCases.count - 1)
         }
 
-        private func syncInactivePageHeaderOffset() {
+        private func syncInactivePageHeaderOffset(activeOffset providedActiveOffset: CGFloat? = nil) {
             guard let activePage = verticalPageController(for: VideoPageTab.page(at: pagerPosition.selectedIndex)) else {
                 return
             }
-            let activeOffset = activePage.normalizedContentOffsetY
+            let activeOffset = providedActiveOffset ?? activePage.normalizedContentOffsetY
             let previousSyncState = headerSyncState
             let nextSyncState = updateHeaderSyncState(activeOffset: activeOffset)
             guard let syncMode = inactiveSyncMode(
@@ -1684,7 +1684,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 applyHeaderAttachment(attachmentState, pageController: pageController)
             } else {
                 if tab == VideoPageTab.page(at: pagerPosition.selectedIndex) {
-                    updateHeaderSyncState(activeOffset: offsetY)
+                    syncInactivePageHeaderOffset(activeOffset: offsetY)
                 }
                 updateHeaderAttachmentForCurrentState()
             }
