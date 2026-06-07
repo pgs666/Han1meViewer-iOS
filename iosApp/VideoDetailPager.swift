@@ -92,6 +92,11 @@ private struct VideoDetailSmoothHeaderSyncState: Equatable {
     }
 }
 
+private struct VideoDetailInactiveHeaderSyncResult {
+    let state: VideoDetailSmoothHeaderSyncState
+    let didSyncAllInactivePages: Bool
+}
+
 private enum VideoDetailHeaderAttachmentState: Equatable {
     case listHeader
     case pagerContainer(CGFloat)
@@ -1731,7 +1736,12 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 commentsPage?.reportCurrentOffset()
             }
             if let activePage = verticalPageController(for: VideoPageTab.page(at: clampedIndex)) {
-                syncInactivePageHeaderOffset(activeOffset: activePage.normalizedContentOffsetY)
+                let syncResult = syncInactivePageHeaderOffset(activeOffset: activePage.normalizedContentOffsetY)
+                if syncResult?.didSyncAllInactivePages == false {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.syncInactivePageHeaderOffset()
+                    }
+                }
             }
             updateHeaderAttachmentForCurrentState()
         }
@@ -1770,9 +1780,12 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         }
 
         @discardableResult
-        private func syncInactivePageHeaderOffset(activeOffset providedActiveOffset: CGFloat? = nil) -> VideoDetailSmoothHeaderSyncState? {
+        private func syncInactivePageHeaderOffset(activeOffset providedActiveOffset: CGFloat? = nil) -> VideoDetailInactiveHeaderSyncResult? {
             guard !pagerPosition.isPagingActive else {
-                return headerSyncState
+                return VideoDetailInactiveHeaderSyncResult(
+                    state: headerSyncState,
+                    didSyncAllInactivePages: false
+                )
             }
             guard let activePage = verticalPageController(for: VideoPageTab.page(at: pagerPosition.selectedIndex)) else {
                 return nil
@@ -1787,10 +1800,10 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 ) ?? true
                 didSyncAllInactivePages = didSyncAllInactivePages && didSync
             }
-            if !didSyncAllInactivePages {
-                updateHeaderAttachmentForCurrentState()
-            }
-            return nextSyncState
+            return VideoDetailInactiveHeaderSyncResult(
+                state: nextSyncState,
+                didSyncAllInactivePages: didSyncAllInactivePages
+            )
         }
 
         @discardableResult
