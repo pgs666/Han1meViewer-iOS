@@ -879,14 +879,55 @@ private struct VideoDetailTabContentRevision: Equatable {
     let comments: Int
 }
 
+private struct VideoDetailSmoothHeaderGeometry: Equatable {
+    let headerHeight: CGFloat
+    let pinHeaderHeight: CGFloat
+    let collapseDistance: CGFloat
+    let visualTopOffset: CGFloat
+    let pinnedVisibleHeight: CGFloat
+
+    var contentTopInset: CGFloat {
+        max(headerHeight, 0) + max(pinHeaderHeight, 0)
+    }
+
+    var resolvedVisualTopOffset: CGFloat {
+        min(max(visualTopOffset, 0), max(collapseDistance, 0))
+    }
+
+    var collapseSpacerHeight: CGFloat {
+        max(collapseDistance - resolvedVisualTopOffset + 1, 1)
+    }
+
+    func minimumContentHeight(in scrollBoundsHeight: CGFloat) -> CGFloat {
+        max(
+            scrollBoundsHeight - max(pinnedVisibleHeight, 0),
+            max(collapseDistance, 0) + 1,
+            1
+        )
+    }
+
+    func rawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat, in scrollView: UIScrollView) -> CGFloat {
+        let inset = scrollView.adjustedContentInset
+        let minOffsetY = -inset.top
+        let maxOffsetY = max(minOffsetY, scrollView.contentSize.height - scrollView.bounds.height + inset.bottom)
+        let rawOffsetY = offsetY - inset.top
+        return min(max(rawOffsetY, minOffsetY), maxOffsetY)
+    }
+
+    func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat, in scrollView: UIScrollView) -> CGFloat {
+        rawOffsetY + scrollView.adjustedContentInset.top
+    }
+
+    func syncOffset(fromActiveOffset activeOffset: CGFloat) -> CGFloat {
+        min(max(activeOffset, 0), resolvedVisualTopOffset)
+    }
+}
+
 private struct VideoDetailTabPage {
     let tab: VideoPageTab
     let contentBottomPadding: CGFloat
-    let contentTopInset: CGFloat
-    let visualTopOffset: CGFloat
     let isSelected: Bool
-    let collapseDistance: CGFloat
-    let pinnedVisibleHeight: CGFloat
+    let headerGeometry: VideoDetailSmoothHeaderGeometry
     let contentUpdateRevision: Int
     let onOffsetChange: (VideoPageTab, CGFloat) -> Void
     let onInteractionBegan: (VideoPageTab) -> Void
@@ -896,11 +937,8 @@ private struct VideoDetailTabPage {
     init<Content: View>(
         tab: VideoPageTab,
         contentBottomPadding: CGFloat,
-        contentTopInset: CGFloat,
-        visualTopOffset: CGFloat,
         isSelected: Bool,
-        collapseDistance: CGFloat,
-        pinnedVisibleHeight: CGFloat,
+        headerGeometry: VideoDetailSmoothHeaderGeometry,
         contentUpdateRevision: Int,
         onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void,
         onInteractionBegan: @escaping (VideoPageTab) -> Void,
@@ -909,11 +947,8 @@ private struct VideoDetailTabPage {
     ) {
         self.tab = tab
         self.contentBottomPadding = contentBottomPadding
-        self.contentTopInset = contentTopInset
-        self.visualTopOffset = visualTopOffset
         self.isSelected = isSelected
-        self.collapseDistance = collapseDistance
-        self.pinnedVisibleHeight = pinnedVisibleHeight
+        self.headerGeometry = headerGeometry
         self.contentUpdateRevision = contentUpdateRevision
         self.onOffsetChange = onOffsetChange
         self.onInteractionBegan = onInteractionBegan
@@ -993,11 +1028,14 @@ private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: Vi
         VideoDetailTabPage(
             tab: tab,
             contentBottomPadding: contentBottomPadding,
-            contentTopInset: headerHeight + pinHeaderHeight,
-            visualTopOffset: playerScrollAway,
             isSelected: state.selectedTab == tab,
-            collapseDistance: collapseDistance,
-            pinnedVisibleHeight: pinnedVisibleHeight,
+            headerGeometry: VideoDetailSmoothHeaderGeometry(
+                headerHeight: headerHeight,
+                pinHeaderHeight: pinHeaderHeight,
+                collapseDistance: collapseDistance,
+                visualTopOffset: playerScrollAway,
+                pinnedVisibleHeight: pinnedVisibleHeight
+            ),
             contentUpdateRevision: contentUpdateRevision,
             onOffsetChange: { tab, offset in
                 mutateState {
@@ -1213,21 +1251,19 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
             if page.isSelected {
-                requestTopAlignment(targetOffsetY: page.visualTopOffset)
+                requestTopAlignment(targetOffsetY: page.headerGeometry.resolvedVisualTopOffset)
             }
         }
 
         let previousVisualTopContentOffsetY = coordinator.visualTopContentOffsetY
-        let contentTopInset = resolvedContentTopInset(for: page)
-        let visualTopOffset = resolvedVisualTopOffset(for: page)
+        let geometry = page.headerGeometry
+        let visualTopOffset = geometry.resolvedVisualTopOffset
         lastAppliedPage = page
         coordinator.visualTopContentOffsetY = visualTopOffset
-        applyTopContentInset(contentTopInset)
+        applyTopContentInset(geometry.contentTopInset)
         applyBottomContentInset(page.contentBottomPadding)
-        let collapseSpacerHeight = max(page.collapseDistance - visualTopOffset + 1, 1)
-        let minimumContentHeight = minimumContentHeight(for: page)
-        collapseSpacerHeightConstraint.constant = collapseSpacerHeight
-        contentMinimumHeightConstraint.constant = minimumContentHeight
+        collapseSpacerHeightConstraint.constant = geometry.collapseSpacerHeight
+        contentMinimumHeightConstraint.constant = geometry.minimumContentHeight(in: scrollView.bounds.height)
         if pendingTopAlignmentTargetOffsetY != nil {
             pendingTopAlignmentTargetOffsetY = visualTopOffset
             resolvePendingTopAlignmentSoon()
@@ -1239,30 +1275,15 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
     }
 
-    private func resolvedContentTopInset(for page: VideoDetailTabPage) -> CGFloat {
-        max(page.contentTopInset, 0)
-    }
-
-    private func resolvedVisualTopOffset(for page: VideoDetailTabPage) -> CGFloat {
-        min(max(page.visualTopOffset, 0), max(page.collapseDistance, 0))
-    }
-
-    private func minimumContentHeight(for page: VideoDetailTabPage) -> CGFloat {
-        max(
-            scrollView.bounds.height - max(page.pinnedVisibleHeight, 0),
-            max(page.collapseDistance, 0) + 1,
-            1
-        )
-    }
-
     private func applyCurrentPageGeometryRules() {
         guard let page = lastAppliedPage else { return }
-        let minimumContentHeight = minimumContentHeight(for: page)
+        let geometry = page.headerGeometry
+        let minimumContentHeight = geometry.minimumContentHeight(in: scrollView.bounds.height)
         if abs(contentMinimumHeightConstraint.constant - minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = minimumContentHeight
         }
         guard page.isSelected else { return }
-        let visualTopOffset = resolvedVisualTopOffset(for: page)
+        let visualTopOffset = geometry.resolvedVisualTopOffset
         if pendingTopAlignmentTargetOffsetY != nil {
             pendingTopAlignmentTargetOffsetY = visualTopOffset
             return
@@ -1330,16 +1351,15 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         return scrollView.verticalContentOffsetExcludingBounce
     }
 
-    var visualTopContentOffsetY: CGFloat {
-        coordinator.visualTopContentOffsetY
+    func headerSyncOffset(fromActiveOffset activeOffset: CGFloat) -> CGFloat {
+        lastAppliedPage?.headerGeometry.syncOffset(fromActiveOffset: activeOffset) ?? 0
     }
 
     func syncHeaderOffsetFromActivePage(_ offsetY: CGFloat) {
         loadViewIfNeeded()
         guard let page = lastAppliedPage else { return }
         cancelPendingTopAlignment()
-        let targetOffsetY = min(max(offsetY, 0), max(page.collapseDistance, 0))
-        setNormalizedContentOffsetY(targetOffsetY)
+        setNormalizedContentOffsetY(page.headerGeometry.syncOffset(fromActiveOffset: offsetY))
     }
 
     private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
@@ -1349,7 +1369,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func setNormalizedContentOffsetY(_ offsetY: CGFloat) {
-        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: offsetY)
+        guard let page = lastAppliedPage else { return }
+        let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: scrollView)
         setRawContentOffsetYIfNeeded(rawTopOffsetY)
     }
 
@@ -1362,15 +1383,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func clampedRawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat) -> CGFloat {
-        let inset = scrollView.adjustedContentInset
-        let minOffsetY = -inset.top
-        let maxOffsetY = max(minOffsetY, scrollView.contentSize.height - scrollView.bounds.height + inset.bottom)
-        let rawOffsetY = offsetY - inset.top
-        return min(max(rawOffsetY, minOffsetY), maxOffsetY)
+        guard let page = lastAppliedPage else { return 0 }
+        return page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: scrollView)
     }
 
     private func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat) -> CGFloat {
-        rawOffsetY + scrollView.adjustedContentInset.top
+        guard let page = lastAppliedPage else { return rawOffsetY + scrollView.adjustedContentInset.top }
+        return page.headerGeometry.normalizedContentOffsetY(forRawOffsetY: rawOffsetY, in: scrollView)
     }
 }
 
@@ -1669,7 +1688,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 return
             }
             let activeOffset = activePage.normalizedContentOffsetY
-            let syncOffset = min(max(activeOffset, 0), activePage.visualTopContentOffsetY)
+            let syncOffset = activePage.headerSyncOffset(fromActiveOffset: activeOffset)
             for tab in VideoPageTab.allCases where tab.pageIndex != selectedIndex {
                 verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(syncOffset)
             }
