@@ -1167,7 +1167,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
         }
         if !alignmentState.hasCompletedFirstActiveAlignment {
-            guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
+            guard setNormalizedContentOffsetYForAlignment(targetOffsetY) else {
                 alignmentState.pendingTopAlignment = .initial
                 resolvePendingTopAlignmentIfPossible()
                 return
@@ -1191,7 +1191,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         loadViewIfNeeded()
         cancelPendingTopAlignment()
         let syncOffsetY = syncMode.normalizedOffsetY
-        guard setNormalizedContentOffsetYIfReachable(syncOffsetY) else {
+        guard setNormalizedContentOffsetYForAlignment(syncOffsetY) else {
             alignmentState.pendingTopAlignment = .explicit(syncOffsetY)
             resolvePendingTopAlignmentIfPossible()
             return
@@ -1222,6 +1222,20 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard let page = lastAppliedPage else { return }
         let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: listScrollView)
         setRawContentOffsetYIfNeeded(rawTopOffsetY)
+    }
+
+    @discardableResult
+    private func setNormalizedContentOffsetYForAlignment(_ offsetY: CGFloat) -> Bool {
+        guard let page = lastAppliedPage else { return false }
+        if isNativeListPage {
+            let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(
+                forNormalizedOffsetY: offsetY,
+                in: listScrollView
+            )
+            setRawContentOffsetYIfNeeded(rawTopOffsetY)
+            return true
+        }
+        return setNormalizedContentOffsetYIfReachable(offsetY)
     }
 
     @discardableResult
@@ -1256,6 +1270,14 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat) -> CGFloat {
         guard let page = lastAppliedPage else { return rawOffsetY + listScrollView.adjustedContentInset.top }
         return page.headerGeometry.normalizedContentOffsetY(forRawOffsetY: rawOffsetY, in: listScrollView)
+    }
+
+    private var isNativeListPage: Bool {
+        guard let page = lastAppliedPage else { return false }
+        if case .nativeScrollView = page.content {
+            return true
+        }
+        return false
     }
 }
 
