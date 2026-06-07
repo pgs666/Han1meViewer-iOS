@@ -1115,13 +1115,18 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         return listScrollView.verticalContentOffsetExcludingBounce
     }
 
-    func syncHeaderOffsetFromActivePage(_ syncMode: VideoDetailPagerOffsetModel.InactiveSyncMode) {
+    func syncHeaderOffsetFromActivePage(
+        _ syncMode: VideoDetailPagerOffsetModel.InactiveSyncMode,
+        consumeInitialReset: Bool = true
+    ) {
         loadViewIfNeeded()
         cancelPendingTopAlignment()
         let syncOffsetY = syncMode.normalizedOffsetY
         if isNativeListPage {
             setNativeNormalizedContentOffsetY(syncOffsetY)
-            alignmentState.markInitialOffsetApplied()
+            if consumeInitialReset {
+                alignmentState.markInitialOffsetApplied()
+            }
             return
         }
         guard setNormalizedContentOffsetYForAlignment(syncOffsetY) else {
@@ -1645,7 +1650,10 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let activeOffset = providedActiveOffset ?? activePage.normalizedContentOffsetY
             let nextSyncState = updateHeaderSyncState(activeOffset: activeOffset)
             for tab in VideoPageTab.allCases where tab.pageIndex != pagerPosition.selectedIndex {
-                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(nextSyncState.inactiveSyncMode)
+                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(
+                    nextSyncState.inactiveSyncMode,
+                    consumeInitialReset: false
+                )
             }
             return nextSyncState
         }
