@@ -29,6 +29,12 @@ enum VideoPlayerCollapseModel {
 }
 
 enum VideoDetailPagerOffsetModel {
+    enum InactiveSyncMode: Equatable {
+        case visualTop(CGFloat)
+        case scrollingHeader(CGFloat)
+        case pinned(CGFloat)
+    }
+
     static func initialNormalizedOffsetY(
         visualTopOffset: CGFloat,
         collapseDistance: CGFloat
@@ -36,13 +42,16 @@ enum VideoDetailPagerOffsetModel {
         clamp(visualTopOffset, upperBound: collapseDistance)
     }
 
-    static func inactiveSyncNormalizedOffsetY(
+    static func inactiveSyncMode(
         activeOffset: CGFloat?,
         initialOffset: CGFloat,
         collapseDistance: CGFloat
-    ) -> CGFloat {
-        guard let activeOffset else { return initialOffset }
-        return clamp(activeOffset, upperBound: collapseDistance)
+    ) -> InactiveSyncMode {
+        guard let activeOffset else { return .visualTop(initialOffset) }
+        if activeOffset < collapseDistance {
+            return .scrollingHeader(max(activeOffset, 0))
+        }
+        return .pinned(max(collapseDistance, 0))
     }
 
     static func minimumContentHeight(
@@ -66,6 +75,15 @@ enum VideoDetailPagerOffsetModel {
 
     private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
         min(max(value, 0), max(upperBound, 0))
+    }
+}
+
+private extension VideoDetailPagerOffsetModel.InactiveSyncMode {
+    var normalizedOffsetY: CGFloat {
+        switch self {
+        case .visualTop(let offsetY), .scrollingHeader(let offsetY), .pinned(let offsetY):
+            return offsetY
+        }
     }
 }
 
@@ -241,7 +259,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
         return VideoDetailListOffsetContext(
             contentTopInset: contentTopInset,
             initialNormalizedOffsetY: visualTopOffset,
-            inactiveSyncNormalizedOffsetY: VideoDetailPagerOffsetModel.inactiveSyncNormalizedOffsetY(
+            inactiveSyncMode: VideoDetailPagerOffsetModel.inactiveSyncMode(
                 activeOffset: activeOffset,
                 initialOffset: visualTopOffset,
                 collapseDistance: collapseDistance
@@ -276,7 +294,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
 private struct VideoDetailListOffsetContext: Equatable {
     let contentTopInset: CGFloat
     let initialNormalizedOffsetY: CGFloat
-    let inactiveSyncNormalizedOffsetY: CGFloat
+    let inactiveSyncMode: VideoDetailPagerOffsetModel.InactiveSyncMode
     let collapseSpacerHeight: CGFloat
     let minimumContentHeight: CGFloat
 }
@@ -785,21 +803,17 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         return scrollView.verticalContentOffsetExcludingBounce
     }
 
-    func headerSyncOffset(fromActiveOffset activeOffset: CGFloat) -> CGFloat {
+    func headerSyncMode(fromActiveOffset activeOffset: CGFloat) -> VideoDetailPagerOffsetModel.InactiveSyncMode {
         lastAppliedPage?.headerGeometry.listOffsetContext(
             in: scrollView.bounds.height,
             activeOffset: activeOffset
-        ).inactiveSyncNormalizedOffsetY ?? 0
+        ).inactiveSyncMode ?? .visualTop(0)
     }
 
-    func syncHeaderOffsetFromActivePage(_ offsetY: CGFloat) {
+    func syncHeaderOffsetFromActivePage(_ syncMode: VideoDetailPagerOffsetModel.InactiveSyncMode) {
         loadViewIfNeeded()
-        guard let page = lastAppliedPage else { return }
         cancelPendingTopAlignment()
-        let syncOffsetY = page.headerGeometry.listOffsetContext(
-            in: scrollView.bounds.height,
-            activeOffset: offsetY
-        ).inactiveSyncNormalizedOffsetY
+        let syncOffsetY = syncMode.normalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(syncOffsetY) else {
             pendingTopAlignment = .explicit(syncOffsetY)
             resolvePendingTopAlignmentSoon()
@@ -1296,9 +1310,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 return
             }
             let activeOffset = activePage.normalizedContentOffsetY
-            let syncOffset = activePage.headerSyncOffset(fromActiveOffset: activeOffset)
+            let syncMode = activePage.headerSyncMode(fromActiveOffset: activeOffset)
             for tab in VideoPageTab.allCases where tab.pageIndex != selectedIndex {
-                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(syncOffset)
+                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(syncMode)
             }
         }
 
