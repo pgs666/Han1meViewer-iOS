@@ -382,18 +382,24 @@ private struct VideoDetailListAlignmentState {
 private struct VideoDetailHorizontalPagerPosition: Equatable {
     private(set) var selectedIndex = 0
     private(set) var isPagingActive = false
-
-    var activeHeaderIndex: Int {
-        selectedIndex
-    }
+    private(set) var activeHeaderIndex = 0
 
     mutating func setSelectedIndex(_ index: Int) {
-        selectedIndex = clamped(index)
+        let resolvedIndex = clamped(index)
+        selectedIndex = resolvedIndex
+        activeHeaderIndex = resolvedIndex
+    }
+
+    mutating func setActiveHeaderIndex(_ index: Int) {
+        activeHeaderIndex = clamped(index)
     }
 
     mutating func setPagingActive(_ isActive: Bool) -> Bool {
         guard isPagingActive != isActive else { return false }
         isPagingActive = isActive
+        if !isActive {
+            activeHeaderIndex = selectedIndex
+        }
         return true
     }
 
@@ -1397,6 +1403,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         var selectedTab: Binding<VideoPageTab>
         var onSelectedIndexSettled: ((Int) -> Void)?
         var onPagingActivityChanged: ((Bool) -> Void)?
+        var onHorizontalPageScrolled: ((Int) -> Void)?
         private var lastProgrammaticIndex: Int?
 
         init(selectedTab: Binding<VideoPageTab>) {
@@ -1420,6 +1427,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 return
             }
             onPagingActivityChanged?(true)
+            let activeIndex = Int(floor(listScrollView.contentOffset.x / width))
+            onHorizontalPageScrolled?(activeIndex)
         }
 
         func scrollViewDidEndDecelerating(_ listScrollView: UIScrollView) {
@@ -1524,6 +1533,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             }
             coordinator.onPagingActivityChanged = { [weak self] isActive in
                 self?.setHorizontalPagingActive(isActive)
+            }
+            coordinator.onHorizontalPageScrolled = { [weak self] index in
+                self?.updateActiveHeaderIndexDuringHorizontalScroll(index)
             }
             view.addSubview(scrollView)
 
@@ -1715,6 +1727,15 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             if !isActive {
                 syncInactivePageHeaderOffset()
             }
+        }
+
+        private func updateActiveHeaderIndexDuringHorizontalScroll(_ index: Int) {
+            guard pagerPosition.isPagingActive || scrollView.isDragging || scrollView.isDecelerating else { return }
+            let previousHeaderTab = activeHeaderTab
+            pagerPosition.setActiveHeaderIndex(index)
+            guard activeHeaderTab != previousHeaderTab else { return }
+            layoutHeaderHosts()
+            updateHeaderAttachmentForCurrentState()
         }
 
         private func deactivateHorizontalPagingForSettlement() {
