@@ -349,6 +349,7 @@ private struct VideoDetailListAlignmentState {
     var needsInitialHeaderOffsetReset = true
     var hasAppliedInitialListOffset = false
     var hasCompletedFirstActiveAlignment = false
+    var isFirstActiveAlignmentStabilizing = false
     var firstActiveAlignedContentHeight: CGFloat?
     var hasUserInteractedSinceFirstActiveAlignment = false
 
@@ -366,12 +367,14 @@ private struct VideoDetailListAlignmentState {
 
     mutating func resetForContentUpdate() {
         hasCompletedFirstActiveAlignment = false
+        isFirstActiveAlignmentStabilizing = false
         firstActiveAlignedContentHeight = nil
         hasUserInteractedSinceFirstActiveAlignment = false
     }
 
     mutating func reopenFirstActiveAlignmentAfterContentSizeChange() {
         hasCompletedFirstActiveAlignment = false
+        isFirstActiveAlignmentStabilizing = false
         firstActiveAlignedContentHeight = nil
     }
 
@@ -382,12 +385,20 @@ private struct VideoDetailListAlignmentState {
 
     mutating func markFirstActiveAlignmentCompleted(contentHeight: CGFloat) {
         hasCompletedFirstActiveAlignment = true
+        isFirstActiveAlignmentStabilizing = true
+        firstActiveAlignedContentHeight = contentHeight
+        hasUserInteractedSinceFirstActiveAlignment = false
+    }
+
+    mutating func markFirstActiveAlignmentStabilized(contentHeight: CGFloat) {
+        hasCompletedFirstActiveAlignment = true
+        isFirstActiveAlignmentStabilizing = false
         firstActiveAlignedContentHeight = contentHeight
         hasUserInteractedSinceFirstActiveAlignment = false
     }
 
     mutating func markUserInteractionAfterFirstActiveAlignment() {
-        guard hasCompletedFirstActiveAlignment else { return }
+        guard hasCompletedFirstActiveAlignment, !isFirstActiveAlignmentStabilizing else { return }
         hasUserInteractedSinceFirstActiveAlignment = true
     }
 
@@ -679,7 +690,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
     private var alignmentState = VideoDetailListAlignmentState()
-    private var isFirstActiveAlignmentVerificationScheduled = false
+    private var pendingTopAlignmentRetryCount = 0
+    private var firstActiveAlignmentVerificationPass = 0
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab) {
@@ -897,8 +909,23 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func resolvePendingTopAlignmentSoon() {
         resolvePendingTopAlignmentIfPossible()
+        schedulePendingTopAlignmentRetry()
+    }
+
+    private func schedulePendingTopAlignmentRetry() {
+        guard alignmentState.pendingTopAlignment != nil else {
+            pendingTopAlignmentRetryCount = 0
+            return
+        }
+        guard pendingTopAlignmentRetryCount < 8 else { return }
+        pendingTopAlignmentRetryCount += 1
         DispatchQueue.main.async { [weak self] in
-            self?.resolvePendingTopAlignmentIfPossible()
+            guard let self else { return }
+            self.view.layoutIfNeeded()
+            self.resolvePendingTopAlignmentIfPossible()
+            if self.alignmentState.pendingTopAlignment != nil {
+                self.schedulePendingTopAlignmentRetry()
+            }
         }
     }
 
@@ -911,6 +938,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             alignmentState.markInitialOffsetApplied()
             alignmentState.cancelPendingTopAlignment()
+            pendingTopAlignmentRetryCount = 0
             if lastAppliedPage?.isSelected == true {
                 markFirstActiveAlignmentCompleted()
             }
@@ -1002,14 +1030,31 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func scheduleFirstActiveAlignmentVerification() {
-        guard !isFirstActiveAlignmentVerificationScheduled else { return }
-        isFirstActiveAlignmentVerificationScheduled = true
+        guard firstActiveAlignmentVerificationPass == 0 else { return }
+        firstActiveAlignmentVerificationPass = 1
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.isFirstActiveAlignmentVerificationScheduled = false
-            self.view.layoutIfNeeded()
-            self.applyCurrentPageGeometryRules()
+            self?.runFirstActiveAlignmentVerification()
         }
+    }
+
+    private func runFirstActiveAlignmentVerification() {
+        view.layoutIfNeeded()
+        applyCurrentPageGeometryRules()
+        guard alignmentState.hasCompletedFirstActiveAlignment,
+              alignmentState.isFirstActiveAlignmentStabilizing,
+              lastAppliedPage?.isSelected == true else {
+            firstActiveAlignmentVerificationPass = 0
+            return
+        }
+        if firstActiveAlignmentVerificationPass < 3 {
+            firstActiveAlignmentVerificationPass += 1
+            DispatchQueue.main.async { [weak self] in
+                self?.runFirstActiveAlignmentVerification()
+            }
+            return
+        }
+        alignmentState.markFirstActiveAlignmentStabilized(contentHeight: scrollView.contentSize.height)
+        firstActiveAlignmentVerificationPass = 0
     }
 
     var normalizedContentOffsetY: CGFloat {
