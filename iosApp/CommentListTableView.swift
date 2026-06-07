@@ -92,11 +92,13 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         static let failedCharactersPerLine: CGFloat = 18
         static let commentMinimum: CGFloat = 118
         static let commentLineHeight: CGFloat = 22
-        static let commentCharactersPerLine: CGFloat = 22
+        static let commentCharactersPerLine: CGFloat = 18
 
         static func comment(_ comment: CommentRow) -> CGFloat {
-            let normalizedLength = max(comment.content.count, 1)
-            let estimatedLines = ceil(CGFloat(normalizedLength) / commentCharactersPerLine)
+            let estimatedLines = comment.content
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map { ceil(CGFloat(max($0.count, 1)) / commentCharactersPerLine) }
+                .reduce(CGFloat(0), +)
             let replyHeight: CGFloat = comment.hasMoreReplies ? 18 : 0
             let childReduction: CGFloat = comment.isChildComment ? 8 : 0
             return max(commentMinimum - childReduction, 92 + estimatedLines * commentLineHeight + replyHeight)
