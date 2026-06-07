@@ -943,7 +943,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func handleScrollGeometryChange() {
         applyCurrentPageGeometryRules()
-        resolvePendingTopAlignmentIfPossible()
     }
 
     private func applyCurrentPageGeometryRules() {
@@ -965,19 +964,18 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             offsetContext: offsetContext
         )
         if isNativeScrollView {
-            if didApplyNativeMinimumContentSize {
-                applyNativeAlignmentAfterContentSizeChange(offsetContext.initialNormalizedOffsetY)
-            } else {
-                applyNativeInitialOffsetIfNeeded(offsetContext.initialNormalizedOffsetY)
-            }
-        } else {
-            if alignmentState.pendingTopAlignment != nil {
-                resolvePendingTopAlignmentIfPossible()
-                return
-            }
-            if alignmentState.needsInitialHeaderOffsetReset {
-                applyInitialHeaderOffsetResetIfNeeded()
-            }
+            applyNativeGeometryAlignment(
+                initialOffsetY: offsetContext.initialNormalizedOffsetY,
+                didApplyMinimumContentSize: didApplyNativeMinimumContentSize
+            )
+            return
+        }
+        if alignmentState.pendingTopAlignment != nil {
+            resolvePendingTopAlignmentIfPossible()
+            return
+        }
+        if alignmentState.needsInitialHeaderOffsetReset {
+            applyInitialHeaderOffsetResetIfNeeded()
         }
     }
 
@@ -1103,6 +1101,17 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         setNativeNormalizedContentOffsetY(targetOffsetY)
         alignmentState.markInitialOffsetApplied()
         alignmentState.cancelPendingTopAlignment()
+    }
+
+    private func applyNativeGeometryAlignment(
+        initialOffsetY: CGFloat,
+        didApplyMinimumContentSize: Bool
+    ) {
+        if didApplyMinimumContentSize {
+            applyNativeAlignmentAfterContentSizeChange(initialOffsetY)
+        } else {
+            applyNativeInitialOffsetIfNeeded(initialOffsetY)
+        }
     }
 
     private func applyNativeAlignmentAfterContentSizeChange(_ initialOffsetY: CGFloat) {
