@@ -1,28 +1,6 @@
 import SwiftUI
 import Han1meShared
 
-struct CommentView: View {
-    @ObservedObject private var viewModel: CommentViewModel
-    private let onOverlayActivityChanged: (Bool) -> Void
-
-    init(
-        viewModel: CommentViewModel,
-        onOverlayActivityChanged: @escaping (Bool) -> Void = { _ in }
-    ) {
-        _viewModel = ObservedObject(wrappedValue: viewModel)
-        self.onOverlayActivityChanged = onOverlayActivityChanged
-    }
-
-    var body: some View {
-        CommentOverlayHost(
-            viewModel: viewModel,
-            onOverlayActivityChanged: onOverlayActivityChanged
-        ) { tableModel in
-            CommentListTableView(model: tableModel)
-        }
-    }
-}
-
 struct CommentOverlayHost<Content: View>: View {
     @ObservedObject private var viewModel: CommentViewModel
     private let onOverlayActivityChanged: (Bool) -> Void
