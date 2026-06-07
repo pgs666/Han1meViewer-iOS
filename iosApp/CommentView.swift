@@ -198,7 +198,7 @@ struct CommentView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .frame(height: 44)
                 }
                 .id(viewModel.sortMode.id)
             }
