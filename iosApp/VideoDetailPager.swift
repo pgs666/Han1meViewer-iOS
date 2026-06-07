@@ -317,16 +317,16 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
         )
     }
 
-    func rawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat, in scrollView: UIScrollView) -> CGFloat {
-        let inset = scrollView.adjustedContentInset
+    func rawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat, in listScrollView: UIScrollView) -> CGFloat {
+        let inset = listScrollView.adjustedContentInset
         let minOffsetY = -inset.top
-        let maxOffsetY = max(minOffsetY, scrollView.contentSize.height - scrollView.bounds.height + inset.bottom)
+        let maxOffsetY = max(minOffsetY, listScrollView.contentSize.height - listScrollView.bounds.height + inset.bottom)
         let rawOffsetY = offsetY - inset.top
         return min(max(rawOffsetY, minOffsetY), maxOffsetY)
     }
 
-    func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat, in scrollView: UIScrollView) -> CGFloat {
-        rawOffsetY + scrollView.adjustedContentInset.top
+    func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat, in listScrollView: UIScrollView) -> CGFloat {
+        rawOffsetY + listScrollView.adjustedContentInset.top
     }
 
 }
@@ -642,9 +642,9 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
         self.onTopPullDelta = onTopPullDelta
     }
 
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    func scrollViewDidScroll(_ listScrollView: UIScrollView) {
         guard !isApplyingExternalOffset, !isHorizontalPagingActive else { return }
-        let offset = scrollView.verticalContentOffsetExcludingBounce
+        let offset = listScrollView.verticalContentOffsetExcludingBounce
         onVisibleOffsetChange(tab, offset)
         guard lastReportedOffset.map({ abs($0 - offset) > 0.5 }) ?? true else { return }
         lastReportedOffset = offset
@@ -656,18 +656,18 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     }
 
     @objc func handlePan(_ panGestureRecognizer: UIPanGestureRecognizer) {
-        guard let scrollView = panGestureRecognizer.view as? UIScrollView else { return }
+        guard let listScrollView = panGestureRecognizer.view as? UIScrollView else { return }
         switch panGestureRecognizer.state {
         case .began:
             onVerticalInteractionBegan()
             onInteractionBegan(tab)
             lastTopPullTranslationY = 0
         case .changed:
-            guard scrollView.verticalContentOffsetExcludingBounce <= visualTopContentOffsetY + 0.5 else {
-                lastTopPullTranslationY = panGestureRecognizer.translation(in: scrollView).y
+            guard listScrollView.verticalContentOffsetExcludingBounce <= visualTopContentOffsetY + 0.5 else {
+                lastTopPullTranslationY = panGestureRecognizer.translation(in: listScrollView).y
                 return
             }
-            let translationY = panGestureRecognizer.translation(in: scrollView).y
+            let translationY = panGestureRecognizer.translation(in: listScrollView).y
             let delta = translationY - lastTopPullTranslationY
             lastTopPullTranslationY = translationY
             if delta > 0 {
@@ -681,7 +681,8 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
 
 private final class VideoDetailVerticalScrollPageViewController: UIViewController {
     private let coordinator: VideoDetailVerticalScrollPageCoordinator
-    private let scrollView = VerticalScrollView()
+    private let listScrollView: UIScrollView
+    private let defaultScrollView: VerticalScrollView?
     private let contentView = UIView()
     private let listHeaderView = UIView()
     private let collapseSpacerView = UIView()
@@ -696,9 +697,14 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var alignmentState = VideoDetailListAlignmentState()
     private var pendingTopAlignmentRetryCount = 0
     private var firstActiveAlignmentVerificationPass = 0
+    private var listScrollViewContentSizeObservation: NSKeyValueObservation?
+    private var listScrollViewBoundsObservation: NSKeyValueObservation?
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
-    init(tab: VideoPageTab) {
+    init(tab: VideoPageTab, listScrollView: UIScrollView? = nil) {
+        let resolvedScrollView = listScrollView ?? VerticalScrollView()
+        self.listScrollView = resolvedScrollView
+        self.defaultScrollView = resolvedScrollView as? VerticalScrollView
         coordinator = VideoDetailVerticalScrollPageCoordinator(
             tab: tab,
             onOffsetChange: { _, _ in },
@@ -717,35 +723,41 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         super.viewDidLoad()
         view.backgroundColor = .clear
 
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.backgroundColor = .clear
-        scrollView.bounces = true
-        scrollView.alwaysBounceVertical = true
-        scrollView.alwaysBounceHorizontal = false
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.showsVerticalScrollIndicator = false
-        scrollView.isDirectionalLockEnabled = true
-        scrollView.contentInsetAdjustmentBehavior = .never
-        scrollView.keyboardDismissMode = .interactive
-        scrollView.delegate = coordinator
-        scrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
-        scrollView.onGeometryChange = { [weak self] in
+        listScrollView.translatesAutoresizingMaskIntoConstraints = false
+        listScrollView.backgroundColor = .clear
+        listScrollView.bounces = true
+        listScrollView.alwaysBounceVertical = true
+        listScrollView.alwaysBounceHorizontal = false
+        listScrollView.showsHorizontalScrollIndicator = false
+        listScrollView.showsVerticalScrollIndicator = false
+        listScrollView.isDirectionalLockEnabled = true
+        listScrollView.contentInsetAdjustmentBehavior = .never
+        listScrollView.keyboardDismissMode = .interactive
+        listScrollView.delegate = coordinator
+        listScrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
+        defaultScrollView?.onGeometryChange = { [weak self] in
             self?.handleScrollGeometryChange()
         }
-        scrollView.shouldBeginVerticalPan = { [weak self] panGestureRecognizer, view in
+        listScrollViewContentSizeObservation = listScrollView.observe(\.contentSize, options: [.new]) { [weak self] _, _ in
+            self?.handleScrollGeometryChange()
+        }
+        listScrollViewBoundsObservation = listScrollView.observe(\.bounds, options: [.new]) { [weak self] _, _ in
+            self?.handleScrollGeometryChange()
+        }
+        defaultScrollView?.shouldBeginVerticalPan = { [weak self] panGestureRecognizer, view in
             self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
             let velocity = panGestureRecognizer.velocity(in: view)
             return abs(velocity.x) <= abs(velocity.y) * 1.05
         }
-        view.addSubview(scrollView)
+        view.addSubview(listScrollView)
 
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.backgroundColor = .clear
-        scrollView.addSubview(contentView)
+        listScrollView.addSubview(contentView)
 
         listHeaderView.backgroundColor = .clear
         listHeaderView.isUserInteractionEnabled = true
-        scrollView.addSubview(listHeaderView)
+        listScrollView.addSubview(listHeaderView)
 
         addChild(host)
         host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -761,22 +773,22 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         contentBottomSpacerView.backgroundColor = .clear
         contentView.addSubview(contentBottomSpacerView)
 
-        hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor)
+        hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: listScrollView.frameLayoutGuide.heightAnchor)
         contentMinimumHeightConstraint = contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 1)
         collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
         contentBottomSpacerHeightConstraint = contentBottomSpacerView.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            listScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            listScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            listScrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-            contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-            contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-            contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-            contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            contentView.leadingAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.trailingAnchor),
+            contentView.topAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.topAnchor),
+            contentView.bottomAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.bottomAnchor),
+            contentView.widthAnchor.constraint(equalTo: listScrollView.frameLayoutGuide.widthAnchor),
             contentMinimumHeightConstraint,
 
             host.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
@@ -834,7 +846,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
 
         let geometry = page.headerGeometry
-        let offsetContext = geometry.listOffsetContext(in: scrollView.bounds.height)
+        let offsetContext = geometry.listOffsetContext(in: listScrollView.bounds.height)
         let visualTopOffset = offsetContext.initialNormalizedOffsetY
         lastAppliedPage = page
         coordinator.visualTopContentOffsetY = visualTopOffset
@@ -858,13 +870,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func applyCurrentPageGeometryRules() {
         guard let page = lastAppliedPage else { return }
         let geometry = page.headerGeometry
-        let offsetContext = geometry.listOffsetContext(in: scrollView.bounds.height)
+        let offsetContext = geometry.listOffsetContext(in: listScrollView.bounds.height)
         if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         }
         if alignmentState.shouldReopenFirstActiveAlignment(
             isSelected: page.isSelected,
-            contentHeight: scrollView.contentSize.height
+            contentHeight: listScrollView.contentSize.height
         ) {
             alignmentState.reopenFirstActiveAlignmentAfterContentSizeChange()
         }
@@ -883,9 +895,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func applyTopContentInset(_ topInset: CGFloat) {
         let resolvedTopInset = max(topInset, 0)
-        guard abs(scrollView.contentInset.top - resolvedTopInset) > 0.5 else { return }
-        scrollView.contentInset.top = resolvedTopInset
-        scrollView.verticalScrollIndicatorInsets.top = resolvedTopInset
+        guard abs(listScrollView.contentInset.top - resolvedTopInset) > 0.5 else { return }
+        listScrollView.contentInset.top = resolvedTopInset
+        listScrollView.verticalScrollIndicatorInsets.top = resolvedTopInset
         applyListHeaderFrame()
     }
 
@@ -894,20 +906,20 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(contentBottomSpacerHeightConstraint.constant - resolvedBottomSpacing) > 0.5 {
             contentBottomSpacerHeightConstraint.constant = resolvedBottomSpacing
         }
-        if abs(scrollView.contentInset.bottom) > 0.5 {
-            scrollView.contentInset.bottom = 0
+        if abs(listScrollView.contentInset.bottom) > 0.5 {
+            listScrollView.contentInset.bottom = 0
         }
-        if abs(scrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
-            scrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
+        if abs(listScrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
+            listScrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
         }
     }
 
     private func applyListHeaderFrame() {
-        let topInset = max(scrollView.contentInset.top, 0)
+        let topInset = max(listScrollView.contentInset.top, 0)
         let nextFrame = CGRect(
             x: 0,
             y: -topInset,
-            width: scrollView.bounds.width,
+            width: listScrollView.bounds.width,
             height: topInset
         )
         guard !listHeaderView.frame.isApproximatelyEqual(to: nextFrame) else { return }
@@ -939,10 +951,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func resolvePendingTopAlignmentIfPossible(allowDuringInteraction: Bool = false) {
         guard let targetOffsetY = pendingTopAlignmentTargetOffsetY() else { return }
         if !allowDuringInteraction {
-            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+            guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
         }
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else { return }
-        if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
+        if abs(listScrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             alignmentState.markInitialOffsetApplied()
             alignmentState.cancelPendingTopAlignment()
             pendingTopAlignmentRetryCount = 0
@@ -955,17 +967,17 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: Bool = false) {
         guard alignmentState.needsInitialHeaderOffsetReset, let page = lastAppliedPage else { return }
         if !allowDuringInteraction {
-            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+            guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
         }
         let targetOffsetY = page.headerGeometry.listOffsetContext(
-            in: scrollView.bounds.height
+            in: listScrollView.bounds.height
         ).initialNormalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
             alignmentState.pendingTopAlignment = .initial
             resolvePendingTopAlignmentSoon()
             return
         }
-        if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
+        if abs(listScrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             alignmentState.markInitialOffsetApplied()
             alignmentState.cancelPendingTopAlignment()
         }
@@ -980,7 +992,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
               let page = lastAppliedPage else { return nil }
         switch pendingTopAlignment {
         case .initial:
-            return page.headerGeometry.listOffsetContext(in: scrollView.bounds.height).initialNormalizedOffsetY
+            return page.headerGeometry.listOffsetContext(in: listScrollView.bounds.height).initialNormalizedOffsetY
         case .explicit(let offsetY):
             return offsetY
         }
@@ -998,7 +1010,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func applyFirstActiveAlignmentIfNeeded(allowDuringInteraction: Bool = false) {
         guard let page = lastAppliedPage else { return }
         let targetOffsetY = page.headerGeometry.listOffsetContext(
-            in: scrollView.bounds.height
+            in: listScrollView.bounds.height
         ).initialNormalizedOffsetY
         coordinator.visualTopContentOffsetY = targetOffsetY
         if alignmentState.needsInitialHeaderOffsetReset {
@@ -1006,7 +1018,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             guard !alignmentState.needsInitialHeaderOffsetReset else { return }
         }
         if !allowDuringInteraction {
-            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+            guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
         }
         if !alignmentState.hasCompletedFirstActiveAlignment {
             guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
@@ -1020,7 +1032,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             return
         }
         guard VideoDetailPagerOffsetModel.shouldAlignToVisualTopAfterHorizontalActivation(
-            currentOffset: scrollView.verticalContentOffsetExcludingBounce,
+            currentOffset: listScrollView.verticalContentOffsetExcludingBounce,
             visualTopOffset: targetOffsetY
         ) else {
             cancelPendingTopAlignment()
@@ -1032,7 +1044,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func markFirstActiveAlignmentCompleted() {
-        alignmentState.markFirstActiveAlignmentCompleted(contentHeight: scrollView.contentSize.height)
+        alignmentState.markFirstActiveAlignmentCompleted(contentHeight: listScrollView.contentSize.height)
         scheduleFirstActiveAlignmentVerification()
     }
 
@@ -1060,13 +1072,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             }
             return
         }
-        alignmentState.markFirstActiveAlignmentStabilized(contentHeight: scrollView.contentSize.height)
+        alignmentState.markFirstActiveAlignmentStabilized(contentHeight: listScrollView.contentSize.height)
         firstActiveAlignmentVerificationPass = 0
     }
 
     var normalizedContentOffsetY: CGFloat {
         loadViewIfNeeded()
-        return scrollView.verticalContentOffsetExcludingBounce
+        return listScrollView.verticalContentOffsetExcludingBounce
     }
 
     func syncHeaderOffsetFromActivePage(_ syncMode: VideoDetailPagerOffsetModel.InactiveSyncMode) {
@@ -1084,25 +1096,25 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     func setHorizontalPagingActive(_ isActive: Bool) {
         coordinator.isHorizontalPagingActive = isActive
         if !isActive {
-            coordinator.resetReportedOffset(scrollView.verticalContentOffsetExcludingBounce)
+            coordinator.resetReportedOffset(listScrollView.verticalContentOffsetExcludingBounce)
         }
     }
 
     func setScrollsToTop(_ scrollsToTop: Bool) {
         loadViewIfNeeded()
-        scrollView.scrollsToTop = scrollsToTop
+        listScrollView.scrollsToTop = scrollsToTop
     }
 
     func reportCurrentOffset() {
         loadViewIfNeeded()
-        let offset = scrollView.verticalContentOffsetExcludingBounce
+        let offset = listScrollView.verticalContentOffsetExcludingBounce
         coordinator.resetReportedOffset(offset)
         coordinator.onOffsetChange(coordinator.tab, offset)
     }
 
     private func setNormalizedContentOffsetY(_ offsetY: CGFloat) {
         guard let page = lastAppliedPage else { return }
-        let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: scrollView)
+        let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: listScrollView)
         setRawContentOffsetYIfNeeded(rawTopOffsetY)
     }
 
@@ -1117,12 +1129,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func setRawContentOffsetYIfNeeded(_ rawTopOffsetY: CGFloat) {
-        guard abs(scrollView.contentOffset.y - rawTopOffsetY) > 0.5 else { return }
+        guard abs(listScrollView.contentOffset.y - rawTopOffsetY) > 0.5 else { return }
         coordinator.isApplyingExternalOffset = true
         defer { coordinator.isApplyingExternalOffset = false }
-        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
-        coordinator.resetReportedOffset(scrollView.verticalContentOffsetExcludingBounce)
-        onHeaderOffsetChanged(coordinator.tab, scrollView.verticalContentOffsetExcludingBounce)
+        listScrollView.setContentOffset(CGPoint(x: listScrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
+        coordinator.resetReportedOffset(listScrollView.verticalContentOffsetExcludingBounce)
+        onHeaderOffsetChanged(coordinator.tab, listScrollView.verticalContentOffsetExcludingBounce)
     }
 
     func headerAttachmentView() -> UIView {
@@ -1132,12 +1144,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func clampedRawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat) -> CGFloat {
         guard let page = lastAppliedPage else { return 0 }
-        return page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: scrollView)
+        return page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: listScrollView)
     }
 
     private func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat) -> CGFloat {
-        guard let page = lastAppliedPage else { return rawOffsetY + scrollView.adjustedContentInset.top }
-        return page.headerGeometry.normalizedContentOffsetY(forRawOffsetY: rawOffsetY, in: scrollView)
+        guard let page = lastAppliedPage else { return rawOffsetY + listScrollView.adjustedContentInset.top }
+        return page.headerGeometry.normalizedContentOffsetY(forRawOffsetY: rawOffsetY, in: listScrollView)
     }
 }
 
@@ -1259,30 +1271,30 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             return lastProgrammaticIndex != index
         }
 
-        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        func scrollViewWillBeginDragging(_ listScrollView: UIScrollView) {
             onPagingActivityChanged?(true)
         }
 
-        func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            let width = scrollView.bounds.width
+        func scrollViewDidScroll(_ listScrollView: UIScrollView) {
+            let width = listScrollView.bounds.width
             guard width > 0 else { return }
-            let index = Int(scrollView.contentOffset.x / width)
+            let index = Int(listScrollView.contentOffset.x / width)
             onHorizontalVisibleIndexChanged?(min(max(index, 0), VideoPageTab.allCases.count - 1))
         }
 
-        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-            updateSelectedTab(from: scrollView)
+        func scrollViewDidEndDecelerating(_ listScrollView: UIScrollView) {
+            updateSelectedTab(from: listScrollView)
             onPagingActivityChanged?(false)
         }
 
-        func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-            updateSelectedTab(from: scrollView)
+        func scrollViewDidEndScrollingAnimation(_ listScrollView: UIScrollView) {
+            updateSelectedTab(from: listScrollView)
             onPagingActivityChanged?(false)
         }
 
-        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        func scrollViewDidEndDragging(_ listScrollView: UIScrollView, willDecelerate decelerate: Bool) {
             if !decelerate {
-                updateSelectedTab(from: scrollView)
+                updateSelectedTab(from: listScrollView)
                 onPagingActivityChanged?(false)
             }
         }
@@ -1304,10 +1316,10 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             return horizontal > 8 && horizontal > vertical * 1.18
         }
 
-        private func updateSelectedTab(from scrollView: UIScrollView) {
-            let width = scrollView.bounds.width
+        private func updateSelectedTab(from listScrollView: UIScrollView) {
+            let width = listScrollView.bounds.width
             guard width > 0 else { return }
-            let index = Int(round(scrollView.contentOffset.x / width))
+            let index = Int(round(listScrollView.contentOffset.x / width))
             let tab = VideoPageTab.page(at: index)
             if selectedTab.wrappedValue != tab {
                 pendingSettledIndex = index
@@ -1806,11 +1818,11 @@ private extension UIView {
         guard let hitView = hitTest(location, with: nil) else { return false }
         var current: UIView? = hitView
         while let view = current, view !== excludedView {
-            if let scrollView = view as? UIScrollView,
-               scrollView.isScrollEnabled,
-               scrollView.panGestureRecognizer.isEnabled,
-               scrollView.contentSize.width > scrollView.bounds.width + 1,
-               scrollView.contentSize.width > scrollView.contentSize.height {
+            if let listScrollView = view as? UIScrollView,
+               listScrollView.isScrollEnabled,
+               listScrollView.panGestureRecognizer.isEnabled,
+               listScrollView.contentSize.width > listScrollView.bounds.width + 1,
+               listScrollView.contentSize.width > listScrollView.contentSize.height {
                 return true
             }
             current = view.superview
