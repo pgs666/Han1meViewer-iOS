@@ -711,6 +711,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentBottomSpacerHeightConstraint: NSLayoutConstraint?
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
+    private var didApplyInitialContentOffset = false
     private var listScrollViewContentSizeObservation: NSKeyValueObservation?
     private var listScrollViewBoundsObservation: NSKeyValueObservation?
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
@@ -904,6 +905,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             if case .nativeScrollView(let nativePage) = page.content {
                 nativePage.update()
                 applyCurrentPageGeometryRules()
+                applyInitialContentOffsetIfNeeded(offsetContext.initialNormalizedOffsetY)
             }
         }
     }
@@ -997,6 +999,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func handleVerticalInteractionBegan() {
         guard let page = lastAppliedPage else { return }
         coordinator.visualTopContentOffsetY = page.headerGeometry.resolvedVisualTopOffset
+    }
+
+    private func applyInitialContentOffsetIfNeeded(_ offsetY: CGFloat) {
+        guard !didApplyInitialContentOffset else { return }
+        guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
+        guard setNormalizedContentOffsetYIfReachable(offsetY) else { return }
+        didApplyInitialContentOffset = true
     }
 
     var normalizedContentOffsetY: CGFloat {
