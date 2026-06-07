@@ -584,8 +584,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         applyBottomContentInset(page.contentBottomPadding)
         collapseSpacerHeightConstraint.constant = offsetContext.collapseSpacerHeight
         contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
-        if page.isSelected, needsInitialHeaderOffsetReset {
-            requestTopAlignment(targetOffsetY: visualTopOffset)
+        if needsInitialHeaderOffsetReset {
+            applyInitialHeaderOffsetResetIfNeeded()
         } else if pendingTopAlignmentTargetOffsetY != nil {
             pendingTopAlignmentTargetOffsetY = visualTopOffset
             resolvePendingTopAlignmentSoon()
@@ -604,16 +604,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         }
-        guard page.isSelected else { return }
         let visualTopOffset = offsetContext.initialNormalizedOffsetY
         if pendingTopAlignmentTargetOffsetY != nil {
             pendingTopAlignmentTargetOffsetY = visualTopOffset
             return
         }
         if needsInitialHeaderOffsetReset {
-            requestTopAlignment(targetOffsetY: visualTopOffset)
+            applyInitialHeaderOffsetResetIfNeeded()
             return
         }
+        guard page.isSelected else { return }
         guard scrollView.verticalContentOffsetExcludingBounce <= visualTopOffset + 8 else { return }
         requestTopAlignment(targetOffsetY: visualTopOffset)
     }
@@ -674,6 +674,23 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
     }
 
+    private func applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: Bool = false) {
+        guard needsInitialHeaderOffsetReset, let page = lastAppliedPage else { return }
+        if !allowDuringInteraction {
+            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+        }
+        let targetOffsetY = page.headerGeometry.listOffsetContext(
+            in: scrollView.bounds.height
+        ).initialNormalizedOffsetY
+        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: targetOffsetY)
+        guard abs(normalizedContentOffsetY(forRawOffsetY: rawTopOffsetY) - targetOffsetY) <= 0.5 else { return }
+        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+        if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
+            needsInitialHeaderOffsetReset = false
+            cancelPendingTopAlignment()
+        }
+    }
+
     private func cancelPendingTopAlignment() {
         pendingTopAlignmentTargetOffsetY = nil
     }
@@ -683,6 +700,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let targetOffsetY = coordinator.visualTopContentOffsetY
         guard needsInitialHeaderOffsetReset
             || scrollView.verticalContentOffsetExcludingBounce <= targetOffsetY + 8 else { return }
+        if needsInitialHeaderOffsetReset {
+            applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: true)
+            guard !needsInitialHeaderOffsetReset else { return }
+        }
         requestTopAlignment(targetOffsetY: targetOffsetY)
         resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
     }
