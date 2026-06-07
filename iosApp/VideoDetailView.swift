@@ -701,15 +701,16 @@ private struct ActionButtonRow: View {
     let onDownload: (VideoPlaybackSourceRow) -> Void
     @Environment(\.openURL) private var openURL
     @State private var isShowingMyList = false
+    @State private var isShowingMoreActions = false
     @State private var isShowingShareSheet = false
     @State private var isShowingDownloadQuality = false
 
     private var videoURL: URL? {
-        URL(string: "https://hanime1.me/watch?v=\(snapshot.videoCode)")
+        siteURL(path: "/watch")
     }
 
     private var downloadURL: URL? {
-        URL(string: "https://hanime1.me/download?v=\(snapshot.videoCode)")
+        siteURL(path: "/download")
     }
 
     /// Real downloadable sources (a concrete resolution + a usable URL).
@@ -720,81 +721,84 @@ private struct ActionButtonRow: View {
         snapshot.playbackSources.filter { $0.label.uppercased() != "AUTO" && !$0.url.isEmpty }
     }
 
+    private func siteURL(path: String) -> URL? {
+        guard var components = URLComponents(string: AppDomain.currentBaseURL) else {
+            return nil
+        }
+        components.path = path
+        components.queryItems = [
+            URLQueryItem(name: "v", value: snapshot.videoCode)
+        ]
+        return components.url
+    }
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                LabelButton(
-                    title: snapshot.isFav ? "已收藏" : "收藏",
-                    systemImage: snapshot.isFav ? "heart.fill" : "heart",
-                    action: onToggleFavorite
-                )
+        HStack(spacing: 6) {
+            LabelButton(
+                title: snapshot.isFav ? "已收藏" : "收藏",
+                systemImage: snapshot.isFav ? "heart.fill" : "heart",
+                action: onToggleFavorite
+            )
 
-                LabelButton(
-                    title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
-                    systemImage: "text.badge.plus",
-                    action: onToggleWatchLater
-                )
+            LabelButton(
+                title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
+                systemImage: "text.badge.plus",
+                action: onToggleWatchLater
+            )
 
-                LabelButton(
-                    title: "加入列表",
-                    systemImage: "list.bullet",
-                    action: {
-                        if snapshot.myListItems.isEmpty {
-                            onShowMessage(String(localized: "video.action.playlist.empty"))
-                        } else {
-                            isShowingMyList = true
-                        }
-                    }
-                )
-
-                LabelButton(
-                    title: "下载",
-                    systemImage: "arrow.down.circle",
-                    action: {
-                        if downloadableSources.isEmpty {
-                            // No selectable resolutions parsed — defer to the
-                            // site's official download page in the browser.
-                            if let downloadURL { openURL(downloadURL) }
-                        } else {
-                            isShowingDownloadQuality = true
-                        }
-                    }
-                )
-
-                LabelButton(
-                    title: "分享",
-                    systemImage: "square.and.arrow.up",
-                    action: {
-                        if videoURL != nil {
-                            isShowingShareSheet = true
-                        }
-                    }
-                )
-
-                if snapshot.originalComic?.isEmpty == false {
-                    LabelButton(
-                        title: "原作漫画",
-                        systemImage: "book",
-                        action: {
-                            if let originalComic = snapshot.originalComic,
-                               let url = URL(string: originalComic) {
-                                openURL(url)
-                            }
-                        }
-                    )
+            LabelButton(
+                title: "更多",
+                systemImage: "ellipsis.circle",
+                action: {
+                    isShowingMoreActions = true
                 }
+            )
 
-                LabelButton(
-                    title: "网页",
-                    systemImage: "safari",
-                    action: {
-                        if let videoURL {
-                            openURL(videoURL)
-                        }
+            LabelButton(
+                title: "分享",
+                systemImage: "square.and.arrow.up",
+                action: {
+                    if videoURL != nil {
+                        isShowingShareSheet = true
                     }
-                )
+                }
+            )
+        }
+        .confirmationDialog("更多操作", isPresented: $isShowingMoreActions, titleVisibility: .visible) {
+            Button("加入列表") {
+                if snapshot.myListItems.isEmpty {
+                    onShowMessage(String(localized: "video.action.playlist.empty"))
+                } else {
+                    isShowingMyList = true
+                }
             }
-            .padding(.horizontal, 2)
+
+            Button("下载") {
+                if downloadableSources.isEmpty {
+                    // No selectable resolutions parsed — defer to the
+                    // site's official download page in the browser.
+                    if let downloadURL { openURL(downloadURL) }
+                } else {
+                    isShowingDownloadQuality = true
+                }
+            }
+
+            if snapshot.originalComic?.isEmpty == false {
+                Button("原作漫画") {
+                    if let originalComic = snapshot.originalComic,
+                       let url = URL(string: originalComic) {
+                        openURL(url)
+                    }
+                }
+            }
+
+            Button("网页") {
+                if let videoURL {
+                    openURL(videoURL)
+                }
+            }
+
+            Button("取消", role: .cancel) {}
         }
         .confirmationDialog("播放列表", isPresented: $isShowingMyList) {
             ForEach(snapshot.myListItems) { item in
@@ -846,6 +850,7 @@ private struct LabelButton: View {
             LabelButtonContent(title: title, systemImage: systemImage)
         }
         .buttonStyle(.borderless)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -861,8 +866,7 @@ private struct LabelButtonContent: View {
                 .font(.caption)
                 .lineLimit(1)
         }
-        .frame(minWidth: 76)
-        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
     }
 }
