@@ -2,30 +2,47 @@ import SwiftUI
 import UIKit
 import Han1meShared
 
+private final class NativeCommentListHolder: ObservableObject {
+    let controller = CommentListTableController()
+    let tableView: UITableView
+
+    init() {
+        tableView = controller.makeTableView()
+    }
+
+    func update(_ model: CommentListTableModel) {
+        controller.update(model)
+    }
+
+    func updateContentBottomPadding(_ bottomPadding: CGFloat) {
+        controller.updateContentBottomPadding(bottomPadding)
+    }
+
+    func attachScrollDelegate(_ delegate: UIScrollViewDelegate?) {
+        controller.scrollDelegate = delegate
+    }
+}
+
 struct VideoDetailView: View {
     let videoCode: String
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
+    private let tabletLeftMinimumWidth: CGFloat = 620
+    private let tabletSidebarMinimumWidth: CGFloat = 360
+    private let playerContinuationStripHeight: CGFloat = 56
+    private let pagerPinHeaderHeight: CGFloat = 48
+    private let commentComposerBottomSlack: CGFloat = 24
     @StateObject private var viewModel: VideoDetailViewModel
-    @State private var selectedTab = VideoPageTab.introduction
+    @StateObject private var commentViewModel: CommentViewModel
+    @StateObject private var nativeCommentList = NativeCommentListHolder()
+    @State private var pagerState = VideoDetailPagerState()
     @State private var isPlayerFullscreen = false
-    @State private var isPlayerCollapsed = false
-    /// True iff the player is currently playing (not paused / buffering).
-    /// Driven from KSPlayerView via the @Binding below. Used to lock the
-    /// player at full 16:9 height while playing — only paused state lets the
-    /// scroll-driven shrink behaviour engage.
-    @State private var isPlayerPlaying = false
-    /// True iff the user is currently driving the bottom ScrollView with
-    /// a finger (or inertial scroll is still running). Used to gate
-    /// `onScrollGeometryChange` so that phantom contentOffset reports
-    /// caused by unrelated layout passes (e.g. tapping to show
-    /// controls inside the player) don't shrink/grow the player area.
-    @State private var isUserScrollingBottom = false
-    /// Vertical scroll offset of the inline content area below the player,
-    /// measured from the natural top (>= 0). When the user scrolls UP (so
-    /// the offset grows), and the player is paused, the player shrinks
-    /// proportionally — Bilibili-style "follow finger" collapse.
-    @State private var bottomScrollOffset: CGFloat = 0
+    @State private var playerPlayRequestToken = 0
+    @State private var commentComposeText = ""
+    @State private var isCommentInternalOverlayActive = false
+    @State private var commentComposerHeight: CGFloat = CommentComposerBar.compactHeight
+    @State private var fullscreenOrientationTask: Task<Void, Never>?
+    @State private var isFullscreenOrientationLocked = false
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -45,10 +62,25 @@ struct VideoDetailView: View {
         self.videoFeature = videoFeature
         self.commentFeature = commentFeature
         _viewModel = StateObject(wrappedValue: VideoDetailViewModel(videoFeature: videoFeature))
+        _commentViewModel = StateObject(
+            wrappedValue: CommentViewModel(feature: commentFeature, videoCode: videoCode)
+        )
     }
 
     var body: some View {
-        content
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                content
+                    .ignoresSafeArea(.container, edges: ignoredContainerSafeAreaEdges)
+
+                rootCommentComposer(layoutSize: proxy.size)
+            }
+            .animation(.easeInOut(duration: 0.2), value: shouldShowRootCommentComposer)
+            .onPreferenceChange(CommentComposerHeightPreferenceKey.self) { height in
+                guard height > 0, abs(commentComposerHeight - height) > 0.5 else { return }
+                commentComposerHeight = height
+            }
+        }
             .logScreen("VideoDetail v=\(videoCode)")
             // Navigation bar (and its system back button) is hidden the
             // whole time. The player draws its own floating back button
@@ -71,22 +103,17 @@ struct VideoDetailView: View {
             // again, producing the slide-in/out animation.
             .hidesTabBarOnAppear()
             .statusBarHidden(isPlayerFullscreen)
-            .ignoresSafeArea(edges: isPlayerFullscreen ? .all : [])
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
-            .refreshable {
-                // Refresh without the full-screen .loading spinner flash:
-                // keep the current content visible while re-fetching. The
-                // player is rebuilt on success (acceptable for an explicit
-                // refresh); this just removes the abrupt blank-out.
-                await viewModel.refresh(videoCode: videoCode)
-            }
             .onDisappear {
+                fullscreenOrientationTask?.cancel()
+                fullscreenOrientationTask = nil
                 // KSPlayer pauses itself in its own .onDisappear; the
                 // detail VM no longer owns a player.
-                if isPlayerFullscreen {
+                if isPlayerFullscreen || isFullscreenOrientationLocked {
                     AppOrientationController.shared.unlockAfterFullscreen()
+                    isFullscreenOrientationLocked = false
                 }
             }
             // Apple-Music-style centred HUD for action results
@@ -139,13 +166,7 @@ struct VideoDetailView: View {
                 // already animated to its new size by then; the subsequent
                 // orientation rotation is its own UIKit-driven animation
                 // and doesn't fight with SwiftUI.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
-                    if newValue {
-                        AppOrientationController.shared.lockForFullscreen(to: fullscreenOrientation)
-                    } else {
-                        AppOrientationController.shared.unlockAfterFullscreen()
-                    }
-                }
+                scheduleFullscreenOrientationUpdate(isFullscreen: newValue)
             }
     }
 
@@ -156,14 +177,56 @@ struct VideoDetailView: View {
     /// 2. The user has the "force portrait fullscreen for vertical
     ///    videos" preference enabled (default ON).
     private var fullscreenOrientation: VideoFullscreenOrientation {
+        fullscreenOrientation(forNaturalSize: videoNaturalSize)
+    }
+
+    private func fullscreenOrientation(forNaturalSize naturalSize: CGSize?) -> VideoFullscreenOrientation {
         let isPortraitVideo: Bool = {
-            guard let size = videoNaturalSize else { return false }
+            guard let size = naturalSize else { return false }
             return size.height > size.width
         }()
         if isPortraitVideo && forcePortraitForVerticalVideos {
             return .portrait
         }
         return .landscape
+    }
+
+    private var ignoredContainerSafeAreaEdges: Edge.Set {
+        isPlayerFullscreen ? .all : .bottom
+    }
+
+    private var shouldShowRootCommentComposer: Bool {
+        guard !isPlayerFullscreen, pagerState.selectedTab == .comments else { return false }
+        guard !isCommentInternalOverlayActive else { return false }
+        guard isCommentComposerReady else { return false }
+        if case .loaded = viewModel.state {
+            return true
+        }
+        return false
+    }
+
+    private var isCommentComposerReady: Bool {
+        if case .loaded = commentViewModel.state {
+            return true
+        }
+        return false
+    }
+
+    @ViewBuilder
+    private func rootCommentComposer(layoutSize: CGSize) -> some View {
+        if shouldShowRootCommentComposer {
+            CommentComposerBar(
+                text: $commentComposeText,
+                isSending: commentViewModel.runningActionIDs.contains("post-comment"),
+                isReady: isCommentComposerReady,
+                onSubmit: submitComment
+            )
+            .frame(width: leftPanelWidth(for: layoutSize))
+            .reportCommentComposerHeight()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .zIndex(1)
+        }
     }
 
     @ViewBuilder
@@ -203,33 +266,54 @@ struct VideoDetailView: View {
             // Phone / iPad portrait collapses to a single full-width left panel
             // (no sidebar), giving the same visual as before for those modes.
             GeometryReader { proxy in
-                let isWide = horizontalSizeClass == .regular
-                    && proxy.size.width >= 900
-                    && proxy.size.width > proxy.size.height
-                    && !isPlayerFullscreen
-                let leftWidth: CGFloat = isWide
-                    ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
-                    : proxy.size.width
+                let isWide = usesTabletRelatedSidebar(for: proxy.size)
+                let leftWidth = leftPanelWidth(for: proxy.size)
+                let inlineHeight = inlinePlayerHeight(panelWidth: leftWidth)
+                let pagerMetrics = pagerState.layoutMetrics(
+                    containerHeight: proxy.size.height,
+                    rawCollapseDistance: playerCollapseDistance(panelWidth: leftWidth)
+                )
 
                 HStack(alignment: .top, spacing: 0) {
-                    VStack(spacing: 0) {
+                    ZStack(alignment: .top) {
+                        let currentPlayerHeight = playerHeight(
+                            panelWidth: leftWidth,
+                            parentHeight: proxy.size.height
+                        )
+                        // Keep the tab pager mounted during fullscreen. Rebuilding
+                        // the SwiftUI-hosted intro/comment pages while the player
+                        // animates back to inline is a visible hitch on iPadOS 16.
+                        // It keeps the inline layout metrics while hidden, so exit
+                        // fullscreen does not have to re-expand the whole pager.
+                        belowPlayerScroll(
+                            snapshot: snapshot,
+                            showsRelated: !isWide,
+                            collapseDistance: pagerMetrics.collapseDistance,
+                            headerHeight: inlineHeight,
+                            pinHeaderHeight: pagerPinHeaderHeight,
+                            pinnedVisibleHeight: playerContinuationStripHeight + pagerPinHeaderHeight,
+                            playerScrollAway: pagerMetrics.playerScrollAway,
+                            continuationProgress: pagerMetrics.continuationProgress,
+                            introductionContentClearance: introductionContentClearance(
+                                usesTabletRelatedSidebar: isWide
+                            ),
+                            composerContentClearance: commentComposerContentClearance(
+                                safeAreaBottom: proxy.safeAreaInsets.bottom
+                            )
+                        )
+                        .frame(height: proxy.size.height)
+                        .opacity(isPlayerFullscreen ? 0 : 1)
+                        .allowsHitTesting(!isPlayerFullscreen)
+
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
-                                height: playerHeight(
-                                    panelWidth: leftWidth,
-                                    parentHeight: proxy.size.height
-                                )
+                                height: currentPlayerHeight
                             )
-
-                        if !isPlayerFullscreen {
-                            // showsRelated=false on iPad regular landscape because the
-                            // dedicated right sidebar already shows related videos —
-                            // duplicating them in the bottom scroll would be redundant.
-                            belowPlayerScroll(snapshot: snapshot, showsRelated: !isWide)
-                        }
+                            .offset(y: isPlayerFullscreen ? 0 : -pagerMetrics.playerScrollAway)
                     }
-                    .frame(width: leftWidth)
+                    .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
+                    .clipped()
 
                     if isWide {
                         Divider()
@@ -247,207 +331,511 @@ struct VideoDetailView: View {
         }
     }
 
+    private func usesTabletRelatedSidebar(for size: CGSize) -> Bool {
+        let isLandscape = currentInterfaceOrientation()?.isLandscape ?? (size.width > size.height)
+        return horizontalSizeClass == .regular
+            && size.width >= tabletLeftMinimumWidth + tabletSidebarMinimumWidth
+            && isLandscape
+            && !isPlayerFullscreen
+    }
+
+    private func leftPanelWidth(for size: CGSize) -> CGFloat {
+        guard usesTabletRelatedSidebar(for: size) else { return size.width }
+        return min(
+            max(size.width * 0.64, tabletLeftMinimumWidth),
+            size.width - tabletSidebarMinimumWidth
+        )
+    }
+
     /// Player 高度：
     /// - 全屏：撑满整个父容器
-    /// - 折叠：50pt 标题 strip
-    /// - inline：左 panel 宽度的 16:9（不再依赖父容器 height）
+    /// - inline：固定为左 panel 宽度的 16:9，不随底部内容滚动缩小
     private func playerHeight(panelWidth: CGFloat, parentHeight: CGFloat) -> CGFloat {
         if isPlayerFullscreen { return parentHeight }
-        if isPlayerCollapsed { return 50 }
-        let baseHeight = panelWidth * 9 / 16
-        // While playing, lock to full 16:9 — never shrink with scroll.
-        if isPlayerPlaying { return baseHeight }
-        // Paused: follow the user's scroll. As bottomScrollOffset grows
-        // (content scrolled up), the player shrinks proportionally, never
-        // below playerCollapsedFollowMinHeight so its overlay controls
-        // remain at least partly visible.
-        let minHeight: CGFloat = max(baseHeight * 0.32, 80)
-        let shrink = max(0, min(baseHeight - minHeight, bottomScrollOffset))
-        return baseHeight - shrink
+        return inlinePlayerHeight(panelWidth: panelWidth)
+    }
+
+    private func inlinePlayerHeight(panelWidth: CGFloat) -> CGFloat {
+        panelWidth * 9 / 16
+    }
+
+    private func playerCollapseDistance(panelWidth: CGFloat) -> CGFloat {
+        max(panelWidth * 9 / 16 - playerContinuationStripHeight, 1)
     }
 
     private func playerArea(snapshot: VideoDetailScreenSnapshot) -> some View {
-        // Shrunken iff the follow-finger collapse has actually engaged
-        // (paused, not fullscreen / strip-collapsed, and the user has
-        // scrolled the bottom content up).
-        let shrunken = !isPlayerFullscreen
-            && !isPlayerCollapsed
-            && !isPlayerPlaying
-            && bottomScrollOffset > 1
         return KSPlayerView(
             snapshot: snapshot,
             isFullscreen: $isPlayerFullscreen,
-            isCollapsed: $isPlayerCollapsed,
             onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
             onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) },
             onPlayingChanged: { newValue in
-                if isPlayerPlaying != newValue {
-                    isPlayerPlaying = newValue
+                guard pagerState.isPlayerPlaying != newValue else { return }
+                withTransaction(Transaction(animation: nil)) {
+                    pagerState.setPlayerPlaying(newValue)
                 }
             },
             onBack: { dismiss() },
-            isShrunken: shrunken,
-            onRequestExpand: {
-                // First tap on a shrunken player expands it back to 16:9
-                // by zeroing the scroll-driven shrink amount — and animate
-                // it so the player smoothly grows.
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    bottomScrollOffset = 0
-                }
-            },
+            playRequestToken: playerPlayRequestToken,
             onNaturalSize: { size in
+                let orientation = fullscreenOrientation(forNaturalSize: size)
                 videoNaturalSize = size
+                if isPlayerFullscreen {
+                    AppOrientationController.shared.lockForFullscreen(to: orientation)
+                    isFullscreenOrientationLocked = true
+                }
             }
         )
     }
 
-    private func belowPlayerScroll(snapshot: VideoDetailScreenSnapshot, showsRelated: Bool) -> some View {
-        let scrollContent = ScrollView {
-            // iOS 16/17 fallback: 0-height GR sentinel as the first child of
-            // the ScrollView. minY in the named coordinate space tracks the
-            // scroll content's vertical movement against the ScrollView's
-            // viewport: scroll up 100pt → sentinel.minY becomes -100. We
-            // negate so the published value grows positive.
-            // On iOS 18+ this co-exists with .onScrollGeometryChange below;
-            // whichever fires first wins, both produce the same result.
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: BottomScrollOffsetPreferenceKey.self,
-                    value: -proxy.frame(in: .named("bottomScroll")).minY
-                )
+    private func continuePlayingStrip(snapshot: VideoDetailScreenSnapshot, progress: CGFloat) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                pagerState.expandPlayer()
             }
-            .frame(height: 0)
+            playerPlayRequestToken &+= 1
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "play.circle.fill")
+                    .font(.title3)
+                Text("继续播放")
+                    .font(.subheadline.weight(.semibold))
+                Text(snapshot.title)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.ultraThinMaterial)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(progress)
+        .offset(y: -8 * (1 - progress))
+    }
 
-            LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                Section {
-                    // Wrap the per-tab content in a Group with .id(selectedTab)
-                    // so SwiftUI treats the two branches as distinct view
-                    // identities. Without this, switching introduction →
-                    // comments inside a LazyVStack section sometimes
-                    // recycles the row and leaves contentSize stale, which
-                    // showed as a blank page until the user nudged the
-                    // ScrollView (re-laying out and refreshing the size).
-                    Group {
-                        switch selectedTab {
-                        case .introduction:
-                            AndroidStyleIntroduction(
-                                snapshot: snapshot,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature,
-                                isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                                onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                                onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                                onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                                onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                                onShowMessage: { viewModel.showActionMessage($0) },
-                                showsRelated: showsRelated
-                            )
-                        case .comments:
-                            CommentView(videoCode: videoCode, commentFeature: commentFeature)
-                        }
-                    }
-                    .id(selectedTab)
-                    // Horizontal swipe to switch between introduction /
-                    // comments. Use plain .gesture (NOT simultaneous /
-                    // highPriority) so any nested horizontal-scroll
-                    // ScrollView (系列影片 / 相关影片 grids) gets to
-                    // claim the gesture first; SwiftUI only falls
-                    // through to this DragGesture for the area above
-                    // the horizontal strips. We require horizontal
-                    // dominance + 60pt minimum, AND a 24pt left/right
-                    // start-edge deadzone so the iOS swipe-back gesture
-                    // (and any future right-edge system gesture) wins.
-                    .gesture(
-                        DragGesture(minimumDistance: 30, coordinateSpace: .local)
-                            .onEnded { value in
-                                let dx = value.translation.width
-                                let dy = value.translation.height
-                                guard abs(dx) > abs(dy) * 1.5, abs(dx) > 60 else { return }
-                                guard value.startLocation.x > 24 else { return }
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    if dx < 0, selectedTab == .introduction {
-                                        selectedTab = .comments
-                                    } else if dx > 0, selectedTab == .comments {
-                                        selectedTab = .introduction
-                                    }
-                                }
-                            }
+    private func belowPlayerScroll(
+        snapshot: VideoDetailScreenSnapshot,
+        showsRelated: Bool,
+        collapseDistance: CGFloat,
+        headerHeight: CGFloat,
+        pinHeaderHeight: CGFloat,
+        pinnedVisibleHeight: CGFloat,
+        playerScrollAway: CGFloat,
+        continuationProgress: CGFloat,
+        introductionContentClearance: CGFloat,
+        composerContentClearance: CGFloat
+    ) -> some View {
+        let contentRevision = tabContentRevision(snapshot: snapshot, showsRelated: showsRelated)
+        let headerContentRevision = pagerHeaderContentRevision(snapshot: snapshot)
+
+        return CommentOverlayHost(
+            viewModel: commentViewModel,
+            onOverlayActivityChanged: { isActive in
+                isCommentInternalOverlayActive = isActive
+            }
+        ) { commentTableModel in
+            VideoDetailPagerContainer(
+                state: $pagerState,
+                collapseDistance: collapseDistance,
+                headerHeight: headerHeight,
+                pinHeaderHeight: pinHeaderHeight,
+                pinnedVisibleHeight: pinnedVisibleHeight,
+                playerScrollAway: playerScrollAway,
+                continuationProgress: continuationProgress,
+                introductionContentBottomPadding: introductionContentClearance,
+                commentsContentBottomPadding: composerContentClearance,
+                introductionContentRevision: contentRevision.introduction,
+                commentsContentRevision: contentRevision.comments,
+                headerContentRevision: headerContentRevision,
+                continuationHeader: {
+                    continuePlayingStrip(snapshot: snapshot, progress: 1)
+                    .frame(height: playerContinuationStripHeight)
+                },
+                isContinuationHeaderInteractive: !isPlayerFullscreen && continuationProgress > 0.05,
+                introduction: {
+                    AndroidStyleIntroduction(
+                        snapshot: snapshot,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature,
+                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                        onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                        onShowMessage: { viewModel.showActionMessage($0) },
+                        showsRelated: showsRelated
                     )
-                } header: {
-                    Picker("Content", selection: $selectedTab) {
-                        ForEach(VideoPageTab.allCases) { tab in
-                            Text(tab.title).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(.background)
+                    .padding(.top, 16)
+                },
+                comments: {
+                    EmptyView()
+                },
+                nativeCommentsListScrollView: nativeCommentList.tableView,
+                nativeCommentsAttachScrollDelegate: { delegate in
+                    nativeCommentList.attachScrollDelegate(delegate)
+                },
+                nativeCommentsUpdate: {
+                    nativeCommentList.updateContentBottomPadding(composerContentClearance)
+                    nativeCommentList.update(commentTableModel)
                 }
-            }
-            .padding(.bottom, 24)
+            )
         }
-        .coordinateSpace(name: "bottomScroll")
-        .onPreferenceChange(BottomScrollOffsetPreferenceKey.self) { value in
-            bottomScrollOffset = max(0, value)
+    }
+
+    private func submitComment() {
+        guard isCommentComposerReady else { return }
+        if commentViewModel.postComment(text: commentComposeText) {
+            commentComposeText = ""
+        }
+    }
+
+    private func scheduleFullscreenOrientationUpdate(isFullscreen: Bool) {
+        fullscreenOrientationTask?.cancel()
+        fullscreenOrientationTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled, isPlayerFullscreen == isFullscreen else { return }
+            if isFullscreen {
+                AppOrientationController.shared.lockForFullscreen(to: fullscreenOrientation)
+                isFullscreenOrientationLocked = true
+            } else if isFullscreenOrientationLocked {
+                AppOrientationController.shared.unlockAfterFullscreen()
+                isFullscreenOrientationLocked = false
+            }
+        }
+    }
+
+    private func commentComposerContentClearance(safeAreaBottom: CGFloat) -> CGFloat {
+        let containerBottomInset = currentWindowBottomSafeAreaInset()
+        let isKeyboardSafeAreaActive = safeAreaBottom > containerBottomInset + 1
+        let composerHeight = max(commentComposerHeight, CommentComposerBar.compactHeight)
+        return composerHeight
+            + (isKeyboardSafeAreaActive ? 0 : containerBottomInset)
+            + commentComposerBottomSlack
+    }
+
+    private func introductionContentClearance(usesTabletRelatedSidebar: Bool) -> CGFloat {
+        currentWindowBottomSafeAreaInset() + (usesTabletRelatedSidebar ? 0 : 24)
+    }
+
+    private func currentWindowBottomSafeAreaInset() -> CGFloat {
+        currentWindowScene()?
+            .windows
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets
+            .bottom ?? 0
+    }
+
+    private func currentInterfaceOrientation() -> UIInterfaceOrientation? {
+        currentWindowScene()?.interfaceOrientation
+    }
+
+    private func currentWindowScene() -> UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+    }
+
+    private func tabContentRevision(
+        snapshot: VideoDetailScreenSnapshot,
+        showsRelated: Bool
+    ) -> VideoDetailTabContentRevision {
+        var introductionHasher = Hasher()
+        introductionHasher.combine(showsRelated)
+        introductionHasher.combine(viewModel.isActionRunning("artistSubscription"))
+        snapshot.hash(into: &introductionHasher)
+
+        var commentsHasher = Hasher()
+        commentsHasher.combine(ObjectIdentifier(commentViewModel))
+        commentsHasher.combine(commentViewModel.sortMode.id)
+        for actionID in commentViewModel.runningActionIDs.sorted() {
+            commentsHasher.combine(actionID)
+        }
+        commentsHasher.combine(commentViewModel.sortedComments.count)
+        for comment in commentViewModel.sortedComments {
+            commentsHasher.combine(comment.id)
+            commentsHasher.combine(comment.username)
+            commentsHasher.combine(comment.date)
+            commentsHasher.combine(comment.content)
+            commentsHasher.combine(comment.hasMoreReplies)
+            commentsHasher.combine(comment.replyCount)
+            commentsHasher.combine(comment.thumbUp)
+            commentsHasher.combine(comment.likeCommentStatus)
+            commentsHasher.combine(comment.unlikeCommentStatus)
+        }
+        switch commentViewModel.state {
+        case .idle:
+            commentsHasher.combine("idle")
+        case .loading:
+            commentsHasher.combine("loading")
+        case .failed(let message):
+            commentsHasher.combine("failed")
+            commentsHasher.combine(message)
+        case .loaded(let snapshot):
+            commentsHasher.combine("loaded")
+            commentsHasher.combine(snapshot.comments.count)
         }
 
-        // iOS 18+ explicit scroll-offset reporting via Apple's public API.
-        // More reliable than GeometryReader-on-Lazy* containers, which can
-        // sometimes skip preference updates during inertial scrolling.
-        if #available(iOS 18.0, *) {
-            return AnyView(
-                scrollContent
-                    .onScrollPhaseChange { _, newPhase in
-                        // .idle and .animating are "not currently being
-                        // driven by the user". We only treat .tracking
-                        // (finger down + moving) and .decelerating
-                        // (inertial after release) and .interacting as
-                        // legitimate scroll signals. This prevents tap-
-                        // -to-show-controls inside the player from
-                        // accidentally pulsing bottomScrollOffset and
-                        // resizing the player area.
-                        isUserScrollingBottom = (newPhase == .tracking
-                            || newPhase == .decelerating
-                            || newPhase == .interacting)
-                    }
-                    .onScrollGeometryChange(for: CGFloat.self) { geom in
-                        geom.contentOffset.y
-                    } action: { _, newOffset in
-                        guard isUserScrollingBottom else { return }
-                        bottomScrollOffset = max(0, newOffset)
-                    }
-            )
+        return VideoDetailTabContentRevision(
+            introduction: introductionHasher.finalize(),
+            comments: commentsHasher.finalize()
+        )
+    }
+
+    private func pagerHeaderContentRevision(snapshot: VideoDetailScreenSnapshot) -> Int {
+        var hasher = Hasher()
+        snapshot.hash(into: &hasher)
+        return hasher.finalize()
+    }
+}
+
+private struct CommentComposerBar: View {
+    static let compactHeight: CGFloat = 49
+
+    @Binding var text: String
+    let isSending: Bool
+    let isReady: Bool
+    let onSubmit: () -> Void
+    @FocusState private var isFieldFocused: Bool
+
+    private var canSubmit: Bool {
+        isReady && text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && !isSending
+    }
+
+    var body: some View {
+        composerControls
+            .padding(.horizontal, 16)
+            .frame(minHeight: Self.compactHeight)
+            .frame(maxWidth: .infinity)
+            .commentComposerBarChrome()
+            .onValueChange(of: isFieldFocused) { isFocused in
+                guard isFocused else { return }
+                CommentKeyboardTransparency.applySoon()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                CommentKeyboardTransparency.applySoon()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                CommentKeyboardTransparency.applySoon()
+            }
+            .onDisappear {
+                isFieldFocused = false
+            }
+    }
+
+    @ViewBuilder
+    private var composerControls: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 10) {
+                composerControlRow
+            }
         } else {
-            return AnyView(scrollContent)
+            composerControlRow
+        }
+    }
+
+    private var composerControlRow: some View {
+        HStack(spacing: 10) {
+            TextField("输入评论", text: $text, axis: .vertical)
+                .textFieldStyle(.plain)
+                .submitLabel(.send)
+                .lineLimit(1...4)
+                .focused($isFieldFocused)
+                .onSubmit {
+                    guard canSubmit else { return }
+                    onSubmit()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .commentComposerFieldChrome()
+                .layoutPriority(1)
+
+            Button(action: onSubmit) {
+                Image(systemName: isSending ? "hourglass" : "paperplane.fill")
+                    .font(.headline)
+                    .frame(width: 42, height: 42)
+            }
+            .disabled(!canSubmit)
+            .foregroundStyle(canSubmit ? Color.accentColor : Color.secondary)
+            .accessibilityLabel("发送评论")
+            .commentComposerSendButtonChrome(isEnabled: canSubmit)
         }
     }
 }
 
-/// Reports the inline-content ScrollView's vertical offset from its top so
-/// the player area can shrink (B-station-style) when the user scrolls up
-/// while paused. Reduce policy: keep the largest reported value of a single
-/// pass — there's only one ScrollView publishing into this key.
-private struct BottomScrollOffsetPreferenceKey: PreferenceKey {
+private struct CommentComposerHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+        value = max(value, nextValue())
     }
 }
 
-private enum VideoPageTab: String, CaseIterable, Identifiable {
-    case introduction
-    case comments
+private extension View {
+    func reportCommentComposerHeight() -> some View {
+        background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: CommentComposerHeightPreferenceKey.self,
+                    value: proxy.size.height
+                )
+            }
+        )
+    }
 
-    var id: String { rawValue }
+    @ViewBuilder
+    func commentComposerFieldChrome() -> some View {
+        background(Color(.secondarySystemBackground), in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(Color.secondary.opacity(0.16), lineWidth: 0.5)
+            }
+            .contentShape(Capsule())
+    }
 
-    var title: String {
-        switch self {
-        case .introduction:
-            return String(localized: "简介")
-        case .comments:
-            return String(localized: "评论")
+    func commentComposerSendButtonChrome(isEnabled _: Bool) -> some View {
+        buttonStyle(.plain)
+            .background(Color(.secondarySystemBackground), in: Circle())
+            .overlay {
+                Circle()
+                    .strokeBorder(Color.secondary.opacity(0.14), lineWidth: 0.5)
+            }
+            .contentShape(Circle())
+    }
+
+    func commentComposerBarChrome() -> some View {
+        background(Color(.systemGroupedBackground).opacity(0.96))
+            .overlay(alignment: .top) {
+                Divider()
+                    .opacity(0.35)
+            }
+    }
+}
+
+private enum CommentKeyboardTransparency {
+    @MainActor
+    static func applySoon() {
+        guard #available(iOS 26.0, *) else { return }
+        apply()
+        for delay in [40_000_000, 120_000_000, 260_000_000] {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(delay))
+                apply()
+            }
         }
+    }
+
+    @MainActor
+    private static func apply() {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .filter { isKeyboardWindow($0) }
+            .forEach { window in
+                clearKeyboardChrome(in: window, depth: 0)
+            }
+    }
+
+    private static func isKeyboardWindow(_ window: UIWindow) -> Bool {
+        let className = NSStringFromClass(type(of: window))
+        return className.contains("UIRemoteKeyboardWindow")
+            || className.contains("UITextEffectsWindow")
+    }
+
+    private static func clearKeyboardChrome(in view: UIView, depth: Int) {
+        let className = NSStringFromClass(type(of: view))
+        if depth <= 2
+            || className.contains("InputSet")
+            || className.contains("Keyboard")
+            || className.contains("TextEffects")
+            || className.contains("VisualEffect")
+            || className.contains("Backdrop")
+            || className.contains("Material") {
+            view.backgroundColor = .clear
+            view.isOpaque = false
+        }
+        if let visualEffectView = view as? UIVisualEffectView {
+            visualEffectView.effect = nil
+            visualEffectView.contentView.backgroundColor = .clear
+        }
+        view.subviews.forEach { clearKeyboardChrome(in: $0, depth: depth + 1) }
+    }
+}
+
+
+private extension VideoDetailScreenSnapshot {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(videoCode)
+        hasher.combine(title)
+        hasher.combine(chineseTitle)
+        hasher.combine(videoDescription)
+        hasher.combine(views)
+        hasher.combine(tagSummary)
+        hasher.combine(sourceCount)
+        hasher.combine(defaultSourceLabel)
+        hasher.combine(defaultSourceUrl)
+        hasher.combine(uploadDate)
+        hasher.combine(coverUrl)
+        hasher.combine(artist)
+        hasher.combine(favTimes)
+        hasher.combine(isFav)
+        hasher.combine(csrfToken)
+        hasher.combine(currentUserId)
+        hasher.combine(isWatchLater)
+        hasher.combine(originalComic)
+        hasher.combine(playbackPositionMillis)
+        hasher.combine(tags)
+        hasher.combine(playbackSources)
+        hasher.combine(playlistName)
+        playlistVideos.forEach { $0.hash(into: &hasher) }
+        hasher.combine(myListItems)
+        relatedVideos.forEach { $0.hash(into: &hasher) }
+    }
+}
+
+private extension VideoRelatedRow {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(videoCode)
+        hasher.combine(title)
+        hasher.combine(coverUrl)
+        hasher.combine(duration)
+        hasher.combine(views)
+        hasher.combine(artist)
+        hasher.combine(uploadTime)
+        hasher.combine(isPlaying)
+    }
+}
+
+struct TapOnlyControl<Label: View>: View {
+    let isDisabled: Bool
+    let action: () -> Void
+    let label: () -> Label
+
+    init(
+        isDisabled: Bool = false,
+        action: @escaping () -> Void,
+        @ViewBuilder label: @escaping () -> Label
+    ) {
+        self.isDisabled = isDisabled
+        self.action = action
+        self.label = label
+    }
+
+    var body: some View {
+        label()
+            .opacity(isDisabled ? 0.45 : 1)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !isDisabled else { return }
+                action()
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                guard !isDisabled else { return }
+                action()
+            }
     }
 }
 
@@ -464,7 +852,7 @@ private struct AndroidStyleIntroduction: View {
     let showsRelated: Bool
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             if let artist = snapshot.artist {
                 ArtistCard(
                     artist: artist,
@@ -515,7 +903,8 @@ private struct AndroidStyleIntroduction: View {
                     videos: snapshot.playlistVideos,
                     videoFeature: videoFeature,
                     commentFeature: commentFeature,
-                    showPlaying: true
+                    showPlaying: true,
+                    showsMetadataFooter: false
                 )
             }
 
@@ -539,6 +928,7 @@ private struct ArtistCard: View {
     let commentFeature: CommentFeature
     @Environment(\.searchFeature) private var searchFeature
     @State private var isConfirmingUnsubscribe = false
+    @State private var isShowingArtistVideos = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -550,7 +940,7 @@ private struct ArtistCard: View {
 
             Spacer()
 
-            Button {
+            TapOnlyControl(isDisabled: isRunning) {
                 if artist.isSubscribed {
                     isConfirmingUnsubscribe = true
                 } else {
@@ -564,8 +954,6 @@ private struct ArtistCard: View {
                     .padding(.vertical, 7)
                     .background(Color.accentColor.opacity(0.14), in: Capsule())
             }
-            .disabled(isRunning)
-            .buttonStyle(.plain)
         }
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -577,6 +965,16 @@ private struct ArtistCard: View {
         } message: {
             Text("确定要取消订阅吗？")
         }
+        .navigationDestination(isPresented: $isShowingArtistVideos) {
+            if let searchFeature {
+                ArtistVideosView(
+                    artistName: artist.name,
+                    searchFeature: searchFeature,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+            }
+        }
     }
 
     /// Wraps the avatar + name + genre block in a NavigationLink that pushes
@@ -585,18 +983,12 @@ private struct ArtistCard: View {
     /// production but keeps the view robust during previews / testing).
     @ViewBuilder
     private var artistInfoTappable: some View {
-        if let searchFeature {
-            NavigationLink {
-                ArtistVideosView(
-                    artistName: artist.name,
-                    searchFeature: searchFeature,
-                    videoFeature: videoFeature,
-                    commentFeature: commentFeature
-                )
+        if searchFeature != nil {
+            TapOnlyControl {
+                isShowingArtistVideos = true
             } label: {
                 artistInfoLabel
             }
-            .buttonStyle(.plain)
         } else {
             artistInfoLabel
         }
@@ -681,10 +1073,12 @@ private struct ExpandableDescription: View {
                 .lineLimit(expanded ? nil : 4)
                 .textSelection(.enabled)
 
-            Button(expanded ? String(localized: "收起") : String(localized: "展开")) {
+            TapOnlyControl {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     expanded.toggle()
                 }
+            } label: {
+                Text(expanded ? String(localized: "收起") : String(localized: "展开"))
             }
             .font(.caption.weight(.semibold))
         }
@@ -701,15 +1095,16 @@ private struct ActionButtonRow: View {
     let onDownload: (VideoPlaybackSourceRow) -> Void
     @Environment(\.openURL) private var openURL
     @State private var isShowingMyList = false
+    @State private var isShowingMoreActions = false
     @State private var isShowingShareSheet = false
     @State private var isShowingDownloadQuality = false
 
     private var videoURL: URL? {
-        URL(string: "https://hanime1.me/watch?v=\(snapshot.videoCode)")
+        siteURL(path: "/watch")
     }
 
     private var downloadURL: URL? {
-        URL(string: "https://hanime1.me/download?v=\(snapshot.videoCode)")
+        siteURL(path: "/download")
     }
 
     /// Real downloadable sources (a concrete resolution + a usable URL).
@@ -720,81 +1115,84 @@ private struct ActionButtonRow: View {
         snapshot.playbackSources.filter { $0.label.uppercased() != "AUTO" && !$0.url.isEmpty }
     }
 
+    private func siteURL(path: String) -> URL? {
+        guard var components = URLComponents(string: AppDomain.currentBaseURL) else {
+            return nil
+        }
+        components.path = path
+        components.queryItems = [
+            URLQueryItem(name: "v", value: snapshot.videoCode)
+        ]
+        return components.url
+    }
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                LabelButton(
-                    title: snapshot.isFav ? "已收藏" : "收藏",
-                    systemImage: snapshot.isFav ? "heart.fill" : "heart",
-                    action: onToggleFavorite
-                )
+        HStack(spacing: 6) {
+            LabelButton(
+                title: snapshot.isFav ? "已收藏" : "收藏",
+                systemImage: snapshot.isFav ? "heart.fill" : "heart",
+                action: onToggleFavorite
+            )
 
-                LabelButton(
-                    title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
-                    systemImage: "text.badge.plus",
-                    action: onToggleWatchLater
-                )
+            LabelButton(
+                title: snapshot.isWatchLater ? "已稍后" : "稍后观看",
+                systemImage: "text.badge.plus",
+                action: onToggleWatchLater
+            )
 
-                LabelButton(
-                    title: "加入列表",
-                    systemImage: "list.bullet",
-                    action: {
-                        if snapshot.myListItems.isEmpty {
-                            onShowMessage(String(localized: "video.action.playlist.empty"))
-                        } else {
-                            isShowingMyList = true
-                        }
-                    }
-                )
-
-                LabelButton(
-                    title: "下载",
-                    systemImage: "arrow.down.circle",
-                    action: {
-                        if downloadableSources.isEmpty {
-                            // No selectable resolutions parsed — defer to the
-                            // site's official download page in the browser.
-                            if let downloadURL { openURL(downloadURL) }
-                        } else {
-                            isShowingDownloadQuality = true
-                        }
-                    }
-                )
-
-                LabelButton(
-                    title: "分享",
-                    systemImage: "square.and.arrow.up",
-                    action: {
-                        if videoURL != nil {
-                            isShowingShareSheet = true
-                        }
-                    }
-                )
-
-                if snapshot.originalComic?.isEmpty == false {
-                    LabelButton(
-                        title: "原作漫画",
-                        systemImage: "book",
-                        action: {
-                            if let originalComic = snapshot.originalComic,
-                               let url = URL(string: originalComic) {
-                                openURL(url)
-                            }
-                        }
-                    )
+            LabelButton(
+                title: "更多",
+                systemImage: "ellipsis.circle",
+                action: {
+                    isShowingMoreActions = true
                 }
+            )
 
-                LabelButton(
-                    title: "网页",
-                    systemImage: "safari",
-                    action: {
-                        if let videoURL {
-                            openURL(videoURL)
-                        }
+            LabelButton(
+                title: "分享",
+                systemImage: "square.and.arrow.up",
+                action: {
+                    if videoURL != nil {
+                        isShowingShareSheet = true
                     }
-                )
+                }
+            )
+        }
+        .confirmationDialog("更多操作", isPresented: $isShowingMoreActions, titleVisibility: .visible) {
+            Button("加入列表") {
+                if snapshot.myListItems.isEmpty {
+                    onShowMessage(String(localized: "video.action.playlist.empty"))
+                } else {
+                    isShowingMyList = true
+                }
             }
-            .padding(.horizontal, 2)
+
+            Button("下载") {
+                if downloadableSources.isEmpty {
+                    // No selectable resolutions parsed — defer to the
+                    // site's official download page in the browser.
+                    if let downloadURL { openURL(downloadURL) }
+                } else {
+                    isShowingDownloadQuality = true
+                }
+            }
+
+            if snapshot.originalComic?.isEmpty == false {
+                Button("原作漫画") {
+                    if let originalComic = snapshot.originalComic,
+                       let url = URL(string: originalComic) {
+                        openURL(url)
+                    }
+                }
+            }
+
+            Button("网页") {
+                if let videoURL {
+                    openURL(videoURL)
+                }
+            }
+
+            Button("取消", role: .cancel) {}
         }
         .confirmationDialog("播放列表", isPresented: $isShowingMyList) {
             ForEach(snapshot.myListItems) { item in
@@ -842,10 +1240,10 @@ private struct LabelButton: View {
     var action: () -> Void = {}
 
     var body: some View {
-        Button(action: action) {
+        TapOnlyControl(action: action) {
             LabelButtonContent(title: title, systemImage: systemImage)
         }
-        .buttonStyle(.borderless)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -861,8 +1259,7 @@ private struct LabelButtonContent: View {
                 .font(.caption)
                 .lineLimit(1)
         }
-        .frame(minWidth: 76)
-        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
     }
 }
@@ -872,6 +1269,7 @@ private struct TagFlow: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     @Environment(\.searchFeature) private var searchFeature
+    @State private var selectedTag: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -883,32 +1281,63 @@ private struct TagFlow: View {
             // same column width.
             FlowLayout(spacing: 8, lineSpacing: 8) {
                 ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
-                    if let searchFeature {
-                        NavigationLink {
-                            ArtistVideosView(
-                                title: "#\(tag)",
-                                mode: .keyword(tag),
-                                searchFeature: searchFeature,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature
-                            )
+                    if searchFeature != nil {
+                        TapOnlyControl {
+                            selectedTag = tag
                         } label: {
-                            Text(tag).font(.caption)
+                            TagChipText(tag: tag)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(
+                                    Capsule()
+                                        .strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 1)
+                                )
                         }
-                        .buttonStyle(.bordered)
                     } else {
                         // Defensive: if the search feature isn't injected (
                         // which shouldn't happen in production) the tag still
                         // renders as a disabled bordered chip rather than
                         // disappearing entirely.
-                        Button(tag) { /* no-op */ }
-                            .font(.caption)
-                            .buttonStyle(.bordered)
-                            .disabled(true)
+                        TagChipText(tag: tag)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(.secondary)
+                            .background(
+                                Capsule()
+                                    .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+                            )
                     }
                 }
             }
         }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedTag != nil },
+                set: { if !$0 { selectedTag = nil } }
+            )
+        ) {
+            if let selectedTag, let searchFeature {
+                ArtistVideosView(
+                    title: "#\(selectedTag)",
+                    mode: .keyword(selectedTag),
+                    searchFeature: searchFeature,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+            }
+        }
+    }
+}
+
+private struct TagChipText: View {
+    let tag: String
+
+    var body: some View {
+        Text(tag)
+            .font(.caption)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: 240, alignment: .leading)
     }
 }
 

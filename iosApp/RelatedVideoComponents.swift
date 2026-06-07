@@ -8,6 +8,10 @@ struct HorizontalVideoSection: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let showPlaying: Bool
+    let showsMetadataFooter: Bool
+
+    @State private var selectedVideo: VideoRelatedRow?
+    @State private var isShowingVideoList = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -22,14 +26,8 @@ struct HorizontalVideoSection: View {
                     }
                 }
                 Spacer()
-                NavigationLink {
-                    RelatedVideoListView(
-                        title: title,
-                        videos: videos,
-                        videoFeature: videoFeature,
-                        commentFeature: commentFeature,
-                        showPlaying: showPlaying
-                    )
+                TapOnlyControl {
+                    isShowingVideoList = true
                 } label: {
                     Text("更多")
                         .font(.caption.weight(.semibold))
@@ -39,14 +37,42 @@ struct HorizontalVideoSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(videos) { video in
-                        NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                        ManualNavigationCard {
+                            selectedVideo = video
                         } label: {
-                            RelatedVideoCard(video: video, showPlaying: showPlaying)
+                            RelatedVideoCard(
+                                video: video,
+                                showPlaying: showPlaying,
+                                showsMetadataFooter: showsMetadataFooter,
+                                width: 172
+                            )
                         }
-                        .buttonStyle(.plain)
                     }
                 }
+            }
+        }
+        .navigationDestination(isPresented: $isShowingVideoList) {
+            RelatedVideoListView(
+                title: title,
+                videos: videos,
+                videoFeature: videoFeature,
+                commentFeature: commentFeature,
+                showPlaying: showPlaying,
+                showsMetadataFooter: showsMetadataFooter
+            )
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVideo != nil },
+                set: { if !$0 { selectedVideo = nil } }
+            )
+        ) {
+            if let selectedVideo {
+                VideoDetailView(
+                    videoCode: selectedVideo.videoCode,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
             }
         }
     }
@@ -58,6 +84,7 @@ struct RelatedVideoListView: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let showPlaying: Bool
+    let showsMetadataFooter: Bool
 
     var body: some View {
         ScrollView {
@@ -74,7 +101,11 @@ struct RelatedVideoListView: View {
                             commentFeature: commentFeature
                         )
                     } label: {
-                        RelatedVideoCard(video: video, showPlaying: showPlaying)
+                        RelatedVideoCard(
+                            video: video,
+                            showPlaying: showPlaying,
+                            showsMetadataFooter: showsMetadataFooter
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -92,6 +123,8 @@ struct RelatedVideoGrid: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
 
+    @State private var selectedVideo: VideoRelatedRow?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("相关影片")
@@ -99,15 +132,44 @@ struct RelatedVideoGrid: View {
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 12)], spacing: 12) {
                 ForEach(videos) { video in
-                    NavigationLink {
-                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                    ManualNavigationCard {
+                        selectedVideo = video
                     } label: {
                         RelatedVideoCard(video: video, showPlaying: false)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVideo != nil },
+                set: { if !$0 { selectedVideo = nil } }
+            )
+        ) {
+            if let selectedVideo {
+                VideoDetailView(
+                    videoCode: selectedVideo.videoCode,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature
+                )
+            }
+        }
+    }
+}
+
+private struct ManualNavigationCard<Label: View>: View {
+    let action: () -> Void
+    let label: () -> Label
+
+    init(action: @escaping () -> Void, @ViewBuilder label: @escaping () -> Label) {
+        self.action = action
+        self.label = label
+    }
+
+    var body: some View {
+        label()
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
     }
 }
 
@@ -188,17 +250,75 @@ struct TabletRelatedVideoRow: View {
 struct RelatedVideoCard: View {
     let video: VideoRelatedRow
     let showPlaying: Bool
+    let showsMetadataFooter: Bool
+    let width: CGFloat?
+    @State private var coverNaturalSize: CGSize?
+
+    init(
+        video: VideoRelatedRow,
+        showPlaying: Bool,
+        showsMetadataFooter: Bool = true,
+        width: CGFloat? = nil
+    ) {
+        self.video = video
+        self.showPlaying = showPlaying
+        self.showsMetadataFooter = showsMetadataFooter
+        self.width = width
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottomLeading) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
-                .frame(height: 96)
-                .clipped()
+            ZStack(alignment: .bottom) {
+                Color(.secondarySystemBackground)
+                    .opacity(0.5)
+                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                    .overlay {
+                        CachedRemoteImage(
+                            urlString: video.coverUrl,
+                            contentMode: coverContentMode,
+                            resizeWidth: 240,
+                            onImageLoaded: { size in
+                                coverNaturalSize = size
+                            }
+                        )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                    }
 
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color(.secondarySystemBackground).opacity(0.94)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+
+                HStack(spacing: 5) {
+                    if let views = video.views, !views.isEmpty {
+                        Label(views, systemImage: "play.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if let duration = video.duration, !duration.isEmpty {
+                        Label(duration, systemImage: "clock")
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.bottom, 5)
+            }
+            .overlay(alignment: .topLeading) {
                 if showPlaying && video.isPlaying {
                     Text("正在播放")
                         .font(.caption2.weight(.bold))
+                        .foregroundStyle(.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(.regularMaterial, in: Capsule())
@@ -208,18 +328,58 @@ struct RelatedVideoCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Text(video.title)
+                .lineLimit(2)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
-                .lineLimit(2)
+                .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40, alignment: .topLeading)
 
-            if !video.metadata.isEmpty {
-                Text(video.metadata)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+            if showsMetadataFooter {
+                HStack(spacing: 6) {
+                    MarqueeText(text: video.artistLabel)
+                    if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
+                        Text(uploadTime)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                    }
+                }
+                .frame(height: 16)
             }
         }
-        .frame(width: 172, alignment: .leading)
+        .relatedVideoCardWidth(width)
+        .padding(8)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var coverContentMode: ContentMode {
+        guard let coverNaturalSize,
+              coverNaturalSize.width > 0,
+              coverNaturalSize.height > coverNaturalSize.width * 1.1 else {
+            return .fill
+        }
+        return .fit
+    }
+}
+
+private extension VideoRelatedRow {
+    var artistLabel: String {
+        guard let artist, !artist.isEmpty else {
+            return String(localized: "common.artist")
+        }
+        return artist
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func relatedVideoCardWidth(_ width: CGFloat?) -> some View {
+        if let width {
+            frame(width: width, alignment: .leading)
+        } else {
+            frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

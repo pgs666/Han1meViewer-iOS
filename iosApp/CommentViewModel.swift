@@ -36,11 +36,7 @@ final class CommentViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
-    @Published var sortMode: SortMode = .latest {
-        didSet {
-            updateSortedComments()
-        }
-    }
+    @Published private(set) var sortMode: SortMode = .mostLikes
     @Published var actionMessage: String?
     @Published private(set) var runningActionIDs: Set<String> = []
     @Published private(set) var sortedComments: [CommentRow] = []
@@ -83,15 +79,22 @@ final class CommentViewModel: ObservableObject {
         await loadComments(generation: generation)
     }
 
-    func postComment(text: String) {
+    func changeSortMode(_ mode: SortMode) {
+        guard sortMode != mode else { return }
+        sortMode = mode
+        updateSortedComments()
+    }
+
+    @discardableResult
+    func postComment(text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             actionMessage = String(localized: "评论太短")
-            return
+            return false
         }
         guard let snapshot = currentSnapshot, let userId = snapshot.currentUserId else {
             actionMessage = String(localized: "请先登录")
-            return
+            return false
         }
 
         runAction(id: "post-comment") {
@@ -104,6 +107,7 @@ final class CommentViewModel: ObservableObject {
             self.actionMessage = String(localized: "评论已发送")
             self.load()
         }
+        return true
     }
 
     func postReply(to comment: CommentRow, text: String) {
@@ -204,9 +208,9 @@ final class CommentViewModel: ObservableObject {
         let comments = snapshot.comments
         switch sortMode {
         case .latest:
-            return comments
-        case .earliest:
             return Array(comments.reversed())
+        case .earliest:
+            return comments
         case .mostReplies:
             return comments.sorted { ($0.replyCount ?? 0) > ($1.replyCount ?? 0) }
         case .mostLikes:

@@ -16,19 +16,17 @@ import AVFoundation
 /// 隔离**，会让外层整个 app 进入 dark mode。`KSVideoPlayerViewBuilder` 是 internal enum
 /// 也用不了。
 ///
-/// 通过 `@Binding isFullscreen` / `@Binding isCollapsed` 让外部容器（VideoDetailView）
-/// 控制 player 形态。**关键**：始终在 SwiftUI view tree 同一位置，仅靠外层 frame 切换大小,
+/// 通过 `@Binding isFullscreen` 让外部容器（VideoDetailView）控制 player 形态。
+/// **关键**：始终在 SwiftUI view tree 同一位置，仅靠外层 frame 切换大小,
 /// view identity 不变 → KSPlayerLayer 复用 → 视频不重新加载，进度不丢失。
 @MainActor
 struct KSPlayerView: View {
     let snapshot: VideoDetailScreenSnapshot
     @Binding var isFullscreen: Bool
-    @Binding var isCollapsed: Bool
     let onProgress: (TimeInterval) -> Void
     let onPlaybackEnded: () -> Void
     /// Optional: invoked whenever the player's playing/paused state flips.
-    /// Used by the parent to decide whether to allow scroll-driven shrink
-    /// of the player area (only paused state shrinks).
+    /// Used by the parent for layout policy that depends on active playback.
     let onPlayingChanged: (Bool) -> Void
     /// Optional: invoked whenever the controls overlay shows / hides. Lets
     /// the parent slide the navigation bar in / out together with the
@@ -39,17 +37,7 @@ struct KSPlayerView: View {
     /// removed (parent hides the navigation bar entirely), so this is the
     /// player's only way back.
     let onBack: () -> Void
-    /// True when the parent has shrunk the player below its 16:9 size via
-    /// the follow-finger collapse (paused + scrolled). When this is true,
-    /// a single tap on the video does NOT toggle the controls overlay —
-    /// it instead asks the parent to expand the player back to 16:9. This
-    /// is the user-requested workaround for the visible "video + controls
-    /// pulse" that occurred when the controls overlay materialised on
-    /// top of a shrunken player.
-    let isShrunken: Bool
-    /// Tap handler invoked when the user taps a shrunken player; parent is
-    /// expected to expand the player back to its full size.
-    let onRequestExpand: () -> Void
+    let playRequestToken: Int
     /// Optional: invoked the first time the underlying media reports a
     /// non-zero natural size. Lets the parent decide whether the video is
     /// landscape or portrait so it can pick the right fullscreen
@@ -83,6 +71,8 @@ struct KSPlayerView: View {
     /// Whether `onNaturalSize` has been fired already. We only want to
     /// notify the parent once — the natural size won't change mid-playback.
     @State private var naturalSizeReported = false
+    @State private var lastProgressReportSeconds: TimeInterval?
+    @State private var lastProgressReportAt = Date.distantPast
     /// User-picked playback source (quality). Nil = use the snapshot's
     /// default-marked source via primarySource(). Wired up from the
     /// quality menu in bottomBar; switching value re-evaluates `body` and
@@ -113,6 +103,7 @@ struct KSPlayerView: View {
     @State private var dragCurrentBrightness: CGFloat = 0
     @State private var dragStartVolume: Float = 0
     @State private var dragCurrentVolume: Float = 0
+    @GestureState private var isPlayerDragGestureActive = false
     /// 长按 timer。finger 落下后启动；移动 > 12pt 或 finger 抬起时 cancel。
     @State private var longPressTask: Task<Void, Never>?
     /// 当前手势是否已经决定走 swipe 路径（以避免长按 timer 重复 schedule）。
@@ -133,7 +124,9 @@ struct KSPlayerView: View {
     /// which already shows the same bar via swipeHUD).
     @StateObject private var volumeObserver = SystemVolumeObserver()
     @State private var physicalVolumeHUDActive = false
-    @State private var physicalVolumeHUDHideTask: Task<Void, Never>?
+    @State private var physicalVolumeHUDGeneration: UInt64 = 0
+    @State private var lastHandledPhysicalVolumeTick: UInt64 = 0
+    @State private var suppressPhysicalVolumeHUDUntil = Date.distantPast
 
     // MARK: - Buffering / loading feedback
     /// Observes the underlying AVPlayer's `timeControlStatus` — the
@@ -178,35 +171,29 @@ struct KSPlayerView: View {
     init(
         snapshot: VideoDetailScreenSnapshot,
         isFullscreen: Binding<Bool>,
-        isCollapsed: Binding<Bool>,
         onProgress: @escaping (TimeInterval) -> Void = { _ in },
         onPlaybackEnded: @escaping () -> Void = {},
         onPlayingChanged: @escaping (Bool) -> Void = { _ in },
         onControlsVisibilityChanged: @escaping (Bool) -> Void = { _ in },
         onBack: @escaping () -> Void = {},
-        isShrunken: Bool = false,
-        onRequestExpand: @escaping () -> Void = {},
+        playRequestToken: Int = 0,
         onNaturalSize: @escaping (CGSize) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self._isFullscreen = isFullscreen
-        self._isCollapsed = isCollapsed
         self.onProgress = onProgress
         self.onPlaybackEnded = onPlaybackEnded
         self.onPlayingChanged = onPlayingChanged
         self.onControlsVisibilityChanged = onControlsVisibilityChanged
         self.onBack = onBack
-        self.isShrunken = isShrunken
-        self.onRequestExpand = onRequestExpand
+        self.playRequestToken = playRequestToken
         self.onNaturalSize = onNaturalSize
     }
 
     var body: some View {
         let _ = Self.configureKSPlayerGlobalsOnce
         Group {
-            if isCollapsed {
-                collapsedStrip
-            } else if let activeSource = activeSource,
+            if let activeSource = activeSource,
                       let url = URL(string: activeSource.url) {
                 playerWithControls(url: url)
             } else {
@@ -215,6 +202,9 @@ struct KSPlayerView: View {
         }
         .background(Color.black)
         .clipped()
+        .onValueChange(of: playRequestToken) { _ in
+            play()
+        }
     }
 
     // MARK: - Player + controls
@@ -224,14 +214,12 @@ struct KSPlayerView: View {
         let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
         let options = makeKSOptions(resumeSeconds: resumeSeconds)
 
-        // GeometryReader wraps KSVideoPlayer (alone, not the whole ZStack) so the
-        // DragGesture handler can see the player's own size — needed to decide
-        // whether a vertical swipe started on the LEFT half (brightness) or the
-        // RIGHT half (volume), and to scale a horizontal swipe to a sensible
-        // seek delta. KSVideoPlayer is the only child of this GeometryReader,
-        // no branching, so view identity is preserved.
-        ZStack {
-            GeometryReader { proxy in
+        // GeometryReader gives both the video gestures and the controls overlay
+        // the player's actual size. Gestures need it for swipe classification;
+        // the overlay needs it for fullscreen safe-area padding.
+        GeometryReader { proxy in
+            let safeAreaInsets = isFullscreen ? proxy.safeAreaInsets : EdgeInsets()
+            ZStack {
                 KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                     .onPlay { current, total in
                         guard current.isFinite, current >= 0 else { return }
@@ -274,9 +262,12 @@ struct KSPlayerView: View {
                         // user rewind to 0 (or below ~2s) silently failed to
                         // persist, so the saved resume position kept its
                         // previous value across re-entry.
-                        onProgress(current)
+                        reportPlaybackProgress(current)
                     }
-                    .onFinish { _, _ in onPlaybackEnded() }
+                    .onFinish { _, _ in
+                        setPlayingState(false)
+                        onPlaybackEnded()
+                    }
                     .onStateChanged { layer, state in
                         // DIAGNOSTIC: the player previously swallowed every
                         // state, so a failed open showed only a black screen
@@ -308,14 +299,15 @@ struct KSPlayerView: View {
                             AppLogger.log("autoplay enforced: \(autoPlayOnEnter ? "play" : "pause")")
                             if autoPlayOnEnter {
                                 layer.play()
+                                setPlayingState(true)
                             } else {
                                 layer.pause()
+                                setPlayingState(false)
                             }
-                        }
-                        let nowPlaying = state.isPlaying
-                        if nowPlaying != isPlaying {
-                            isPlaying = nowPlaying
-                            onPlayingChanged(nowPlaying)
+                        } else if state.isPlaying {
+                            setPlayingState(true)
+                        } else if state == .error {
+                            setPlayingState(false)
                         }
                         // Wire / re-wire the timeControlStatus observer
                         // any time KSPlayer's state ticks, so we always have
@@ -353,16 +345,6 @@ struct KSPlayerView: View {
                     }
                     .onTapGesture(count: 1) {
                         if isBoosted { endBoost() }
-                        if isShrunken {
-                            // Player is currently shrunk by scroll. First
-                            // tap restores it to 16:9 instead of opening the
-                            // controls — avoids the visible layout pulse
-                            // that would otherwise happen when the controls
-                            // overlay tries to materialise on top of a
-                            // mid-collapse-animation player.
-                            onRequestExpand()
-                            return
-                        }
                         withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
                         AppLogger.log("gesture: tap controls=\(showsControls ? "show" : "hide")")
                         onControlsVisibilityChanged(showsControls)
@@ -382,6 +364,7 @@ struct KSPlayerView: View {
                                 isPinching = true
                                 longPressTask?.cancel()
                                 longPressTask = nil
+                                resetSwipeHUDState()
                                 if isBoosted { endBoost() }
                             }
                             .onEnded { value in
@@ -415,6 +398,9 @@ struct KSPlayerView: View {
                     // the tap / double-tap / pinch gestures.
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 0)
+                            .updating($isPlayerDragGestureActive) { _, isActive, _ in
+                                isActive = true
+                            }
                             .onChanged { value in
                                 handlePressOrSwipe(value, in: proxy.size)
                             }
@@ -422,34 +408,36 @@ struct KSPlayerView: View {
                                 handlePressOrSwipeEnded()
                             }
                     )
-            }
 
-            // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
-            // The two HUDs sit ABOVE the controls so the centre play / skip
-            // buttons (which live inside controlsOverlay) don't visually
-            // cover the swipe HUD or the boost badge.
-            if showsControls {
-                controlsOverlay.transition(.opacity)
-            }
+                // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
+                // The two HUDs sit ABOVE the controls so the centre play / skip
+                // buttons (which live inside controlsOverlay) don't visually
+                // cover the swipe HUD or the boost badge.
+                if showsControls {
+                    controlsOverlay(safeAreaInsets: safeAreaInsets).transition(.opacity)
+                }
 
-            if dragState != .none {
-                swipeHUD.transition(.opacity)
-            }
+                if dragState != .none {
+                    swipeHUD.transition(.opacity)
+                }
 
-            if isBoosted {
-                boostHint.transition(.opacity)
-            }
+                if isBoosted {
+                    boostHint.transition(.opacity)
+                }
 
-            if statusObserver.isWaitingForPlayback {
-                loadingHUD.transition(.opacity)
-            }
+                if statusObserver.isWaitingForPlayback {
+                    loadingHUD.transition(.opacity)
+                }
 
-            if physicalVolumeHUDActive {
-                physicalVolumeHUD.transition(.opacity)
+                if physicalVolumeHUDActive {
+                    physicalVolumeHUD.transition(.opacity)
+                }
             }
         }
         .onAppear {
             scheduleAutoHide()
+            physicalVolumeHUDActive = false
+            resetSwipeHUDState()
             // Mount the hidden MPVolumeView so swipe-volume can write the
             // system output volume. Released on disappear so iOS's own
             // volume HUD works everywhere else in the app.
@@ -463,19 +451,22 @@ struct KSPlayerView: View {
             lastLoadedEnd = 0
             lastSampleAt = nil
             currentSpeedText = nil
+            lastProgressReportSeconds = nil
+            lastProgressReportAt = Date.distantPast
             // Bind the status observer eagerly if a layer already exists
             // (re-appear after navigation pop); fresh mounts will pick
             // it up via the onStateChanged callback once the layer is
             // created.
             statusObserver.observe(Self.findAVPlayer(in: coordinator.playerLayer?.player))
-            AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
+            AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksLoadAutoPlay=\(KSOptions.isAutoPlay)")
         }
         .onDisappear {
             hideControlsTask?.cancel()
             SystemVolumeController.release()
             volumeObserver.stop()
-            physicalVolumeHUDHideTask?.cancel()
-            physicalVolumeHUDHideTask = nil
+            physicalVolumeHUDGeneration &+= 1
+            physicalVolumeHUDActive = false
+            resetSwipeHUDState()
             speedSampleTask?.cancel()
             speedSampleTask = nil
             // Pause the player when this view is no longer on-screen.
@@ -484,18 +475,15 @@ struct KSPlayerView: View {
             // navigation stack — without an explicit pause, BOTH videos
             // would keep playing audio simultaneously.
             coordinator.playerLayer?.pause()
+            setPlayingState(false)
         }
-        .onValueChange(of: isShrunken) { newValue in
-            // The moment the parent reports the player has begun shrinking
-            // (paused user starts scrolling content up), hide the controls
-            // overlay. Otherwise the HUD would persist over a steadily
-            // shrinking player and look stuck / out-of-sync.
-            guard newValue, showsControls else { return }
-            withAnimation(.easeInOut(duration: 0.18)) {
-                showsControls = false
+        .onValueChange(of: isPlayerDragGestureActive) { isActive in
+            guard !isActive else { return }
+            let shouldResumeAutoHide = hasMovedToSwipe || dragState != .none || isBoosted
+            resetSwipeHUDState()
+            if shouldResumeAutoHide {
+                scheduleAutoHide()
             }
-            onControlsVisibilityChanged(false)
-            hideControlsTask?.cancel()
         }
         .onValueChange(of: statusObserver.isWaitingForPlayback) { waiting in
             // Speed sampler only runs while the player is genuinely waiting
@@ -511,20 +499,31 @@ struct KSPlayerView: View {
                 currentSpeedText = nil
             }
         }
-        .onReceive(volumeObserver.$changeTick) { _ in
+        .onReceive(volumeObserver.$changeTick) { tick in
+            // @Published emits its current value immediately on subscription.
+            // Tick 0 is not a hardware-key event; showing HUD for it can keep
+            // recreating the hide timer during normal SwiftUI re-subscription.
+            guard tick > 0 else { return }
+            guard tick != lastHandledPhysicalVolumeTick else { return }
+            lastHandledPhysicalVolumeTick = tick
             // Skip if the change came from our swipe-volume gesture —
             // swipeHUD is already visible for that case. Otherwise pop
             // the physical-key HUD and auto-hide after 1.5s.
             guard dragState != .volume else { return }
-            physicalVolumeHUDActive = true
-            physicalVolumeHUDHideTask?.cancel()
-            physicalVolumeHUDHideTask = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                if !Task.isCancelled {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        physicalVolumeHUDActive = false
-                    }
-                }
+            guard Date() >= suppressPhysicalVolumeHUDUntil else { return }
+            showPhysicalVolumeHUD()
+        }
+    }
+
+    private func showPhysicalVolumeHUD() {
+        physicalVolumeHUDGeneration &+= 1
+        let generation = physicalVolumeHUDGeneration
+        physicalVolumeHUDActive = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard generation == physicalVolumeHUDGeneration else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                physicalVolumeHUDActive = false
             }
         }
     }
@@ -659,7 +658,7 @@ struct KSPlayerView: View {
         return String(format: "%.0f B/s", bytesPerSec)
     }
 
-    private var controlsOverlay: some View {
+    private func controlsOverlay(safeAreaInsets: EdgeInsets) -> some View {
         ZStack {
             LinearGradient(
                 colors: [.black.opacity(0.5), .clear, .black.opacity(0.55)],
@@ -673,8 +672,10 @@ struct KSPlayerView: View {
                 Spacer()
                 bottomBar
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.leading, 12 + safeAreaInsets.leading)
+            .padding(.trailing, 12 + safeAreaInsets.trailing)
+            .padding(.top, 10 + safeAreaInsets.top)
+            .padding(.bottom, 10 + safeAreaInsets.bottom)
             .foregroundStyle(.white)
         }
         // Pin to the player ZStack's full extent. Without this, the
@@ -721,12 +722,6 @@ struct KSPlayerView: View {
             ) {
                 coordinator.isMuted.toggle()
             }
-            // 收起按钮（暂停 + 非全屏时显示，跟 mute 等并排）
-            if !isFullscreen, !isPlaying {
-                iconButton(systemImage: "chevron.up", label: "收起播放器") {
-                    withAnimation(.easeInOut(duration: 0.25)) { isCollapsed = true }
-                }
-            }
             // 比例 fit/fill
             iconButton(
                 systemImage: coordinator.isScaleAspectFill
@@ -738,11 +733,19 @@ struct KSPlayerView: View {
             }
             // Fullscreen toggle has been moved into bottomBar (right of the
             // playback-rate menu) — see `bottomBar`. Keeping the cluster
-            // {mute, collapse, aspect} on the right of topBar.
+            // {mute, aspect} on the right of topBar.
         }
     }
 
     private var bottomBar: some View {
+        GeometryReader { proxy in
+            bottomBarContent(showsTimeLabels: proxy.size.width >= 390)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(height: 44)
+    }
+
+    private func bottomBarContent(showsTimeLabels: Bool) -> some View {
         let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
         // Slider value is now a PLAIN @State (not a closure-based binding) so
         // SwiftUI's first drag delta correctly persists into binding source on
@@ -763,9 +766,12 @@ struct KSPlayerView: View {
                 scheduleAutoHide()
             }
 
-            Text(Self.formatTime(sliderValue))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.white)
+            if showsTimeLabels {
+                Text(Self.formatTime(sliderValue))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
 
             Slider(
                 value: $sliderValue,
@@ -798,21 +804,28 @@ struct KSPlayerView: View {
                     sliderValue = asTime
                 }
             }
+            .layoutPriority(1)
 
-            Text(Self.formatTime(TimeInterval(coordinator.timemodel.totalTime)))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.white)
+            if showsTimeLabels {
+                Text(Self.formatTime(TimeInterval(coordinator.timemodel.totalTime)))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
 
-            // 倍速 menu
-            playbackRateMenu
+            if isFullscreen {
+                // Keep inline chrome compact; these menus are available
+                // once fullscreen has enough horizontal room.
+                playbackRateMenu
 
-            // 画质 menu — only shown if the snapshot exposes more than one
-            // source (typical: the page only ships a single 'auto' source
-            // because the script extraction returns one URL). When more
-            // qualities exist they sit between the rate menu and the
-            // fullscreen toggle as the user requested.
-            if snapshot.playbackSources.count > 1 {
-                qualityMenu
+                // 画质 menu — only shown if the snapshot exposes more than one
+                // source (typical: the page only ships a single 'auto' source
+                // because the script extraction returns one URL). When more
+                // qualities exist they sit between the rate menu and the
+                // fullscreen toggle as the user requested.
+                if snapshot.playbackSources.count > 1 {
+                    qualityMenu
+                }
             }
 
             // 全屏 toggle — placed immediately to the right of the playback
@@ -860,7 +873,7 @@ struct KSPlayerView: View {
         Menu {
             ForEach(snapshot.playbackSources) { source in
                 Button {
-                    selectedSourceID = source.id
+                    selectPlaybackSource(id: source.id)
                 } label: {
                     HStack {
                         Text(source.label)
@@ -997,28 +1010,6 @@ struct KSPlayerView: View {
         }
     }
 
-    // MARK: - Collapsed strip
-
-    private var collapsedStrip: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "play.rectangle.fill")
-                .foregroundStyle(.white)
-                .font(.title2)
-            Text(snapshot.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-            Spacer()
-            iconButton(systemImage: "chevron.down", label: "展开播放器") {
-                withAnimation(.easeInOut(duration: 0.25)) { isCollapsed = false }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .background(Color.black)
-    }
-
     // MARK: - Helpers
 
     private func primarySource() -> VideoPlaybackSourceRow? {
@@ -1035,6 +1026,48 @@ struct KSPlayerView: View {
             return picked
         }
         return primarySource()
+    }
+
+    private func reportPlaybackProgress(_ current: TimeInterval) {
+        let now = Date()
+        let shouldReportImmediately = current <= 2
+            && (lastProgressReportSeconds.map { abs(current - $0) >= 0.5 } ?? true)
+        let movedEnough = lastProgressReportSeconds.map { abs(current - $0) >= 5 } ?? true
+        let waitedEnough = now.timeIntervalSince(lastProgressReportAt) >= 5
+        guard shouldReportImmediately || movedEnough || waitedEnough else { return }
+
+        lastProgressReportSeconds = current
+        lastProgressReportAt = now
+        onProgress(current)
+    }
+
+    private func selectPlaybackSource(id: String) {
+        guard activeSource?.id != id else { return }
+        selectedSourceID = id
+        resetPlaybackSessionForSourceChange()
+    }
+
+    private func resetPlaybackSessionForSourceChange() {
+        hideControlsTask?.cancel()
+        speedSampleTask?.cancel()
+        speedSampleTask = nil
+        currentSpeedText = nil
+        statusObserver.observe(nil)
+        hasReachedStartPlayTime = false
+        hasAppliedResumeSeek = false
+        naturalSizeReported = false
+        autoPlayApplied = false
+        stateLogBudget = 8
+        lastLoadedEnd = 0
+        lastSampleAt = nil
+        lastProgressReportSeconds = nil
+        lastProgressReportAt = Date.distantPast
+        sliderValue = 0
+        isSliderEditing = false
+        resetSwipeHUDState()
+        coordinator.playerLayer?.pause()
+        setPlayingState(false)
+        scheduleAutoHide()
     }
 
     /// Unified down/move handler. Called from `DragGesture(minimumDistance: 0)`
@@ -1173,6 +1206,7 @@ struct KSPlayerView: View {
             guard size.height > 0 else { return }
             let fraction = -Float(value.translation.height / size.height)
             dragCurrentVolume = max(0, min(1, dragStartVolume + fraction))
+            suppressPhysicalVolumeHUDUntil = Date().addingTimeInterval(0.8)
             SystemVolumeController.setVolume(dragCurrentVolume)
         case .none:
             break
@@ -1194,10 +1228,43 @@ struct KSPlayerView: View {
         scheduleAutoHide()
     }
 
+    private func resetSwipeHUDState() {
+        longPressTask?.cancel()
+        longPressTask = nil
+        hasMovedToSwipe = false
+        if isBoosted {
+            endBoost()
+        }
+        if dragState != .none {
+            withAnimation(.easeOut(duration: 0.18)) {
+                dragState = .none
+            }
+        }
+    }
+
     private func togglePlayPause() {
         guard let layer = coordinator.playerLayer else { return }
         AppLogger.log("gesture: toggle play/pause was=\(isPlaying ? "playing" : "paused")")
-        if isPlaying { layer.pause() } else { layer.play() }
+        let shouldPlay = !isPlaying
+        if shouldPlay {
+            layer.play()
+        } else {
+            layer.pause()
+        }
+        setPlayingState(shouldPlay)
+    }
+
+    private func play() {
+        guard let layer = coordinator.playerLayer else { return }
+        layer.play()
+        setPlayingState(true)
+        scheduleAutoHide()
+    }
+
+    private func setPlayingState(_ nowPlaying: Bool) {
+        guard nowPlaying != isPlaying else { return }
+        isPlaying = nowPlaying
+        onPlayingChanged(nowPlaying)
     }
 
     private func startBoost() {
@@ -1254,12 +1321,11 @@ struct KSPlayerView: View {
     private static let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     private func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
-        // KSOptions.isAutoPlay is a class-level static. Re-set it on every
-        // option build so the user's auto_play_on_enter preference takes
-        // effect for the very next video they open (without restarting
-        // the app). When OFF, the player loads the source but stays
-        // paused at frame 0 until the user taps the play/pause button.
-        KSOptions.isAutoPlay = autoPlayOnEnter
+        // KSPlayer uses this class-level switch to decide whether to begin
+        // opening/buffering the URL at all. Keep it ON for loading, then
+        // enforce the user's autoPlayOnEnter preference once the layer first
+        // reaches .bufferFinished in onStateChanged.
+        KSOptions.isAutoPlay = true
         let options = KSOptions()
         options.appendHeader([
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",

@@ -1,196 +1,118 @@
 import SwiftUI
 import Han1meShared
 
-struct CommentView: View {
-    @StateObject private var viewModel: CommentViewModel
-    @State private var composeText = ""
+struct CommentOverlayHost<Content: View>: View {
+    @ObservedObject private var viewModel: CommentViewModel
+    private let onOverlayActivityChanged: (Bool) -> Void
+    private let content: (CommentListTableModel) -> Content
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var isShowingComposer = false
 
-    init(videoCode: String, commentFeature: CommentFeature) {
-        _viewModel = StateObject(
-            wrappedValue: CommentViewModel(feature: commentFeature, videoCode: videoCode)
-        )
+    init(
+        viewModel: CommentViewModel,
+        onOverlayActivityChanged: @escaping (Bool) -> Void = { _ in },
+        @ViewBuilder content: @escaping (CommentListTableModel) -> Content
+    ) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.onOverlayActivityChanged = onOverlayActivityChanged
+        self.content = content
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            content
-        }
-        .padding(.horizontal, 16)
-        .refreshable {
-            await viewModel.refresh()
-        }
-        .task {
-            viewModel.loadIfNeeded()
-        }
-        .alert("提示", isPresented: actionMessageBinding) {
-            Button("好", role: .cancel) {
-                viewModel.actionMessage = nil
+        content(tableModel)
+            .task {
+                viewModel.loadIfNeeded()
             }
-        } message: {
-            Text(viewModel.actionMessage ?? "")
-        }
-        .sheet(isPresented: $isShowingComposer) {
-            CommentTextSheet(
-                title: "发表评论",
-                text: $composeText,
-                placeholder: "输入评论",
-                submitTitle: "发送",
-                onCancel: {
-                    isShowingComposer = false
-                    composeText = ""
-                },
-                onSubmit: {
-                    viewModel.postComment(text: composeText)
-                    isShowingComposer = false
-                    composeText = ""
-                }
-            )
-        }
-        .sheet(item: $replyTarget) { comment in
-            CommentTextSheet(
-                title: "回复 \(comment.username)",
-                text: $replyText,
-                placeholder: "输入回复",
-                submitTitle: "回复",
-                onCancel: {
-                    replyTarget = nil
-                    replyText = ""
-                },
-                onSubmit: {
-                    viewModel.postReply(to: comment, text: replyText)
-                    replyTarget = nil
-                    replyText = ""
-                }
-            )
-        }
-        .sheet(item: $repliesTarget) { comment in
-            CommentRepliesSheet(
-                comment: comment,
-                viewModel: viewModel
-            ) { reply in
-                    replyText = "@\(reply.username) "
-                    replyTarget = reply
+            .onValueChange(of: replyTarget?.id) { _ in
+                notifyOverlayActivityChanged()
             }
-        }
-        .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
-            ForEach(viewModel.reportReasons) { reason in
-                Button(reason.title) {
-                    if let reportTarget {
-                        viewModel.report(comment: reportTarget, reason: reason)
+            .onValueChange(of: repliesTarget?.id) { _ in
+                notifyOverlayActivityChanged()
+            }
+            .onDisappear {
+                onOverlayActivityChanged(false)
+            }
+            .alert("提示", isPresented: actionMessageBinding) {
+                Button("好", role: .cancel) {
+                    viewModel.actionMessage = nil
+                }
+            } message: {
+                Text(viewModel.actionMessage ?? "")
+            }
+            .sheet(item: $replyTarget) { comment in
+                CommentTextSheet(
+                    title: "回复 \(comment.username)",
+                    text: $replyText,
+                    placeholder: "输入回复",
+                    submitTitle: "回复",
+                    onCancel: {
+                        replyTarget = nil
+                        replyText = ""
+                    },
+                    onSubmit: {
+                        viewModel.postReply(to: comment, text: replyText)
+                        replyTarget = nil
+                        replyText = ""
                     }
+                )
+            }
+            .sheet(item: $repliesTarget) { comment in
+                CommentRepliesSheet(
+                    comment: comment,
+                    viewModel: viewModel
+                ) { reply in
+                    beginReplyFromRepliesSheet(reply)
+                }
+            }
+            .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
+                ForEach(viewModel.reportReasons) { reason in
+                    Button(reason.title) {
+                        if let reportTarget {
+                            viewModel.report(comment: reportTarget, reason: reason)
+                        }
+                        reportTarget = nil
+                    }
+                }
+                Button("取消", role: .cancel) {
                     reportTarget = nil
                 }
             }
-            Button("取消", role: .cancel) {
-                reportTarget = nil
-            }
-        }
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            Picker("排序", selection: $viewModel.sortMode) {
-                ForEach(CommentViewModel.SortMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.menu)
-
-            Spacer()
-
-            Button {
-                isShowingComposer = true
-            } label: {
-                Label("评论", systemImage: "square.and.pencil")
-            }
-            .buttonStyle(.borderedProminent)
-
-            Button {
+    var tableModel: CommentListTableModel {
+        CommentListTableModel(
+            state: viewModel.state,
+            sortMode: viewModel.sortMode,
+            runningActionIDs: viewModel.runningActionIDs,
+            comments: viewModel.sortedComments,
+            onChangeSortMode: { mode in
+                viewModel.changeSortMode(mode)
+            },
+            onRefresh: {
                 viewModel.load()
-            } label: {
-                Image(systemName: "arrow.clockwise")
+            },
+            onRetry: {
+                viewModel.load()
+            },
+            onReply: { comment in
+                replyText = "@\(comment.username) "
+                replyTarget = comment
+            },
+            onShowReplies: { comment in
+                repliesTarget = comment
+            },
+            onLike: { comment in
+                viewModel.like(comment: comment, isPositive: true)
+            },
+            onDislike: { comment in
+                viewModel.like(comment: comment, isPositive: false)
+            },
+            onReport: { comment in
+                reportTarget = comment
             }
-            .buttonStyle(.bordered)
-        }
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch viewModel.state {
-        case .idle, .loading:
-            HStack {
-                Spacer()
-                ProgressView()
-                Spacer()
-            }
-            .padding(.vertical, 60)
-        case .failed(let message):
-            VStack(spacing: 12) {
-                Image(systemName: "text.bubble")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-                Text("评论加载失败")
-                    .font(.headline)
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Button("重试") {
-                    viewModel.load()
-                }
-                .buttonStyle(.borderedProminent)
-                CloudflareVerifyButton(errorMessage: message)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 60)
-        case .loaded:
-            let comments = viewModel.sortedComments
-            if comments.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    Text("暂无评论")
-                        .font(.headline)
-                    Text("成为第一个评论的人。")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 60)
-            } else {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(comments) { comment in
-                        CommentRowView(
-                            comment: comment,
-                            isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)"),
-                            onReply: {
-                                replyText = "@\(comment.username) "
-                                replyTarget = comment
-                            },
-                            onShowReplies: {
-                                repliesTarget = comment
-                            },
-                            onLike: {
-                                viewModel.like(comment: comment, isPositive: true)
-                            },
-                            onDislike: {
-                                viewModel.like(comment: comment, isPositive: false)
-                            },
-                            onReport: {
-                                reportTarget = comment
-                            }
-                        )
-                    }
-                }
-            }
-        }
+        )
     }
 
     private var actionMessageBinding: Binding<Bool> {
@@ -206,9 +128,23 @@ struct CommentView: View {
             set: { if !$0 { reportTarget = nil } }
         )
     }
+
+    private func notifyOverlayActivityChanged() {
+        onOverlayActivityChanged(replyTarget != nil || repliesTarget != nil)
+    }
+
+    private func beginReplyFromRepliesSheet(_ reply: CommentRow) {
+        replyText = "@\(reply.username) "
+        repliesTarget = nil
+        Task { @MainActor in
+            await Task.yield()
+            replyTarget = reply
+        }
+    }
+
 }
 
-private struct CommentRowView: View {
+struct CommentRowView: View {
     let comment: CommentRow
     let isRunningLike: Bool
     let onReply: () -> Void
@@ -231,9 +167,7 @@ private struct CommentRowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Menu {
-                        Button("举报", role: .destructive, action: onReport)
-                    } label: {
+                    TapOnlyControl(action: onReport) {
                         Image(systemName: "ellipsis")
                             .foregroundStyle(.secondary)
                     }
@@ -241,27 +175,32 @@ private struct CommentRowView: View {
 
                 Text(comment.content)
                     .font(.body)
-                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 14) {
-                    Button(action: onLike) {
+                    TapOnlyControl(isDisabled: isRunningLike) {
+                        onLike()
+                    } label: {
                         Label("\(comment.thumbUp ?? 0)", systemImage: comment.likeCommentStatus ? "hand.thumbsup.fill" : "hand.thumbsup")
                     }
-                    .disabled(isRunningLike)
 
-                    Button(action: onDislike) {
+                    TapOnlyControl(isDisabled: isRunningLike) {
+                        onDislike()
+                    } label: {
                         Image(systemName: comment.unlikeCommentStatus ? "hand.thumbsdown.fill" : "hand.thumbsdown")
                     }
-                    .disabled(isRunningLike)
 
-                    Button("回复", action: onReply)
+                    TapOnlyControl(action: onReply) {
+                        Text("回复")
+                    }
 
                     if comment.hasMoreReplies {
-                        Button("查看 \(comment.replyCount ?? 0) 条回复", action: onShowReplies)
+                        TapOnlyControl(action: onShowReplies) {
+                            Text("查看 \(comment.replyCount ?? 0) 条回复")
+                        }
                     }
                 }
                 .font(.caption)
-                .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
             }
         }

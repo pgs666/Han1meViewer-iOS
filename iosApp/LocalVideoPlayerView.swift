@@ -13,7 +13,6 @@ struct LocalVideoPlayerView: View {
     let fileURL: URL
 
     @State private var isFullscreen = false
-    @State private var isCollapsed = false
     @State private var videoNaturalSize: CGSize?
     /// Mirrors the streaming detail page's preference so portrait videos
     /// can stay portrait in fullscreen.
@@ -36,7 +35,6 @@ struct LocalVideoPlayerView: View {
         KSPlayerView(
             snapshot: snapshot,
             isFullscreen: $isFullscreen,
-            isCollapsed: $isCollapsed,
             onProgress: { seconds in
                 DownloadManager.shared.updatePlaybackPosition(
                     videoCode: videoCode,
