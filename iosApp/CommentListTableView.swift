@@ -81,6 +81,25 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         }
     }
 
+    private enum RowHeightEstimate {
+        static let controls: CGFloat = 61
+        static let loading: CGFloat = 120
+        static let failed: CGFloat = 230
+        static let empty: CGFloat = 180
+        static let footer: CGFloat = 44
+        static let commentMinimum: CGFloat = 118
+        static let commentLineHeight: CGFloat = 22
+        static let commentCharactersPerLine: CGFloat = 22
+
+        static func comment(_ comment: CommentRow) -> CGFloat {
+            let normalizedLength = max(comment.content.count, 1)
+            let estimatedLines = ceil(CGFloat(normalizedLength) / commentCharactersPerLine)
+            let replyHeight: CGFloat = comment.hasMoreReplies ? 18 : 0
+            let childReduction: CGFloat = comment.isChildComment ? 8 : 0
+            return max(commentMinimum - childReduction, 92 + estimatedLines * commentLineHeight + replyHeight)
+        }
+    }
+
     private enum Row {
         case controls
         case loading
@@ -267,10 +286,22 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
 
     func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
         guard indexPath.row < rows.count else { return UITableView.automaticDimension }
-        if case .bottomSpacer(let height) = rows[indexPath.row] {
+        switch rows[indexPath.row] {
+        case .controls:
+            return RowHeightEstimate.controls
+        case .loading:
+            return RowHeightEstimate.loading
+        case .failed:
+            return RowHeightEstimate.failed
+        case .empty:
+            return RowHeightEstimate.empty
+        case .comment(let comment):
+            return RowHeightEstimate.comment(comment)
+        case .footer:
+            return RowHeightEstimate.footer
+        case .bottomSpacer(let height):
             return max(height, 0)
         }
-        return UITableView.automaticDimension
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
