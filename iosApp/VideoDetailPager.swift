@@ -366,9 +366,7 @@ private enum VideoDetailTabPageContent {
 private struct VideoDetailListAlignmentState {
     var pendingTopAlignment: VideoDetailPendingTopAlignment?
     var needsInitialHeaderOffsetReset = true
-    var hasAppliedInitialListOffset = false
     var maintainsNativeInitialAlignment = false
-    var nativeMaintainedAlignmentOffsetY: CGFloat?
 
     var hasExplicitPendingTopAlignment: Bool {
         guard let pendingTopAlignment else { return false }
@@ -384,20 +382,17 @@ private struct VideoDetailListAlignmentState {
 
     mutating func markInitialOffsetApplied() {
         needsInitialHeaderOffsetReset = false
-        hasAppliedInitialListOffset = true
     }
 
     mutating func requestInitialOffsetReset(maintainNativeAlignment: Bool) {
         needsInitialHeaderOffsetReset = true
         if maintainNativeAlignment {
             maintainsNativeInitialAlignment = true
-            nativeMaintainedAlignmentOffsetY = nil
         }
     }
 
     mutating func stopMaintainingNativeAlignment() {
         maintainsNativeInitialAlignment = false
-        nativeMaintainedAlignmentOffsetY = nil
     }
 }
 
@@ -1246,7 +1241,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
            !listScrollView.isTracking,
            !listScrollView.isDragging,
            !listScrollView.isDecelerating {
-            return alignmentState.nativeMaintainedAlignmentOffsetY ?? initialOffsetY
+            return initialOffsetY
         }
         return nil
     }
