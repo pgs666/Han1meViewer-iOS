@@ -1089,7 +1089,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if !allowDuringInteraction {
             guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
         }
-        guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else { return }
+        guard setNormalizedContentOffsetYForAlignment(targetOffsetY) else { return }
         if abs(listScrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             alignmentState.markInitialOffsetApplied()
             alignmentState.cancelPendingTopAlignment()
@@ -1107,7 +1107,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let targetOffsetY = page.headerGeometry.listOffsetContext(
             in: listScrollView.bounds.height
         ).initialNormalizedOffsetY
-        guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
+        guard setNormalizedContentOffsetYForAlignment(targetOffsetY) else {
             alignmentState.pendingTopAlignment = .initial
             resolvePendingTopAlignmentIfPossible()
             return
