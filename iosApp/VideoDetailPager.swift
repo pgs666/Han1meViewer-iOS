@@ -488,9 +488,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var collapseSpacerHeightConstraint: NSLayoutConstraint!
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
-    private var topAlignmentGeneration = 0
     private var pendingTopAlignment: VideoDetailPendingTopAlignment?
     private var needsInitialHeaderOffsetReset = true
+    private var hasAppliedInitialListOffset = false
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab) {
@@ -606,12 +606,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
-            needsInitialHeaderOffsetReset = true
+            if !hasAppliedInitialListOffset && !hasExplicitPendingTopAlignment {
+                needsInitialHeaderOffsetReset = true
+            }
             view.setNeedsLayout()
             view.layoutIfNeeded()
         }
 
-        let previousVisualTopContentOffsetY = coordinator.visualTopContentOffsetY
         let geometry = page.headerGeometry
         let offsetContext = geometry.listOffsetContext(in: scrollView.bounds.height)
         let visualTopOffset = offsetContext.initialNormalizedOffsetY
@@ -626,11 +627,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             applyInitialHeaderOffsetResetIfNeeded()
         } else if pendingTopAlignment != nil {
             resolvePendingTopAlignmentSoon()
-        } else {
-            preserveVisualTopIfNeeded(
-                previousOffsetY: previousVisualTopContentOffsetY,
-                targetOffsetY: visualTopOffset
-            )
         }
     }
 
@@ -646,18 +642,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         }
-        let visualTopOffset = offsetContext.initialNormalizedOffsetY
         if pendingTopAlignment != nil {
             resolvePendingTopAlignmentIfPossible()
             return
         }
         if needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
-            return
         }
-        guard page.isSelected else { return }
-        guard scrollView.verticalContentOffsetExcludingBounce <= visualTopOffset + 8 else { return }
-        requestTopAlignment(targetOffsetY: visualTopOffset)
     }
 
     private func applyTopContentInset(_ topInset: CGFloat) {
@@ -687,18 +678,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         listHeaderView.frame = nextFrame
     }
 
-    private func requestTopAlignment(targetOffsetY: CGFloat) {
-        topAlignmentGeneration &+= 1
-        pendingTopAlignment = .explicit(targetOffsetY)
-        resolvePendingTopAlignmentSoon()
-    }
-
     private func resolvePendingTopAlignmentSoon() {
-        let generation = topAlignmentGeneration
         resolvePendingTopAlignmentIfPossible()
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.topAlignmentGeneration == generation else { return }
-            self.resolvePendingTopAlignmentIfPossible()
+            self?.resolvePendingTopAlignmentIfPossible()
         }
     }
 
@@ -710,6 +693,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else { return }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             needsInitialHeaderOffsetReset = false
+            hasAppliedInitialListOffset = true
             cancelPendingTopAlignment()
         }
     }
@@ -724,10 +708,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         ).initialNormalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
             pendingTopAlignment = .initial
+            resolvePendingTopAlignmentSoon()
             return
         }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             needsInitialHeaderOffsetReset = false
+            hasAppliedInitialListOffset = true
             cancelPendingTopAlignment()
         }
     }
@@ -768,8 +754,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             cancelPendingTopAlignment()
             return
         }
-        requestTopAlignment(targetOffsetY: targetOffsetY)
-        resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
+        setNormalizedContentOffsetY(targetOffsetY)
+        hasAppliedInitialListOffset = true
     }
 
     var normalizedContentOffsetY: CGFloat {
@@ -794,9 +780,11 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         ).inactiveSyncNormalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(syncOffsetY) else {
             pendingTopAlignment = .explicit(syncOffsetY)
+            resolvePendingTopAlignmentSoon()
             return
         }
         needsInitialHeaderOffsetReset = false
+        hasAppliedInitialListOffset = true
     }
 
     func setHorizontalPagingActive(_ isActive: Bool) {
@@ -811,12 +799,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let offset = scrollView.verticalContentOffsetExcludingBounce
         coordinator.resetReportedOffset(offset)
         coordinator.onOffsetChange(coordinator.tab, offset)
-    }
-
-    private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
-        guard abs(previousOffsetY - targetOffsetY) > 0.5 else { return }
-        guard abs(scrollView.verticalContentOffsetExcludingBounce - previousOffsetY) <= 1 else { return }
-        setNormalizedContentOffsetY(targetOffsetY)
     }
 
     private func setNormalizedContentOffsetY(_ offsetY: CGFloat) {
