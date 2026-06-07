@@ -415,7 +415,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     }
 
     private func clampedContentOffset(_ offset: CGPoint, in tableView: UITableView) -> CGPoint {
-        let inset = tableView.adjustedContentInset
+        let inset = tableView.contentInset
         let minOffsetY = -inset.top
         let maxOffsetY = max(minOffsetY, tableView.contentSize.height - tableView.bounds.height + inset.bottom)
         return CGPoint(

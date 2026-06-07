@@ -325,7 +325,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
     }
 
     func rawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat, in listScrollView: UIScrollView) -> CGFloat {
-        let inset = listScrollView.adjustedContentInset
+        let inset = listScrollView.contentInset
         let minOffsetY = -inset.top
         let maxOffsetY = max(minOffsetY, listScrollView.contentSize.height - listScrollView.bounds.height + inset.bottom)
         let rawOffsetY = offsetY - inset.top
@@ -333,7 +333,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
     }
 
     func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat, in listScrollView: UIScrollView) -> CGFloat {
-        rawOffsetY + listScrollView.adjustedContentInset.top
+        rawOffsetY + listScrollView.contentInset.top
     }
 
 }
@@ -984,10 +984,17 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let bottomInset = usesContentSpacer ? 0 : resolvedBottomSpacing
         if abs(listScrollView.contentInset.bottom - bottomInset) > 0.5 {
             listScrollView.contentInset.bottom = bottomInset
+            clampOffsetAfterInsetChangeIfNeeded()
         }
         if abs(listScrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
             listScrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
         }
+    }
+
+    private func clampOffsetAfterInsetChangeIfNeeded() {
+        guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
+        let clampedRawOffsetY = listScrollView.clampedRawVerticalContentOffsetY(listScrollView.contentOffset.y)
+        setRawContentOffsetYSilentlyIfNeeded(clampedRawOffsetY)
     }
 
     @discardableResult
@@ -1158,7 +1165,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             setNormalizedContentOffsetY(offsetY)
             return
         }
-        let rawTopOffsetY = offsetY - listScrollView.adjustedContentInset.top
+        let rawTopOffsetY = listScrollView.clampedRawVerticalContentOffsetY(
+            offsetY - listScrollView.contentInset.top
+        )
         setRawContentOffsetYSilentlyIfNeeded(rawTopOffsetY)
     }
 
@@ -1196,7 +1205,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func normalizedContentOffsetY(forRawOffsetY rawOffsetY: CGFloat) -> CGFloat {
-        guard let page = lastAppliedPage else { return rawOffsetY + listScrollView.adjustedContentInset.top }
+        guard let page = lastAppliedPage else { return rawOffsetY + listScrollView.contentInset.top }
         return page.headerGeometry.normalizedContentOffsetY(forRawOffsetY: rawOffsetY, in: listScrollView)
     }
 
@@ -1240,10 +1249,14 @@ private final class VerticalScrollView: UIScrollView {
 
 private extension UIScrollView {
     var verticalContentOffsetExcludingBounce: CGFloat {
-        let inset = adjustedContentInset
+        clampedRawVerticalContentOffsetY(contentOffset.y) + contentInset.top
+    }
+
+    func clampedRawVerticalContentOffsetY(_ rawOffsetY: CGFloat) -> CGFloat {
+        let inset = contentInset
         let minOffsetY = -inset.top
         let maxOffsetY = max(minOffsetY, contentSize.height - bounds.height + inset.bottom)
-        return min(max(contentOffset.y, minOffsetY), maxOffsetY) + inset.top
+        return min(max(rawOffsetY, minOffsetY), maxOffsetY)
     }
 }
 
