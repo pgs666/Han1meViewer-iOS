@@ -406,6 +406,7 @@ struct VideoDetailView: View {
         composerContentClearance: CGFloat
     ) -> some View {
         let contentRevision = tabContentRevision(snapshot: snapshot, showsRelated: showsRelated)
+        let headerContentRevision = pagerHeaderContentRevision(snapshot: snapshot)
 
         return VideoDetailPagerContainer(
             state: $pagerState,
@@ -414,14 +415,15 @@ struct VideoDetailView: View {
             pinHeaderHeight: pinHeaderHeight,
             pinnedVisibleHeight: pinnedVisibleHeight,
             playerScrollAway: playerScrollAway,
+            continuationProgress: continuationProgress,
             introductionContentBottomPadding: introductionContentClearance,
             commentsContentBottomPadding: composerContentClearance,
             introductionContentRevision: contentRevision.introduction,
             commentsContentRevision: contentRevision.comments,
+            headerContentRevision: headerContentRevision,
             continuationHeader: {
-                continuePlayingStrip(snapshot: snapshot, progress: continuationProgress)
+                continuePlayingStrip(snapshot: snapshot, progress: 1)
                 .frame(height: playerContinuationStripHeight)
-                .opacity(isPlayerFullscreen ? 0 : 1)
             },
             isContinuationHeaderInteractive: !isPlayerFullscreen && continuationProgress > 0.05,
             introduction: {
@@ -537,6 +539,12 @@ struct VideoDetailView: View {
             introduction: introductionHasher.finalize(),
             comments: commentsHasher.finalize()
         )
+    }
+
+    private func pagerHeaderContentRevision(snapshot: VideoDetailScreenSnapshot) -> Int {
+        var hasher = Hasher()
+        snapshot.hash(into: &hasher)
+        return hasher.finalize()
     }
 }
 
