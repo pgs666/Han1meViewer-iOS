@@ -988,7 +988,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
            abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = isNativeScrollView ? 1 : offsetContext.minimumContentHeight
         }
-        applyNativeMinimumContentSizeIfNeeded(page: page, offsetContext: offsetContext)
+        let didApplyNativeMinimumContentSize = applyNativeMinimumContentSizeIfNeeded(
+            page: page,
+            offsetContext: offsetContext
+        )
+        if didApplyNativeMinimumContentSize, alignmentState.pendingTopAlignment != nil {
+            resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
+        }
+        if didApplyNativeMinimumContentSize, alignmentState.needsInitialHeaderOffsetReset {
+            applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: true)
+        }
         if alignmentState.pendingTopAlignment != nil {
             resolvePendingTopAlignmentIfPossible()
             return
@@ -1044,21 +1053,23 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         tableView.tableFooterView = nativeBottomSpacerView
     }
 
+    @discardableResult
     private func applyNativeMinimumContentSizeIfNeeded(
         page: VideoDetailTabPage,
         offsetContext: VideoDetailListOffsetContext
-    ) {
+    ) -> Bool {
         guard case .nativeScrollView = page.content else {
-            return
+            return false
         }
         let requiredContentHeight = offsetContext.minimumListContentHeight
         guard listScrollView.contentSize.height < requiredContentHeight - 0.5 else {
-            return
+            return false
         }
         listScrollView.contentSize = CGSize(
             width: listScrollView.contentSize.width,
             height: requiredContentHeight
         )
+        return true
     }
 
     private func applyListHeaderFrame() {
