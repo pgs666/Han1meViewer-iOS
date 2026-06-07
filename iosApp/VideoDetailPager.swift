@@ -1102,18 +1102,11 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if finishProtectedNativeAlignmentIfReached(allowDuringInteraction: true) {
             return
         }
-        alignmentState.isProtectingInitialTopAlignment = false
         if isNativeListPage {
-            if let pendingOffsetY = alignmentState.pendingTopAlignmentOffsetY {
-                applyNativePendingAlignment(targetOffsetY: pendingOffsetY, allowDuringInteraction: true)
-            } else if alignmentState.needsInitialHeaderOffsetReset, let page = lastAppliedPage {
-                let targetOffsetY = page.headerGeometry.listOffsetContext(
-                    in: listScrollView.bounds.height
-                ).initialNormalizedOffsetY
-                applyNativePendingAlignment(targetOffsetY: targetOffsetY, allowDuringInteraction: true)
-            }
+            alignmentState.finishInitialTopAlignment()
             return
         }
+        alignmentState.isProtectingInitialTopAlignment = false
         guard let pendingOffsetY = alignmentState.pendingTopAlignmentOffsetY else { return }
         resolvePendingSwiftUITopAlignmentIfPossible(targetOffsetY: pendingOffsetY, allowDuringInteraction: true)
     }
@@ -2028,7 +2021,18 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         var continuationHeaderHeight: CGFloat = 0
         var isContinuationHeaderInteractive = false
 
+        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+            containsInteractiveHeaderPoint(point)
+        }
+
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            guard containsInteractiveHeaderPoint(point) else {
+                return nil
+            }
+            return super.hitTest(point, with: event)
+        }
+
+        private func containsInteractiveHeaderPoint(_ point: CGPoint) -> Bool {
             let continuationHeaderFrame = CGRect(
                 x: 0,
                 y: max(bounds.height - pinHeaderHeight - continuationHeaderHeight, 0),
@@ -2041,11 +2045,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 width: bounds.width,
                 height: pinHeaderHeight
             )
-            guard pinHeaderFrame.contains(point)
-                || (isContinuationHeaderInteractive && continuationHeaderFrame.contains(point)) else {
-                return nil
-            }
-            return super.hitTest(point, with: event)
+            return pinHeaderFrame.contains(point)
+                || (isContinuationHeaderInteractive && continuationHeaderFrame.contains(point))
         }
     }
 }

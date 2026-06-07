@@ -142,8 +142,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var measuredCommentHeights: [String: MeasuredCommentHeight] = [:]
     private var isReloadingRows = false
     private var contentBottomPadding: CGFloat = 0
-    private var pendingContentBottomPadding: CGFloat?
-    private let contentBottomPaddingFooterView = UIView(frame: .zero)
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -199,12 +197,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     func updateContentBottomPadding(_ bottomPadding: CGFloat) {
         let nextPadding = max(bottomPadding, 0)
         guard abs(contentBottomPadding - nextPadding) > 0.5 else { return }
-        guard let tableView, hasRenderedRows else {
+        guard let tableView else {
             contentBottomPadding = nextPadding
-            return
-        }
-        guard !tableView.isTracking, !tableView.isDragging, !tableView.isDecelerating else {
-            pendingContentBottomPadding = nextPadding
             return
         }
         applyContentBottomPadding(nextPadding, in: tableView)
@@ -212,8 +206,13 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
 
     private func applyContentBottomPadding(_ nextPadding: CGFloat, in tableView: UITableView) {
         contentBottomPadding = nextPadding
-        pendingContentBottomPadding = nil
-        updateTableFooterView(in: tableView)
+        let bottomInset = max(nextPadding, 0)
+        if abs(tableView.contentInset.bottom - bottomInset) > 0.5 {
+            tableView.contentInset.bottom = bottomInset
+        }
+        if abs(tableView.verticalScrollIndicatorInsets.bottom - bottomInset) > 0.5 {
+            tableView.verticalScrollIndicatorInsets.bottom = bottomInset
+        }
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -350,19 +349,14 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         scrollDelegate?.scrollViewDidEndDragging?(scrollView, willDecelerate: decelerate)
-        if !decelerate {
-            applyPendingContentBottomPaddingIfNeeded()
-        }
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         scrollDelegate?.scrollViewDidEndDecelerating?(scrollView)
-        applyPendingContentBottomPaddingIfNeeded()
     }
 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
         scrollDelegate?.scrollViewDidEndScrollingAnimation?(scrollView)
-        applyPendingContentBottomPaddingIfNeeded()
     }
 
     private func configure(_ tableView: UITableView) {
@@ -376,8 +370,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         tableView.sectionHeaderHeight = 0
         tableView.sectionFooterHeight = 0
         tableView.contentInsetAdjustmentBehavior = .never
-        contentBottomPaddingFooterView.backgroundColor = .clear
-        tableView.tableFooterView = contentBottomPaddingFooterView
         tableView.register(HostingCommentTableViewCell.self, forCellReuseIdentifier: HostingCommentTableViewCell.reuseIdentifier)
         tableView.register(CommentListFooterCell.self, forCellReuseIdentifier: CommentListFooterCell.reuseIdentifier)
     }
@@ -427,7 +419,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             tableView.reloadData()
             tableView.layoutIfNeeded()
             hasRenderedRows = true
-            updateTableFooterView(in: tableView)
             return
         }
         let previousOffset = tableView.contentOffset
@@ -442,22 +433,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 clampedContentOffset(previousOffset, in: tableView),
                 animated: false
             )
-            updateTableFooterView(in: tableView)
-        }
-    }
-
-    private func updateTableFooterView(in tableView: UITableView) {
-        let nextHeight = max(contentBottomPadding, 0)
-        var nextFrame = contentBottomPaddingFooterView.frame
-        nextFrame.size = CGSize(width: tableView.bounds.width, height: nextHeight)
-        guard abs(contentBottomPaddingFooterView.frame.height - nextHeight) > 0.5
-            || abs(contentBottomPaddingFooterView.frame.width - tableView.bounds.width) > 0.5
-            || tableView.tableFooterView !== contentBottomPaddingFooterView else {
-            return
-        }
-        UIView.performWithoutAnimation {
-            contentBottomPaddingFooterView.frame = nextFrame
-            tableView.tableFooterView = contentBottomPaddingFooterView
         }
     }
 
@@ -497,10 +472,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         )
     }
 
-    private func applyPendingContentBottomPaddingIfNeeded() {
-        guard let tableView, let pendingContentBottomPadding else { return }
-        applyContentBottomPadding(pendingContentBottomPadding, in: tableView)
-    }
 }
 
 private final class HostingCommentTableViewCell: UITableViewCell {
