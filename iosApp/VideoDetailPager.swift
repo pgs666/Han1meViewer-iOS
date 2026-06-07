@@ -1444,7 +1444,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             collapseDistance: 0
         )
         private var pendingHorizontalSettledIndex: Int?
-        private var hasSyncedInactivePages = false
         private var latestPages: [VideoPageTab: VideoDetailTabPage] = [:]
 
         init(coordinator: Coordinator) {
@@ -1558,10 +1557,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         ) {
             loadViewIfNeeded()
             pagerPosition.setSelectedIndex(selectedIndex)
-            if introduction.contentUpdateRevision != latestPages[.introduction]?.contentUpdateRevision
-                || comments.contentUpdateRevision != latestPages[.comments]?.contentUpdateRevision {
-                hasSyncedInactivePages = false
-            }
             latestPages[.introduction] = introduction
             latestPages[.comments] = comments
             prepareCommentsPageIfNeeded(for: comments)
@@ -1690,32 +1685,10 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 return
             }
             let activeOffset = providedActiveOffset ?? activePage.normalizedContentOffsetY
-            let previousSyncState = headerSyncState
             let nextSyncState = updateHeaderSyncState(activeOffset: activeOffset)
-            guard let syncMode = inactiveSyncMode(
-                previousState: previousSyncState,
-                nextState: nextSyncState
-            ) else { return }
-            hasSyncedInactivePages = true
             for tab in VideoPageTab.allCases where tab.pageIndex != pagerPosition.selectedIndex {
-                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(syncMode)
+                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(nextSyncState.inactiveSyncMode)
             }
-        }
-
-        private func inactiveSyncMode(
-            previousState: VideoDetailSmoothHeaderSyncState,
-            nextState: VideoDetailSmoothHeaderSyncState
-        ) -> VideoDetailPagerOffsetModel.InactiveSyncMode? {
-            if !hasSyncedInactivePages {
-                return nextState.inactiveSyncMode
-            }
-            if nextState.isSyncingListOffsets {
-                return nextState.inactiveSyncMode
-            }
-            if previousState.isSyncingListOffsets {
-                return nextState.inactiveSyncMode
-            }
-            return nil
         }
 
         @discardableResult
