@@ -1985,8 +1985,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         }
 
         private func attachHeader(originY: CGFloat) {
-            if headerContainerView.superview !== view {
-                headerContainerView.removeFromSuperview()
+            if headerContainerView.superview == nil {
                 view.addSubview(headerContainerView)
             }
             var frame = headerContainerView.frame

@@ -89,6 +89,9 @@ jobs:
       - name: Run shared JVM tests
         run: ./gradlew :shared:jvmTest --no-daemon
 
+      - name: Check video pager structure
+        run: bash scripts/check_video_pager_structure.sh
+
       - name: Generate Xcode project
         run: xcodegen generate
 
