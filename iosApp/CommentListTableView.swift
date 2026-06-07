@@ -190,9 +190,13 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
 
     func updateContentBottomPadding(_ bottomPadding: CGFloat) {
         let nextPadding = max(bottomPadding, 0)
-        guard abs(contentBottomPadding - nextPadding) > 0.5 else { return }
         guard let tableView else {
             contentBottomPadding = nextPadding
+            return
+        }
+        guard abs(contentBottomPadding - nextPadding) > 0.5
+            || abs(tableView.contentInset.bottom - nextPadding) > 0.5
+            || abs(tableView.verticalScrollIndicatorInsets.bottom - nextPadding) > 0.5 else {
             return
         }
         applyContentBottomPadding(nextPadding, in: tableView)
