@@ -127,6 +127,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var modelSignature: ModelSignature?
     private var commentActionSignatures: [CommentActionSignature] = []
     private var previousRunningActionIDs: Set<String> = []
+    private var hasRenderedRows = false
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -170,7 +171,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         guard shouldReload else {
             if shouldReloadForActionChange {
                 rows = rows(for: model)
-                tableView?.reloadData()
+                reloadTablePreservingOffset()
             } else if didChangeRunningActions || didChangeCommentActions {
                 rows = rows(for: model)
                 updateVisibleCommentRows()
@@ -178,7 +179,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 let previousRowCount = rows.count
                 rows = rows(for: model)
                 if rows.count != previousRowCount {
-                    tableView?.reloadData()
+                    reloadTablePreservingOffset()
                 } else {
                     UIView.performWithoutAnimation {
                         tableView?.beginUpdates()
@@ -189,7 +190,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             return
         }
         rows = rows(for: model)
-        tableView?.reloadData()
+        reloadTablePreservingOffset()
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -376,6 +377,22 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 onDislike: { [weak self] in self?.onDislike(comment) },
                 onReport: { [weak self] in self?.onReport(comment) }
             )
+        }
+    }
+
+    private func reloadTablePreservingOffset() {
+        guard let tableView else { return }
+        guard hasRenderedRows else {
+            tableView.reloadData()
+            tableView.layoutIfNeeded()
+            hasRenderedRows = true
+            return
+        }
+        let previousOffset = tableView.contentOffset
+        UIView.performWithoutAnimation {
+            tableView.reloadData()
+            tableView.layoutIfNeeded()
+            tableView.setContentOffset(previousOffset, animated: false)
         }
     }
 }

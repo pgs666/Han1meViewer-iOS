@@ -56,9 +56,9 @@ enum VideoDetailPagerOffsetModel {
 
     static func minimumListContentHeight(
         scrollBoundsHeight: CGFloat,
-        pinHeaderHeight: CGFloat
+        pinnedVisibleHeight: CGFloat
     ) -> CGFloat {
-        max(scrollBoundsHeight - max(pinHeaderHeight, 0), 1)
+        max(scrollBoundsHeight - max(pinnedVisibleHeight, 0), 1)
     }
 
     private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
@@ -98,14 +98,13 @@ private enum VideoDetailHeaderAttachmentState: Equatable {
 
     static func state(
         isHorizontalPagingActive: Bool,
-        selectedOffset: CGFloat,
-        syncState: VideoDetailSmoothHeaderSyncState,
-        collapseDistance: CGFloat
+        canAttachToListHeader: Bool,
+        syncState: VideoDetailSmoothHeaderSyncState
     ) -> VideoDetailHeaderAttachmentState {
         if isHorizontalPagingActive {
             return .pagerContainer(syncState.headerContainerY)
         }
-        if selectedOffset <= collapseDistance + 0.5 {
+        if canAttachToListHeader {
             return .listHeader
         }
         return .pagerContainer(syncState.headerContainerY)
@@ -321,7 +320,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
     func minimumListContentHeight(in scrollBoundsHeight: CGFloat) -> CGFloat {
         VideoDetailPagerOffsetModel.minimumListContentHeight(
             scrollBoundsHeight: scrollBoundsHeight,
-            pinHeaderHeight: pinHeaderHeight
+            pinnedVisibleHeight: pinnedVisibleHeight
         )
     }
 
@@ -368,6 +367,8 @@ private struct VideoDetailListAlignmentState {
     var pendingTopAlignment: VideoDetailPendingTopAlignment?
     var needsInitialHeaderOffsetReset = true
     var hasAppliedInitialListOffset = false
+    var maintainsNativeInitialAlignment = false
+    var nativeMaintainedAlignmentOffsetY: CGFloat?
 
     var hasExplicitPendingTopAlignment: Bool {
         guard let pendingTopAlignment else { return false }
@@ -384,6 +385,24 @@ private struct VideoDetailListAlignmentState {
     mutating func markInitialOffsetApplied() {
         needsInitialHeaderOffsetReset = false
         hasAppliedInitialListOffset = true
+    }
+
+    mutating func requestInitialOffsetReset(maintainNativeAlignment: Bool) {
+        needsInitialHeaderOffsetReset = true
+        if maintainNativeAlignment {
+            maintainsNativeInitialAlignment = true
+            nativeMaintainedAlignmentOffsetY = nil
+        }
+    }
+
+    mutating func maintainNativeAlignment(offsetY: CGFloat) {
+        maintainsNativeInitialAlignment = true
+        nativeMaintainedAlignmentOffsetY = offsetY
+    }
+
+    mutating func stopMaintainingNativeAlignment() {
+        maintainsNativeInitialAlignment = false
+        nativeMaintainedAlignmentOffsetY = nil
     }
 }
 
@@ -877,7 +896,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onInteractionBegan = page.onInteractionBegan
         coordinator.onTopPullDelta = page.onTopPullDelta
         coordinator.onVerticalInteractionBegan = { [weak self] in
-            self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
+            self?.handleVerticalInteractionBegan()
         }
         coordinator.onVisibleOffsetChange = { [weak self] tab, offset in
             self?.onHeaderOffsetChanged(tab, offset)
@@ -907,8 +926,14 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
                     host.rootView = AnyView(EmptyView())
                 }
             }
-            if !alignmentState.hasAppliedInitialListOffset && !alignmentState.hasExplicitPendingTopAlignment {
-                alignmentState.needsInitialHeaderOffsetReset = true
+            if !alignmentState.hasExplicitPendingTopAlignment {
+                let maintainsNativeAlignment: Bool
+                if case .nativeScrollView = page.content {
+                    maintainsNativeAlignment = true
+                } else {
+                    maintainsNativeAlignment = false
+                }
+                alignmentState.requestInitialOffsetReset(maintainNativeAlignment: maintainsNativeAlignment)
             }
             view.setNeedsLayout()
             view.layoutIfNeeded()
@@ -1052,6 +1077,11 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
     }
 
+    private func handleVerticalInteractionBegan() {
+        alignmentState.stopMaintainingNativeAlignment()
+        resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
+    }
+
     private func applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: Bool = false) {
         guard alignmentState.needsInitialHeaderOffsetReset, let page = lastAppliedPage else { return }
         if !allowDuringInteraction {
@@ -1111,22 +1141,31 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             applyNativeAlignmentAfterContentSizeChange(initialOffsetY)
         } else {
             applyNativeInitialOffsetIfNeeded(initialOffsetY)
+            applyNativeMaintainedInitialOffsetIfNeeded(initialOffsetY)
         }
     }
 
     private func applyNativeAlignmentAfterContentSizeChange(_ initialOffsetY: CGFloat) {
         guard isNativeListPage else { return }
-        let targetOffsetY = pendingTopAlignmentTargetOffsetY() ?? (alignmentState.needsInitialHeaderOffsetReset ? initialOffsetY : nil)
+        let targetOffsetY = pendingTopAlignmentTargetOffsetY() ?? nativeMaintainedInitialTargetOffsetY(initialOffsetY)
         guard let targetOffsetY else { return }
         setNativeNormalizedContentOffsetY(targetOffsetY)
-        alignmentState.markInitialOffsetApplied()
-        alignmentState.cancelPendingTopAlignment()
+        if alignmentState.needsInitialHeaderOffsetReset {
+            alignmentState.markInitialOffsetApplied()
+            alignmentState.cancelPendingTopAlignment()
+        }
+    }
+
+    private func applyNativeMaintainedInitialOffsetIfNeeded(_ initialOffsetY: CGFloat) {
+        guard let targetOffsetY = nativeMaintainedInitialTargetOffsetY(initialOffsetY) else { return }
+        setNativeNormalizedContentOffsetY(targetOffsetY)
     }
 
     func settleAfterHorizontalActivation(targetOffsetY: CGFloat) {
         loadViewIfNeeded()
         if isNativeListPage {
             setNativeNormalizedContentOffsetY(targetOffsetY)
+            alignmentState.maintainNativeAlignment(offsetY: targetOffsetY)
         } else {
             setNormalizedContentOffsetY(targetOffsetY)
         }
@@ -1142,6 +1181,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     func syncHeaderOffsetFromActivePage(_ syncMode: VideoDetailPagerOffsetModel.InactiveSyncMode) {
         loadViewIfNeeded()
         cancelPendingTopAlignment()
+        alignmentState.stopMaintainingNativeAlignment()
         let syncOffsetY = syncMode.normalizedOffsetY
         if isNativeListPage {
             setNativeNormalizedContentOffsetY(syncOffsetY)
@@ -1175,6 +1215,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onOffsetChange(coordinator.tab, offset)
     }
 
+    func canAttachHeaderToListHeader(for page: VideoDetailTabPage) -> Bool {
+        loadViewIfNeeded()
+        let pinnedVisibleHeight = max(page.headerGeometry.pinnedVisibleHeight, page.headerGeometry.pinHeaderHeight)
+        return listScrollView.contentOffset.y <= -pinnedVisibleHeight + 0.5
+    }
+
     private func setNormalizedContentOffsetY(_ offsetY: CGFloat) {
         guard let page = lastAppliedPage else { return }
         let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: listScrollView)
@@ -1188,6 +1234,20 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         let rawTopOffsetY = offsetY - listScrollView.adjustedContentInset.top
         setRawContentOffsetYIfNeeded(rawTopOffsetY)
+    }
+
+    private func nativeMaintainedInitialTargetOffsetY(_ initialOffsetY: CGFloat) -> CGFloat? {
+        guard isNativeListPage else { return nil }
+        if alignmentState.needsInitialHeaderOffsetReset {
+            return initialOffsetY
+        }
+        if alignmentState.maintainsNativeInitialAlignment,
+           !listScrollView.isTracking,
+           !listScrollView.isDragging,
+           !listScrollView.isDecelerating {
+            return alignmentState.nativeMaintainedAlignmentOffsetY ?? initialOffsetY
+        }
+        return nil
     }
 
     @discardableResult
@@ -1777,9 +1837,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let offset = pageController.normalizedContentOffsetY
             let attachmentState = VideoDetailHeaderAttachmentState.state(
                 isHorizontalPagingActive: pagerPosition.isPagingActive,
-                selectedOffset: offset,
-                syncState: page.headerGeometry.smoothHeaderSyncState(activeOffset: offset),
-                collapseDistance: page.headerGeometry.collapseDistance
+                canAttachToListHeader: pageController.canAttachHeaderToListHeader(for: page),
+                syncState: page.headerGeometry.smoothHeaderSyncState(activeOffset: offset)
             )
             applyHeaderAttachment(attachmentState, pageController: pageController)
         }
@@ -1832,9 +1891,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 headerSyncState = syncState
                 let attachmentState = VideoDetailHeaderAttachmentState.state(
                     isHorizontalPagingActive: true,
-                    selectedOffset: offsetY,
-                    syncState: syncState,
-                    collapseDistance: page.headerGeometry.collapseDistance
+                    canAttachToListHeader: pageController.canAttachHeaderToListHeader(for: page),
+                    syncState: syncState
                 )
                 applyHeaderAttachment(attachmentState, pageController: pageController)
             } else {
