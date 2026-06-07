@@ -120,14 +120,12 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         case empty
         case comment(CommentRow)
         case footer
-        case bottomSpacer(CGFloat)
     }
 
     private(set) weak var tableView: UITableView?
     private var rows: [Row] = []
     private var sortMode: CommentViewModel.SortMode = .mostLikes
     private var comments: [CommentRow] = []
-    private var bottomSpacerHeight: CGFloat = 0
     private var runningActionIDs: Set<String> = []
     private var onChangeSortMode: (CommentViewModel.SortMode) -> Void = { _ in }
     private var onRefresh: () -> Void = {}
@@ -142,7 +140,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var previousRunningActionIDs: Set<String> = []
     private var hasRenderedRows = false
     private var measuredCommentHeights: [String: MeasuredCommentHeight] = [:]
-    private var isUpdatingMeasuredHeights = false
     private var isReloadingRows = false
     weak var scrollDelegate: UIScrollViewDelegate?
 
@@ -159,21 +156,18 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         return tableView
     }
 
-    func update(_ model: CommentListTableModel, bottomSpacerHeight: CGFloat = 0) {
+    func update(_ model: CommentListTableModel) {
         let nextSignature = ModelSignature(model)
         let shouldReload = modelSignature != nextSignature
         let nextCommentActionSignatures = model.comments.map(CommentActionSignature.init)
         let didChangeCommentActions = commentActionSignatures != nextCommentActionSignatures
         let didChangeRunningActions = previousRunningActionIDs != model.runningActionIDs
-        let resolvedBottomSpacerHeight = max(bottomSpacerHeight, 0)
-        let didChangeBottomSpacerHeight = abs(self.bottomSpacerHeight - resolvedBottomSpacerHeight) > 0.5
         pruneMeasuredCommentHeights(for: model)
         modelSignature = nextSignature
         commentActionSignatures = nextCommentActionSignatures
         previousRunningActionIDs = model.runningActionIDs
         sortMode = model.sortMode
         comments = model.comments
-        self.bottomSpacerHeight = resolvedBottomSpacerHeight
         runningActionIDs = model.runningActionIDs
         onChangeSortMode = model.onChangeSortMode
         onRefresh = model.onRefresh
@@ -192,14 +186,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             } else if didChangeRunningActions || didChangeCommentActions {
                 rows = rows(for: model)
                 updateVisibleCommentRows()
-            } else if didChangeBottomSpacerHeight {
-                let previousRowCount = rows.count
-                rows = rows(for: model)
-                if rows.count != previousRowCount {
-                    reloadTablePreservingOffset()
-                } else {
-                    updateTableLayoutPreservingOffset()
-                }
             }
             return
         }
@@ -266,13 +252,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             ) as? CommentListFooterCell ?? CommentListFooterCell(style: .default, reuseIdentifier: CommentListFooterCell.reuseIdentifier)
             cell.configure()
             return cell
-        case .bottomSpacer(let height):
-            let cell = tableView.dequeueReusableCell(
-                withIdentifier: CommentListBottomSpacerCell.reuseIdentifier,
-                for: indexPath
-            ) as? CommentListBottomSpacerCell ?? CommentListBottomSpacerCell(style: .default, reuseIdentifier: CommentListBottomSpacerCell.reuseIdentifier)
-            cell.configure(height: height)
-            return cell
         case .comment(let comment):
             let cell = tableView.dequeueReusableCell(
                 withIdentifier: HostingCommentTableViewCell.reuseIdentifier,
@@ -316,8 +295,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             return RowHeightEstimate.empty
         case .footer:
             return RowHeightEstimate.footer
-        case .bottomSpacer(let height):
-            return max(height, 0)
         case .comment(let comment):
             guard let measuredHeight = measuredCommentHeights[comment.id],
                   measuredHeight.signature == CommentSignature(comment) else {
@@ -373,7 +350,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         tableView.contentInsetAdjustmentBehavior = .never
         tableView.register(HostingCommentTableViewCell.self, forCellReuseIdentifier: HostingCommentTableViewCell.reuseIdentifier)
         tableView.register(CommentListFooterCell.self, forCellReuseIdentifier: CommentListFooterCell.reuseIdentifier)
-        tableView.register(CommentListBottomSpacerCell.self, forCellReuseIdentifier: CommentListBottomSpacerCell.reuseIdentifier)
     }
 
     private func rows(for model: CommentListTableModel) -> [Row] {
@@ -384,15 +360,10 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             return [.controls, .failed(message)]
         case .loaded:
             guard !model.comments.isEmpty else {
-                return rowsWithBottomSpacer([.controls, .empty])
+                return [.controls, .empty]
             }
-            return rowsWithBottomSpacer([.controls] + model.comments.map { .comment($0) } + [.footer])
+            return [.controls] + model.comments.map { .comment($0) } + [.footer]
         }
-    }
-
-    private func rowsWithBottomSpacer(_ baseRows: [Row]) -> [Row] {
-        guard bottomSpacerHeight > 0.5 else { return baseRows }
-        return baseRows + [.bottomSpacer(bottomSpacerHeight)]
     }
 
     private func updateVisibleCommentRows() {
@@ -436,21 +407,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             if !tableView.isTracking, !tableView.isDragging, !tableView.isDecelerating {
                 tableView.layoutIfNeeded()
             }
-            tableView.setContentOffset(
-                clampedContentOffset(previousOffset, in: tableView),
-                animated: false
-            )
-        }
-    }
-
-    private func updateTableLayoutPreservingOffset() {
-        guard let tableView else { return }
-        let previousOffset = tableView.contentOffset
-        isUpdatingMeasuredHeights = true
-        defer { isUpdatingMeasuredHeights = false }
-        UIView.performWithoutAnimation {
-            tableView.beginUpdates()
-            tableView.endUpdates()
             tableView.setContentOffset(
                 clampedContentOffset(previousOffset, in: tableView),
                 animated: false
@@ -686,25 +642,5 @@ private final class CommentListFooterCell: UITableViewCell {
                 .frame(height: 44)
         }
         .margins(.all, 0)
-    }
-}
-
-private final class CommentListBottomSpacerCell: UITableViewCell {
-    static let reuseIdentifier = "CommentListBottomSpacerCell"
-
-    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
-        super.init(style: style, reuseIdentifier: reuseIdentifier)
-        backgroundColor = .clear
-        contentView.backgroundColor = .clear
-        selectionStyle = .none
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func configure(height _: CGFloat) {
-        contentConfiguration = nil
     }
 }

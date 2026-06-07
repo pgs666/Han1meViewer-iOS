@@ -981,7 +981,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
            abs(contentBottomSpacerHeightConstraint.constant - contentSpacerHeight) > 0.5 {
             contentBottomSpacerHeightConstraint.constant = contentSpacerHeight
         }
-        let bottomInset: CGFloat = 0
+        let bottomInset = usesContentSpacer ? 0 : resolvedBottomSpacing
         if abs(listScrollView.contentInset.bottom - bottomInset) > 0.5 {
             listScrollView.contentInset.bottom = bottomInset
         }
