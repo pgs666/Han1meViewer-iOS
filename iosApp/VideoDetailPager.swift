@@ -344,6 +344,10 @@ private enum VideoDetailPendingTopAlignment {
     case explicit(CGFloat)
 }
 
+private enum VideoDetailTabPageContent {
+    case swiftUI(() -> AnyView)
+}
+
 private struct VideoDetailListAlignmentState {
     var pendingTopAlignment: VideoDetailPendingTopAlignment?
     var needsInitialHeaderOffsetReset = true
@@ -472,7 +476,7 @@ private struct VideoDetailTabPage {
     let onOffsetChange: (VideoPageTab, CGFloat) -> Void
     let onInteractionBegan: (VideoPageTab) -> Void
     let onTopPullDelta: (VideoPageTab, CGFloat) -> Void
-    let content: () -> AnyView
+    let content: VideoDetailTabPageContent
 
     init<Content: View>(
         tab: VideoPageTab,
@@ -493,7 +497,7 @@ private struct VideoDetailTabPage {
         self.onOffsetChange = onOffsetChange
         self.onInteractionBegan = onInteractionBegan
         self.onTopPullDelta = onTopPullDelta
-        self.content = { AnyView(content()) }
+        self.content = .swiftUI({ AnyView(content()) })
     }
 }
 
@@ -817,7 +821,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
-            host.rootView = page.content()
+            switch page.content {
+            case .swiftUI(let content):
+                host.rootView = content()
+            }
             alignmentState.resetForContentUpdate()
             if !alignmentState.hasAppliedInitialListOffset && !alignmentState.hasExplicitPendingTopAlignment {
                 alignmentState.needsInitialHeaderOffsetReset = true
