@@ -13,6 +13,10 @@ private final class NativeCommentListHolder: ObservableObject {
     func update(_ model: CommentListTableModel) {
         controller.update(model)
     }
+
+    func attachScrollDelegate(_ delegate: UIScrollViewDelegate?) {
+        controller.scrollDelegate = delegate
+    }
 }
 
 struct VideoDetailView: View {
@@ -465,6 +469,9 @@ struct VideoDetailView: View {
                     EmptyView()
                 },
                 nativeCommentsListScrollView: nativeCommentList.tableView,
+                nativeCommentsAttachScrollDelegate: { delegate in
+                    nativeCommentList.attachScrollDelegate(delegate)
+                },
                 nativeCommentsUpdate: {
                     nativeCommentList.update(commentTableModel)
                 }
