@@ -189,6 +189,22 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
         max(collapseDistance - resolvedVisualTopOffset + 1, 1)
     }
 
+    func listOffsetContext(
+        in scrollBoundsHeight: CGFloat,
+        activeOffset: CGFloat? = nil
+    ) -> VideoDetailListOffsetContext {
+        let visualTopOffset = resolvedVisualTopOffset
+        return VideoDetailListOffsetContext(
+            contentTopInset: contentTopInset,
+            initialNormalizedOffsetY: visualTopOffset,
+            inactiveSyncNormalizedOffsetY: activeOffset.map {
+                min(max($0, 0), visualTopOffset)
+            } ?? visualTopOffset,
+            collapseSpacerHeight: collapseSpacerHeight,
+            minimumContentHeight: minimumContentHeight(in: scrollBoundsHeight)
+        )
+    }
+
     func minimumContentHeight(in scrollBoundsHeight: CGFloat) -> CGFloat {
         max(
             scrollBoundsHeight - max(pinnedVisibleHeight, 0),
@@ -209,9 +225,14 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
         rawOffsetY + scrollView.adjustedContentInset.top
     }
 
-    func syncOffset(fromActiveOffset activeOffset: CGFloat) -> CGFloat {
-        min(max(activeOffset, 0), resolvedVisualTopOffset)
-    }
+}
+
+private struct VideoDetailListOffsetContext: Equatable {
+    let contentTopInset: CGFloat
+    let initialNormalizedOffsetY: CGFloat
+    let inactiveSyncNormalizedOffsetY: CGFloat
+    let collapseSpacerHeight: CGFloat
+    let minimumContentHeight: CGFloat
 }
 
 private struct VideoDetailTabPage {
@@ -554,14 +575,15 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
         let previousVisualTopContentOffsetY = coordinator.visualTopContentOffsetY
         let geometry = page.headerGeometry
-        let visualTopOffset = geometry.resolvedVisualTopOffset
+        let offsetContext = geometry.listOffsetContext(in: scrollView.bounds.height)
+        let visualTopOffset = offsetContext.initialNormalizedOffsetY
         lastAppliedPage = page
         coordinator.visualTopContentOffsetY = visualTopOffset
-        applyTopContentInset(geometry.contentTopInset)
+        applyTopContentInset(offsetContext.contentTopInset)
         applyListHeaderFrame()
         applyBottomContentInset(page.contentBottomPadding)
-        collapseSpacerHeightConstraint.constant = geometry.collapseSpacerHeight
-        contentMinimumHeightConstraint.constant = geometry.minimumContentHeight(in: scrollView.bounds.height)
+        collapseSpacerHeightConstraint.constant = offsetContext.collapseSpacerHeight
+        contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         if page.isSelected, needsInitialHeaderOffsetReset {
             requestTopAlignment(targetOffsetY: visualTopOffset)
         } else if pendingTopAlignmentTargetOffsetY != nil {
@@ -578,12 +600,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func applyCurrentPageGeometryRules() {
         guard let page = lastAppliedPage else { return }
         let geometry = page.headerGeometry
-        let minimumContentHeight = geometry.minimumContentHeight(in: scrollView.bounds.height)
-        if abs(contentMinimumHeightConstraint.constant - minimumContentHeight) > 0.5 {
-            contentMinimumHeightConstraint.constant = minimumContentHeight
+        let offsetContext = geometry.listOffsetContext(in: scrollView.bounds.height)
+        if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
+            contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         }
         guard page.isSelected else { return }
-        let visualTopOffset = geometry.resolvedVisualTopOffset
+        let visualTopOffset = offsetContext.initialNormalizedOffsetY
         if pendingTopAlignmentTargetOffsetY != nil {
             pendingTopAlignmentTargetOffsetY = visualTopOffset
             return
@@ -671,7 +693,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     func headerSyncOffset(fromActiveOffset activeOffset: CGFloat) -> CGFloat {
-        lastAppliedPage?.headerGeometry.syncOffset(fromActiveOffset: activeOffset) ?? 0
+        lastAppliedPage?.headerGeometry.listOffsetContext(
+            in: scrollView.bounds.height,
+            activeOffset: activeOffset
+        ).inactiveSyncNormalizedOffsetY ?? 0
     }
 
     func syncHeaderOffsetFromActivePage(_ offsetY: CGFloat) {
@@ -679,7 +704,11 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard let page = lastAppliedPage else { return }
         cancelPendingTopAlignment()
         guard !needsInitialHeaderOffsetReset else { return }
-        setNormalizedContentOffsetY(page.headerGeometry.syncOffset(fromActiveOffset: offsetY))
+        let syncOffsetY = page.headerGeometry.listOffsetContext(
+            in: scrollView.bounds.height,
+            activeOffset: offsetY
+        ).inactiveSyncNormalizedOffsetY
+        setNormalizedContentOffsetY(syncOffsetY)
     }
 
     func setHorizontalPagingActive(_ isActive: Bool) {
