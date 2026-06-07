@@ -61,13 +61,6 @@ enum VideoDetailPagerOffsetModel {
         max(scrollBoundsHeight - max(pinHeaderHeight, 0), 1)
     }
 
-    static func shouldAlignToVisualTopAfterHorizontalActivation(
-        currentOffset: CGFloat,
-        visualTopOffset: CGFloat
-    ) -> Bool {
-        currentOffset <= visualTopOffset + 0.5
-    }
-
     private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
         min(max(value, 0), max(upperBound, 0))
     }
@@ -1156,7 +1149,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         targetOffsetY: CGFloat,
         allowDuringInteraction: Bool = false
     ) {
-        coordinator.visualTopContentOffsetY = targetOffsetY
         if alignmentState.needsInitialHeaderOffsetReset {
             alignmentState.markInitialOffsetApplied()
         }
@@ -1171,13 +1163,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             }
             alignmentState.markInitialOffsetApplied()
             alignmentState.markFirstActiveAlignmentCompleted()
-            cancelPendingTopAlignment()
-            return
-        }
-        guard VideoDetailPagerOffsetModel.shouldAlignToVisualTopAfterHorizontalActivation(
-            currentOffset: listScrollView.verticalContentOffsetExcludingBounce,
-            visualTopOffset: targetOffsetY
-        ) else {
             cancelPendingTopAlignment()
             return
         }
