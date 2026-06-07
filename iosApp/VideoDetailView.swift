@@ -332,15 +332,20 @@ struct VideoDetailView: View {
             }
             .frame(height: 0)
 
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 Color.clear
-                    .frame(height: topInset + VideoPagingMetrics.tabBarHeight)
+                    .frame(height: topInset)
 
-                content()
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemGroupedBackground))
+                Section {
+                    content()
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGroupedBackground))
+                } header: {
+                    Color(.systemBackground)
+                        .frame(height: VideoPagingMetrics.tabBarHeight)
+                }
             }
         }
         .coordinateSpace(name: tab.scrollCoordinateSpaceName)
