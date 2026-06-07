@@ -1118,7 +1118,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func handleVerticalInteractionBegan() {
-        finishProtectedNativeAlignmentIfReached()
+        if finishProtectedNativeAlignmentIfReached(allowDuringInteraction: true) {
+            return
+        }
         alignmentState.isProtectingInitialTopAlignment = false
         if isNativeListPage {
             if let pendingOffsetY = alignmentState.pendingTopAlignmentOffsetY {
@@ -1330,13 +1332,24 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
     }
 
-    private func finishProtectedNativeAlignmentIfReached(targetOffsetY: CGFloat? = nil) {
-        guard isNativeListPage, alignmentState.isProtectingInitialTopAlignment else { return }
+    @discardableResult
+    private func finishProtectedNativeAlignmentIfReached(
+        targetOffsetY: CGFloat? = nil,
+        allowDuringInteraction: Bool = false
+    ) -> Bool {
+        guard isNativeListPage, alignmentState.isProtectingInitialTopAlignment else { return false }
         let resolvedTargetOffsetY = targetOffsetY ?? alignmentState.pendingTopAlignmentOffsetY
-        guard let resolvedTargetOffsetY else { return }
-        guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
-        guard abs(listScrollView.verticalContentOffsetExcludingBounce - resolvedTargetOffsetY) <= 0.5 else { return }
+        guard let resolvedTargetOffsetY else { return false }
+        if !allowDuringInteraction {
+            guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else {
+                return false
+            }
+        }
+        guard abs(listScrollView.verticalContentOffsetExcludingBounce - resolvedTargetOffsetY) <= 0.5 else {
+            return false
+        }
         finishInitialOffsetAlignment()
+        return true
     }
 
     @discardableResult
