@@ -516,10 +516,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         contentView.addSubview(collapseSpacerView)
 
         hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor)
-        contentMinimumHeightConstraint = contentView.heightAnchor.constraint(
-            greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor,
-            constant: 1
-        )
+        contentMinimumHeightConstraint = contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 1)
         collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
 
         NSLayoutConstraint.activate([
@@ -571,6 +568,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
             needsInitialHeaderOffsetReset = true
+            view.setNeedsLayout()
+            view.layoutIfNeeded()
         }
 
         let previousVisualTopContentOffsetY = coordinator.visualTopContentOffsetY
@@ -607,6 +606,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let visualTopOffset = offsetContext.initialNormalizedOffsetY
         if pendingTopAlignmentTargetOffsetY != nil {
             pendingTopAlignmentTargetOffsetY = visualTopOffset
+            resolvePendingTopAlignmentIfPossible()
             return
         }
         if needsInitialHeaderOffsetReset {
