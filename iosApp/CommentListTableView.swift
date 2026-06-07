@@ -54,20 +54,28 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         let username: String
         let date: String
         let content: String
-        let thumbUp: Int?
         let hasMoreReplies: Bool
         let replyCount: Int?
-        let likeCommentStatus: Bool
-        let unlikeCommentStatus: Bool
 
         init(_ comment: CommentRow) {
             id = comment.id
             username = comment.username
             date = comment.date
             content = comment.content
-            thumbUp = comment.thumbUp
             hasMoreReplies = comment.hasMoreReplies
             replyCount = comment.replyCount
+        }
+    }
+
+    private struct CommentActionSignature: Equatable {
+        let id: String
+        let thumbUp: Int?
+        let likeCommentStatus: Bool
+        let unlikeCommentStatus: Bool
+
+        init(_ comment: CommentRow) {
+            id = comment.id
+            thumbUp = comment.thumbUp
             likeCommentStatus = comment.likeCommentStatus
             unlikeCommentStatus = comment.unlikeCommentStatus
         }
@@ -96,6 +104,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var onDislike: (CommentRow) -> Void = { _ in }
     private var onReport: (CommentRow) -> Void = { _ in }
     private var modelSignature: ModelSignature?
+    private var commentActionSignatures: [CommentActionSignature] = []
     private var previousRunningActionIDs: Set<String> = []
     weak var scrollDelegate: UIScrollViewDelegate?
 
@@ -115,8 +124,11 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     func update(_ model: CommentListTableModel) {
         let nextSignature = ModelSignature(model)
         let shouldReload = modelSignature != nextSignature
+        let nextCommentActionSignatures = model.comments.map(CommentActionSignature.init)
+        let didChangeCommentActions = commentActionSignatures != nextCommentActionSignatures
         let didChangeRunningActions = previousRunningActionIDs != model.runningActionIDs
         modelSignature = nextSignature
+        commentActionSignatures = nextCommentActionSignatures
         previousRunningActionIDs = model.runningActionIDs
         sortMode = model.sortMode
         comments = model.comments
@@ -129,9 +141,15 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         onLike = model.onLike
         onDislike = model.onDislike
         onReport = model.onReport
+        let shouldReloadForActionChange = didChangeCommentActions
+            && (model.sortMode == .mostLikes || model.sortMode == .mostDislikes)
         guard shouldReload else {
-            if didChangeRunningActions {
-                updateVisibleCommentRunningStates()
+            if shouldReloadForActionChange {
+                rows = rows(for: model)
+                tableView?.reloadData()
+            } else if didChangeRunningActions || didChangeCommentActions {
+                rows = rows(for: model)
+                updateVisibleCommentRows()
             }
             return
         }
@@ -265,7 +283,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         }
     }
 
-    private func updateVisibleCommentRunningStates() {
+    private func updateVisibleCommentRows() {
         guard let tableView else { return }
         for indexPath in tableView.indexPathsForVisibleRows ?? [] {
             guard indexPath.row < rows.count,
