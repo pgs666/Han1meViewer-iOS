@@ -765,7 +765,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
     private var alignmentState = VideoDetailListAlignmentState()
-    private var pendingTopAlignmentRetryCount = 0
     private var listScrollViewContentSizeObservation: NSKeyValueObservation?
     private var listScrollViewBoundsObservation: NSKeyValueObservation?
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
@@ -956,7 +955,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if alignmentState.needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
         } else if alignmentState.pendingTopAlignment != nil {
-            resolvePendingTopAlignmentSoon()
+            resolvePendingTopAlignmentIfPossible()
         }
     }
 
@@ -1044,28 +1043,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         listHeaderView.frame = nextFrame
     }
 
-    private func resolvePendingTopAlignmentSoon() {
-        resolvePendingTopAlignmentIfPossible()
-        schedulePendingTopAlignmentRetry()
-    }
-
-    private func schedulePendingTopAlignmentRetry() {
-        guard alignmentState.pendingTopAlignment != nil else {
-            pendingTopAlignmentRetryCount = 0
-            return
-        }
-        guard pendingTopAlignmentRetryCount < 8 else { return }
-        pendingTopAlignmentRetryCount += 1
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.view.layoutIfNeeded()
-            self.resolvePendingTopAlignmentIfPossible()
-            if self.alignmentState.pendingTopAlignment != nil {
-                self.schedulePendingTopAlignmentRetry()
-            }
-        }
-    }
-
     private func resolvePendingTopAlignmentIfPossible(allowDuringInteraction: Bool = false) {
         guard let targetOffsetY = pendingTopAlignmentTargetOffsetY() else { return }
         if !allowDuringInteraction {
@@ -1075,7 +1052,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(listScrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             alignmentState.markInitialOffsetApplied()
             alignmentState.cancelPendingTopAlignment()
-            pendingTopAlignmentRetryCount = 0
             if lastAppliedPage?.isSelected == true {
                 alignmentState.markFirstActiveAlignmentCompleted()
             }
@@ -1092,7 +1068,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         ).initialNormalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
             alignmentState.pendingTopAlignment = .initial
-            resolvePendingTopAlignmentSoon()
+            resolvePendingTopAlignmentIfPossible()
             return
         }
         if abs(listScrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
@@ -1141,7 +1117,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if !alignmentState.hasCompletedFirstActiveAlignment {
             guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
                 alignmentState.pendingTopAlignment = .initial
-                resolvePendingTopAlignmentSoon()
+                resolvePendingTopAlignmentIfPossible()
                 return
             }
             alignmentState.markInitialOffsetApplied()
@@ -1172,7 +1148,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let syncOffsetY = syncMode.normalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(syncOffsetY) else {
             alignmentState.pendingTopAlignment = .explicit(syncOffsetY)
-            resolvePendingTopAlignmentSoon()
+            resolvePendingTopAlignmentIfPossible()
             return
         }
         alignmentState.markInitialOffsetApplied()
