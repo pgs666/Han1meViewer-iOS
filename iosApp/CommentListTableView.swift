@@ -40,13 +40,11 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private struct ModelSignature: Equatable {
         let state: StateSignature
         let sortMode: CommentViewModel.SortMode
-        let runningActionIDs: Set<String>
         let comments: [CommentSignature]
 
         init(_ model: CommentListTableModel) {
             state = StateSignature(model.state)
             sortMode = model.sortMode
-            runningActionIDs = model.runningActionIDs
             comments = model.comments.map(CommentSignature.init)
         }
     }
@@ -98,6 +96,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var onDislike: (CommentRow) -> Void = { _ in }
     private var onReport: (CommentRow) -> Void = { _ in }
     private var modelSignature: ModelSignature?
+    private var previousRunningActionIDs: Set<String> = []
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -116,7 +115,9 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     func update(_ model: CommentListTableModel) {
         let nextSignature = ModelSignature(model)
         let shouldReload = modelSignature != nextSignature
+        let didChangeRunningActions = previousRunningActionIDs != model.runningActionIDs
         modelSignature = nextSignature
+        previousRunningActionIDs = model.runningActionIDs
         sortMode = model.sortMode
         comments = model.comments
         runningActionIDs = model.runningActionIDs
@@ -128,7 +129,12 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         onLike = model.onLike
         onDislike = model.onDislike
         onReport = model.onReport
-        guard shouldReload else { return }
+        guard shouldReload else {
+            if didChangeRunningActions {
+                updateVisibleCommentRunningStates()
+            }
+            return
+        }
         rows = rows(for: model)
         tableView?.reloadData()
     }
@@ -256,6 +262,26 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 return [.controls, .empty]
             }
             return [.controls] + model.comments.map { .comment($0) } + [.footer]
+        }
+    }
+
+    private func updateVisibleCommentRunningStates() {
+        guard let tableView else { return }
+        for indexPath in tableView.indexPathsForVisibleRows ?? [] {
+            guard indexPath.row < rows.count,
+                  case .comment(let comment) = rows[indexPath.row],
+                  let cell = tableView.cellForRow(at: indexPath) as? HostingCommentTableViewCell else {
+                continue
+            }
+            cell.configure(
+                comment: comment,
+                isRunningLike: runningActionIDs.contains("like-\(comment.id)"),
+                onReply: { [weak self] in self?.onReply(comment) },
+                onShowReplies: { [weak self] in self?.onShowReplies(comment) },
+                onLike: { [weak self] in self?.onLike(comment) },
+                onDislike: { [weak self] in self?.onDislike(comment) },
+                onReport: { [weak self] in self?.onReport(comment) }
+            )
         }
     }
 }
