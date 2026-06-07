@@ -9,6 +9,7 @@ struct VideoDetailView: View {
     private let tabletLeftMinimumWidth: CGFloat = 620
     private let tabletSidebarMinimumWidth: CGFloat = 360
     private let playerContinuationStripHeight: CGFloat = 56
+    private let pagerPinHeaderHeight: CGFloat = 48
     private let commentComposerBottomSlack: CGFloat = 96
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
@@ -247,7 +248,6 @@ struct VideoDetailView: View {
                 let leftWidth = leftPanelWidth(for: proxy.size)
                 let inlineHeight = inlinePlayerHeight(panelWidth: leftWidth)
                 let pagerMetrics = pagerState.layoutMetrics(
-                    inlinePlayerHeight: inlineHeight,
                     containerHeight: proxy.size.height,
                     rawCollapseDistance: playerCollapseDistance(panelWidth: leftWidth)
                 )
@@ -258,12 +258,6 @@ struct VideoDetailView: View {
                             panelWidth: leftWidth,
                             parentHeight: proxy.size.height
                         )
-                        playerArea(snapshot: snapshot)
-                            .frame(
-                                width: leftWidth,
-                                height: currentPlayerHeight
-                            )
-
                         // Keep the tab pager mounted during fullscreen. Rebuilding
                         // the SwiftUI-hosted intro/comment pages while the player
                         // animates back to inline is a visible hitch on iPadOS 16.
@@ -273,16 +267,25 @@ struct VideoDetailView: View {
                             snapshot: snapshot,
                             showsRelated: !isWide,
                             collapseDistance: pagerMetrics.collapseDistance,
+                            headerHeight: inlineHeight,
+                            pinHeaderHeight: pagerPinHeaderHeight,
+                            pinnedVisibleHeight: playerContinuationStripHeight + pagerPinHeaderHeight,
                             playerScrollAway: pagerMetrics.playerScrollAway,
                             introductionContentClearance: introductionContentClearance(),
                             composerContentClearance: commentComposerContentClearance(
                                 safeAreaBottom: proxy.safeAreaInsets.bottom
                             )
                         )
-                        .frame(height: pagerMetrics.belowPlayerHeight)
-                        .offset(y: pagerMetrics.belowPlayerTopOffset)
+                        .frame(height: proxy.size.height)
                         .opacity(isPlayerFullscreen ? 0 : 1)
                         .allowsHitTesting(!isPlayerFullscreen)
+
+                        playerArea(snapshot: snapshot)
+                            .frame(
+                                width: leftWidth,
+                                height: currentPlayerHeight
+                            )
+                            .offset(y: isPlayerFullscreen ? 0 : -pagerMetrics.playerScrollAway)
 
                         if !isPlayerFullscreen,
                            pagerMetrics.continuationProgress > 0 {
@@ -399,6 +402,9 @@ struct VideoDetailView: View {
         snapshot: VideoDetailScreenSnapshot,
         showsRelated: Bool,
         collapseDistance: CGFloat,
+        headerHeight: CGFloat,
+        pinHeaderHeight: CGFloat,
+        pinnedVisibleHeight: CGFloat,
         playerScrollAway: CGFloat,
         introductionContentClearance: CGFloat,
         composerContentClearance: CGFloat
@@ -408,6 +414,9 @@ struct VideoDetailView: View {
         return VideoDetailPagerContainer(
             state: $pagerState,
             collapseDistance: collapseDistance,
+            headerHeight: headerHeight,
+            pinHeaderHeight: pinHeaderHeight,
+            pinnedVisibleHeight: pinnedVisibleHeight,
             playerScrollAway: playerScrollAway,
             introductionContentBottomPadding: introductionContentClearance,
             commentsContentBottomPadding: composerContentClearance,
@@ -504,6 +513,23 @@ struct VideoDetailView: View {
 
         var commentsHasher = Hasher()
         commentsHasher.combine(ObjectIdentifier(commentViewModel))
+        commentsHasher.combine(commentViewModel.sortMode.id)
+        commentsHasher.combine(commentViewModel.sortedComments.count)
+        for comment in commentViewModel.sortedComments {
+            commentsHasher.combine(comment.id)
+        }
+        switch commentViewModel.state {
+        case .idle:
+            commentsHasher.combine("idle")
+        case .loading:
+            commentsHasher.combine("loading")
+        case .failed(let message):
+            commentsHasher.combine("failed")
+            commentsHasher.combine(message)
+        case .loaded(let snapshot):
+            commentsHasher.combine("loaded")
+            commentsHasher.combine(snapshot.comments.count)
+        }
 
         return VideoDetailTabContentRevision(
             introduction: introductionHasher.finalize(),
@@ -714,8 +740,6 @@ private enum VideoPlayerCollapseModel {
 private struct VideoDetailPagerLayoutMetrics {
     let collapseDistance: CGFloat
     let playerScrollAway: CGFloat
-    let belowPlayerTopOffset: CGFloat
-    let belowPlayerHeight: CGFloat
     let continuationProgress: CGFloat
 }
 
@@ -726,13 +750,11 @@ private struct VideoDetailPagerState: Equatable {
     var isPlayerPlaying: Bool = false
 
     func layoutMetrics(
-        inlinePlayerHeight: CGFloat,
-        containerHeight: CGFloat,
+        containerHeight _: CGFloat,
         rawCollapseDistance: CGFloat
     ) -> VideoDetailPagerLayoutMetrics {
         let collapseDistance = isPlayerPlaying ? 0 : max(rawCollapseDistance, 0)
         let playerScrollAway = isPlayerPlaying ? 0 : Self.clamp(collapseOffset, upperBound: collapseDistance)
-        let belowPlayerTopOffset = max(inlinePlayerHeight - playerScrollAway, 0)
         let fadeDistance: CGFloat = 72
         let continuationProgress: CGFloat
         if rawCollapseDistance > 1 {
@@ -747,18 +769,8 @@ private struct VideoDetailPagerState: Equatable {
         return VideoDetailPagerLayoutMetrics(
             collapseDistance: collapseDistance,
             playerScrollAway: playerScrollAway,
-            belowPlayerTopOffset: belowPlayerTopOffset,
-            belowPlayerHeight: max(0, containerHeight - belowPlayerTopOffset),
             continuationProgress: continuationProgress
         )
-    }
-
-    func contentTopInset(for _: VideoPageTab, playerScrollAway: CGFloat) -> CGFloat {
-        max(playerScrollAway, 0)
-    }
-
-    func storedOffset(for tab: VideoPageTab) -> CGFloat? {
-        tabOffsets[tab]
     }
 
     mutating func setPlayerPlaying(_ isPlaying: Bool) {
@@ -871,8 +883,10 @@ private struct VideoDetailTabPage {
     let tab: VideoPageTab
     let contentBottomPadding: CGFloat
     let contentTopInset: CGFloat
+    let visualTopOffset: CGFloat
     let isSelected: Bool
     let collapseDistance: CGFloat
+    let pinnedVisibleHeight: CGFloat
     let contentUpdateRevision: Int
     let onOffsetChange: (VideoPageTab, CGFloat) -> Void
     let onInteractionBegan: (VideoPageTab) -> Void
@@ -883,8 +897,10 @@ private struct VideoDetailTabPage {
         tab: VideoPageTab,
         contentBottomPadding: CGFloat,
         contentTopInset: CGFloat,
+        visualTopOffset: CGFloat,
         isSelected: Bool,
         collapseDistance: CGFloat,
+        pinnedVisibleHeight: CGFloat,
         contentUpdateRevision: Int,
         onOffsetChange: @escaping (VideoPageTab, CGFloat) -> Void,
         onInteractionBegan: @escaping (VideoPageTab) -> Void,
@@ -894,8 +910,10 @@ private struct VideoDetailTabPage {
         self.tab = tab
         self.contentBottomPadding = contentBottomPadding
         self.contentTopInset = contentTopInset
+        self.visualTopOffset = visualTopOffset
         self.isSelected = isSelected
         self.collapseDistance = collapseDistance
+        self.pinnedVisibleHeight = pinnedVisibleHeight
         self.contentUpdateRevision = contentUpdateRevision
         self.onOffsetChange = onOffsetChange
         self.onInteractionBegan = onInteractionBegan
@@ -907,6 +925,9 @@ private struct VideoDetailTabPage {
 private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: View {
     @Binding var state: VideoDetailPagerState
     let collapseDistance: CGFloat
+    let headerHeight: CGFloat
+    let pinHeaderHeight: CGFloat
+    let pinnedVisibleHeight: CGFloat
     let playerScrollAway: CGFloat
     let introductionContentBottomPadding: CGFloat
     let commentsContentBottomPadding: CGFloat
@@ -925,17 +946,7 @@ private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: Vi
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("Content", selection: selectedTabBinding) {
-                ForEach(VideoPageTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.background)
-
+        ZStack(alignment: .top) {
             VideoDetailTabPager(
                 selectedTab: selectedTabBinding,
                 introduction: tabPage(
@@ -952,6 +963,19 @@ private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: Vi
                 )
             )
             .frame(maxHeight: .infinity)
+
+            Picker("Content", selection: selectedTabBinding) {
+                ForEach(VideoPageTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .frame(height: pinHeaderHeight)
+            .frame(maxWidth: .infinity)
+            .background(.background)
+            .offset(y: max(headerHeight - playerScrollAway, pinnedVisibleHeight - pinHeaderHeight))
+            .zIndex(1)
         }
         .frame(maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
@@ -969,9 +993,11 @@ private struct VideoDetailPagerContainer<Introduction: View, Comments: View>: Vi
         VideoDetailTabPage(
             tab: tab,
             contentBottomPadding: contentBottomPadding,
-            contentTopInset: state.contentTopInset(for: tab, playerScrollAway: playerScrollAway),
+            contentTopInset: headerHeight + pinHeaderHeight,
+            visualTopOffset: playerScrollAway,
             isSelected: state.selectedTab == tab,
             collapseDistance: collapseDistance,
+            pinnedVisibleHeight: pinnedVisibleHeight,
             contentUpdateRevision: contentUpdateRevision,
             onOffsetChange: { tab, offset in
                 mutateState {
@@ -1066,6 +1092,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentMinimumHeightConstraint: NSLayoutConstraint!
     private var collapseSpacerHeightConstraint: NSLayoutConstraint!
     private var contentUpdateRevision: Int?
+    private var lastAppliedPage: VideoDetailTabPage?
     private var topAlignmentGeneration = 0
     private var pendingTopAlignmentTargetOffsetY: CGFloat?
 
@@ -1101,6 +1128,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         scrollView.delegate = coordinator
         scrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
         scrollView.onGeometryChange = { [weak self] in
+            self?.applyCurrentPageGeometryRules()
             self?.resolvePendingTopAlignmentIfPossible()
         }
         scrollView.shouldBeginVerticalPan = { [weak self] panGestureRecognizer, view in
@@ -1159,6 +1187,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        applyCurrentPageGeometryRules()
         resolvePendingTopAlignmentIfPossible()
     }
 
@@ -1177,29 +1206,63 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
+            if page.isSelected {
+                requestTopAlignment(targetOffsetY: page.visualTopOffset)
+            }
         }
 
         let previousVisualTopContentOffsetY = coordinator.visualTopContentOffsetY
         let contentTopInset = resolvedContentTopInset(for: page)
-        coordinator.visualTopContentOffsetY = contentTopInset
+        let visualTopOffset = resolvedVisualTopOffset(for: page)
+        lastAppliedPage = page
+        coordinator.visualTopContentOffsetY = visualTopOffset
         applyTopContentInset(contentTopInset)
         applyBottomContentInset(page.contentBottomPadding)
-        let collapseSpacerHeight = max(page.collapseDistance - contentTopInset + 1, 1)
+        let collapseSpacerHeight = max(page.collapseDistance - visualTopOffset + 1, 1)
+        let minimumContentHeight = minimumContentHeight(for: page)
         collapseSpacerHeightConstraint.constant = collapseSpacerHeight
-        contentMinimumHeightConstraint.constant = collapseSpacerHeight
+        contentMinimumHeightConstraint.constant = minimumContentHeight
         if pendingTopAlignmentTargetOffsetY != nil {
-            pendingTopAlignmentTargetOffsetY = contentTopInset
+            pendingTopAlignmentTargetOffsetY = visualTopOffset
             resolvePendingTopAlignmentSoon()
         } else {
             preserveVisualTopIfNeeded(
                 previousOffsetY: previousVisualTopContentOffsetY,
-                targetOffsetY: contentTopInset
+                targetOffsetY: visualTopOffset
             )
         }
     }
 
     private func resolvedContentTopInset(for page: VideoDetailTabPage) -> CGFloat {
-        min(max(page.contentTopInset, 0), max(page.collapseDistance, 0))
+        max(page.contentTopInset, 0)
+    }
+
+    private func resolvedVisualTopOffset(for page: VideoDetailTabPage) -> CGFloat {
+        min(max(page.visualTopOffset, 0), max(page.collapseDistance, 0))
+    }
+
+    private func minimumContentHeight(for page: VideoDetailTabPage) -> CGFloat {
+        max(
+            scrollView.bounds.height - max(page.pinnedVisibleHeight, 0),
+            max(page.collapseDistance, 0) + 1,
+            1
+        )
+    }
+
+    private func applyCurrentPageGeometryRules() {
+        guard let page = lastAppliedPage else { return }
+        let minimumContentHeight = minimumContentHeight(for: page)
+        if abs(contentMinimumHeightConstraint.constant - minimumContentHeight) > 0.5 {
+            contentMinimumHeightConstraint.constant = minimumContentHeight
+        }
+        guard page.isSelected else { return }
+        let visualTopOffset = resolvedVisualTopOffset(for: page)
+        if pendingTopAlignmentTargetOffsetY != nil {
+            pendingTopAlignmentTargetOffsetY = visualTopOffset
+            return
+        }
+        guard scrollView.verticalContentOffsetExcludingBounce <= visualTopOffset + 8 else { return }
+        requestTopAlignment(targetOffsetY: visualTopOffset)
     }
 
     private func applyTopContentInset(_ topInset: CGFloat) {
