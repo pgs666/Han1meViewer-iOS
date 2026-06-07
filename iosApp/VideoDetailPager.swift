@@ -947,6 +947,11 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
     }
 
+    func setScrollsToTop(_ scrollsToTop: Bool) {
+        loadViewIfNeeded()
+        scrollView.scrollsToTop = scrollsToTop
+    }
+
     func reportCurrentOffset() {
         loadViewIfNeeded()
         let offset = scrollView.verticalContentOffsetExcludingBounce
@@ -1256,6 +1261,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
             addPage(introductionPage)
             addPage(commentsPage)
+            updateScrollsToTop(for: VideoPageTab.page(at: pagerPosition.selectedIndex))
             introductionPage.onHeaderOffsetChanged = { [weak self] tab, offset in
                 self?.updateHeaderContainerPosition(for: tab, offsetY: offset)
             }
@@ -1334,6 +1340,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             )
             introductionPage.update(page: introduction)
             commentsPage.update(page: comments)
+            updateScrollsToTop(for: VideoPageTab.page(at: pagerPosition.selectedIndex))
             updateHeaderAttachmentForCurrentState()
             if !pagerPosition.isPagingActive {
                 syncInactivePageHeaderOffset()
@@ -1371,27 +1378,41 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func settleSelectedPageIfNeeded(_ index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
-            guard pagerPosition.settledIndex != clampedIndex else { return }
-            settlePageAfterHorizontalSelection(clampedIndex)
+            guard pagerPosition.settledIndex != clampedIndex else {
+                finishHorizontalPaging(at: clampedIndex)
+                return
+            }
+            finishHorizontalPaging(at: clampedIndex)
         }
 
         private func settlePageAfterHorizontalSelection(_ index: Int) {
+            finishHorizontalPaging(at: index)
+        }
+
+        private func finishHorizontalPaging(at index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
-            guard pagerPosition.markSettled(clampedIndex) else {
-                updateHeaderAttachmentForCurrentState()
-                return
-            }
+            let didChangeSettledIndex = pagerPosition.markSettled(clampedIndex)
+            updateScrollsToTop(for: VideoPageTab.page(at: clampedIndex))
             layoutHeaderHosts()
-            switch VideoPageTab.page(at: index) {
+            switch VideoPageTab.page(at: clampedIndex) {
             case .introduction:
-                introductionPage.settleAfterHorizontalActivation()
+                if didChangeSettledIndex {
+                    introductionPage.settleAfterHorizontalActivation()
+                }
                 introductionPage.reportCurrentOffset()
             case .comments:
-                commentsPage.settleAfterHorizontalActivation()
+                if didChangeSettledIndex {
+                    commentsPage.settleAfterHorizontalActivation()
+                }
                 commentsPage.reportCurrentOffset()
             }
             updateHeaderAttachmentForCurrentState()
             syncInactivePageHeaderOffset()
+        }
+
+        private func updateScrollsToTop(for activeTab: VideoPageTab) {
+            introductionPage.setScrollsToTop(activeTab == .introduction)
+            commentsPage.setScrollsToTop(activeTab == .comments)
         }
 
         private func setHorizontalPagingActive(_ isActive: Bool) {
