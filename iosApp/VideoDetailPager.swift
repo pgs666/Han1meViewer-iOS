@@ -898,7 +898,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentMinimumHeightConstraint?.constant = offsetContext.minimumContentHeight
             hostMinimumHeightConstraint?.isActive = true
         case .nativeScrollView:
-            applyBottomContentSpacing(page.contentBottomPadding, usesContentSpacer: true)
             collapseSpacerHeightConstraint?.constant = 0
             contentMinimumHeightConstraint?.constant = 1
             hostMinimumHeightConstraint?.isActive = false
