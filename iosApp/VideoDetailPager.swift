@@ -48,13 +48,6 @@ enum VideoDetailPagerOffsetModel {
         )
     }
 
-    static func minimumListContentHeight(
-        scrollBoundsHeight: CGFloat,
-        pinnedVisibleHeight: CGFloat
-    ) -> CGFloat {
-        max(scrollBoundsHeight - max(pinnedVisibleHeight, 0), 1)
-    }
-
     private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
         min(max(value, 0), max(upperBound, 0))
     }
@@ -255,8 +248,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
             contentTopInset: contentTopInset,
             initialNormalizedOffsetY: visualTopOffset,
             collapseSpacerHeight: collapseSpacerHeight,
-            minimumContentHeight: minimumContentHeight(in: scrollBoundsHeight),
-            minimumListContentHeight: minimumListContentHeight(in: scrollBoundsHeight)
+            minimumContentHeight: minimumContentHeight(in: scrollBoundsHeight)
         )
     }
 
@@ -272,13 +264,6 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
             scrollBoundsHeight: scrollBoundsHeight,
             pinnedVisibleHeight: pinnedVisibleHeight,
             collapseDistance: collapseDistance
-        )
-    }
-
-    func minimumListContentHeight(in scrollBoundsHeight: CGFloat) -> CGFloat {
-        VideoDetailPagerOffsetModel.minimumListContentHeight(
-            scrollBoundsHeight: scrollBoundsHeight,
-            pinnedVisibleHeight: pinnedVisibleHeight
         )
     }
 
@@ -301,7 +286,6 @@ private struct VideoDetailListOffsetContext: Equatable {
     let initialNormalizedOffsetY: CGFloat
     let collapseSpacerHeight: CGFloat
     let minimumContentHeight: CGFloat
-    let minimumListContentHeight: CGFloat
 }
 
 private struct VideoDetailNativeScrollPage {
@@ -688,8 +672,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
     private var didApplyInitialContentOffset = false
-    private var listScrollViewContentSizeObservation: NSKeyValueObservation?
-    private var listScrollViewBoundsObservation: NSKeyValueObservation?
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
@@ -735,13 +717,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         listScrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
         defaultScrollView?.onGeometryChange = { [weak self] in
-            self?.handleScrollGeometryChange()
-        }
-        listScrollViewContentSizeObservation = listScrollView.observe(\.contentSize, options: [.new]) { [weak self] _, _ in
-            self?.handleScrollGeometryChange()
-        }
-        listScrollViewBoundsObservation = listScrollView.observe(\.bounds, options: [.new]) { [weak self] _, _ in
-            self?.handleScrollGeometryChange()
+            self?.applySwiftUIContentMinimumHeight()
         }
         defaultScrollView?.shouldBeginVerticalPan = { [weak self] panGestureRecognizer, view in
             self?.handleVerticalInteractionBegan()
@@ -820,7 +796,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         applyListHeaderFrame()
-        handleScrollGeometryChange()
+        applySwiftUIContentMinimumHeight()
     }
 
     func update(page: VideoDetailTabPage) {
@@ -879,34 +855,19 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             hostMinimumHeightConstraint?.isActive = false
             if case .nativeScrollView(let nativePage) = page.content {
                 nativePage.update()
-                applyCurrentPageGeometryRules()
                 applyInitialContentOffsetIfNeeded(offsetContext.initialNormalizedOffsetY)
             }
         }
     }
 
-    private func handleScrollGeometryChange() {
-        applyCurrentPageGeometryRules()
-    }
-
-    private func applyCurrentPageGeometryRules() {
+    private func applySwiftUIContentMinimumHeight() {
         guard let page = lastAppliedPage else { return }
-        let geometry = page.headerGeometry
-        let offsetContext = geometry.listOffsetContext(in: listScrollView.bounds.height)
-        let isNativeScrollView: Bool
-        if case .nativeScrollView = page.content {
-            isNativeScrollView = true
-        } else {
-            isNativeScrollView = false
-        }
+        guard case .swiftUI = page.content else { return }
+        let offsetContext = page.headerGeometry.listOffsetContext(in: listScrollView.bounds.height)
         if let contentMinimumHeightConstraint,
            abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
-            contentMinimumHeightConstraint.constant = isNativeScrollView ? 1 : offsetContext.minimumContentHeight
+            contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         }
-        applyNativeMinimumContentSizeIfNeeded(
-            page: page,
-            offsetContext: offsetContext
-        )
     }
 
     private func applyTopContentInset(_ topInset: CGFloat) {
@@ -938,25 +899,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
         let clampedRawOffsetY = listScrollView.clampedRawVerticalContentOffsetY(listScrollView.contentOffset.y)
         setRawContentOffsetYSilentlyIfNeeded(clampedRawOffsetY)
-    }
-
-    @discardableResult
-    private func applyNativeMinimumContentSizeIfNeeded(
-        page: VideoDetailTabPage,
-        offsetContext: VideoDetailListOffsetContext
-    ) -> Bool {
-        guard case .nativeScrollView = page.content else {
-            return false
-        }
-        let requiredContentHeight = offsetContext.minimumListContentHeight
-        guard listScrollView.contentSize.height < requiredContentHeight - 0.5 else {
-            return false
-        }
-        listScrollView.contentSize = CGSize(
-            width: listScrollView.contentSize.width,
-            height: requiredContentHeight
-        )
-        return true
     }
 
     private func applyListHeaderFrame() {
