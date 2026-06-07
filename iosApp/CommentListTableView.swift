@@ -349,7 +349,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         tableView.backgroundColor = .clear
         tableView.separatorStyle = .none
         tableView.showsVerticalScrollIndicator = false
-        tableView.estimatedRowHeight = 0
+        tableView.estimatedRowHeight = RowHeightEstimate.commentMinimum
         tableView.estimatedSectionHeaderHeight = 0
         tableView.estimatedSectionFooterHeight = 0
         tableView.rowHeight = UITableView.automaticDimension
