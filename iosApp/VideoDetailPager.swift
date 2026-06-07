@@ -410,7 +410,7 @@ private struct VideoDetailHorizontalPagerPosition: Equatable {
     private(set) var isPagingActive = false
 
     var activeHeaderIndex: Int {
-        isPagingActive ? visibleIndex : selectedIndex
+        selectedIndex
     }
 
     mutating func setSelectedIndex(_ index: Int) {
@@ -1671,6 +1671,10 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func setHeaderVisibleIndex(_ index: Int) {
             guard pagerPosition.setVisibleIndex(index) else { return }
+            guard !pagerPosition.isPagingActive else {
+                attachActiveHeaderToPagerContainer()
+                return
+            }
             updateHeaderAttachmentForCurrentState()
         }
 
@@ -1836,6 +1840,17 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 collapseDistance: page.headerGeometry.collapseDistance
             )
             applyHeaderAttachment(attachmentState, pageController: pageController)
+        }
+
+        private func attachActiveHeaderToPagerContainer() {
+            let headerTab = activeHeaderTab
+            guard let page = latestPages[headerTab],
+                  let pageController = verticalPageController(for: headerTab) else { return }
+            layoutHeaderHosts()
+            let offset = pageController.normalizedContentOffsetY
+            let syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offset)
+            headerSyncState = syncState
+            attachHeader(to: view, originY: syncState.headerContainerY)
         }
 
         private func applyHeaderAttachment(
