@@ -144,7 +144,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var measuredCommentHeights: [String: MeasuredCommentHeight] = [:]
     private var isUpdatingMeasuredHeights = false
     private var isReloadingRows = false
-    private var hasPendingMeasuredHeightLayoutUpdate = false
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -282,8 +281,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             cell.configure(
                 comment: comment,
                 isRunningLike: runningActionIDs.contains("like-\(comment.id)"),
-                onMeasuredHeight: { [weak self, weak tableView] height in
-                    self?.recordMeasuredCommentHeight(height, commentID: comment.id, tableView: tableView)
+                onMeasuredHeight: { [weak self] height in
+                    self?.recordMeasuredCommentHeight(height, commentID: comment.id)
                 },
                 onReply: { [weak self] in self?.onReply(comment) },
                 onShowReplies: { [weak self] in self?.onShowReplies(comment) },
@@ -407,8 +406,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             cell.configure(
                 comment: comment,
                 isRunningLike: runningActionIDs.contains("like-\(comment.id)"),
-                onMeasuredHeight: { [weak self, weak tableView] height in
-                    self?.recordMeasuredCommentHeight(height, commentID: comment.id, tableView: tableView)
+                onMeasuredHeight: { [weak self] height in
+                    self?.recordMeasuredCommentHeight(height, commentID: comment.id)
                 },
                 onReply: { [weak self] in self?.onReply(comment) },
                 onShowReplies: { [weak self] in self?.onShowReplies(comment) },
@@ -478,8 +477,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
 
     private func recordMeasuredCommentHeight(
         _ height: CGFloat,
-        commentID: String,
-        tableView: UITableView?
+        commentID: String
     ) {
         guard height > 1 else { return }
         let roundedHeight = ceil(height)
@@ -492,29 +490,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             signature: signature,
             height: roundedHeight
         )
-        guard let tableView,
-              !isUpdatingMeasuredHeights,
-              !isReloadingRows,
-              !tableView.isTracking,
-              !tableView.isDragging,
-              !tableView.isDecelerating else { return }
-        scheduleMeasuredHeightLayoutUpdate(tableView: tableView)
-    }
-
-    private func scheduleMeasuredHeightLayoutUpdate(tableView: UITableView) {
-        guard !hasPendingMeasuredHeightLayoutUpdate else { return }
-        hasPendingMeasuredHeightLayoutUpdate = true
-        DispatchQueue.main.async { [weak self, weak tableView] in
-            guard let self else { return }
-            self.hasPendingMeasuredHeightLayoutUpdate = false
-            guard let tableView,
-                  !self.isUpdatingMeasuredHeights,
-                  !self.isReloadingRows,
-                  !tableView.isTracking,
-                  !tableView.isDragging,
-                  !tableView.isDecelerating else { return }
-            self.updateTableLayoutPreservingOffset()
-        }
     }
 }
 
