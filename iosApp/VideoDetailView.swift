@@ -1036,6 +1036,7 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     var onTopPullDelta: (VideoPageTab, CGFloat) -> Void
     var onVerticalInteractionBegan: () -> Void = {}
     var visualTopContentOffsetY: CGFloat = 0
+    var isApplyingExternalOffset = false
     private var lastReportedOffset: CGFloat?
     private var lastTopPullTranslationY: CGFloat = 0
 
@@ -1052,10 +1053,15 @@ private final class VideoDetailVerticalScrollPageCoordinator: NSObject, UIScroll
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard !isApplyingExternalOffset else { return }
         let offset = scrollView.verticalContentOffsetExcludingBounce
         guard lastReportedOffset.map({ abs($0 - offset) > 0.5 }) ?? true else { return }
         lastReportedOffset = offset
         onOffsetChange(tab, offset)
+    }
+
+    func resetReportedOffset(_ offset: CGFloat) {
+        lastReportedOffset = offset
     }
 
     @objc func handlePan(_ panGestureRecognizer: UIPanGestureRecognizer) {
@@ -1301,9 +1307,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: targetOffsetY)
         guard abs(normalizedContentOffsetY(forRawOffsetY: rawTopOffsetY) - targetOffsetY) <= 0.5 else { return }
-        if abs(scrollView.contentOffset.y - rawTopOffsetY) > 0.5 {
-            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
-        }
+        setRawContentOffsetYIfNeeded(rawTopOffsetY)
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             cancelPendingTopAlignment()
         }
@@ -1321,12 +1325,40 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
     }
 
+    var normalizedContentOffsetY: CGFloat {
+        loadViewIfNeeded()
+        return scrollView.verticalContentOffsetExcludingBounce
+    }
+
+    var visualTopContentOffsetY: CGFloat {
+        coordinator.visualTopContentOffsetY
+    }
+
+    func syncHeaderOffsetFromActivePage(_ offsetY: CGFloat) {
+        loadViewIfNeeded()
+        guard let page = lastAppliedPage else { return }
+        cancelPendingTopAlignment()
+        let targetOffsetY = min(max(offsetY, 0), max(page.collapseDistance, 0))
+        setNormalizedContentOffsetY(targetOffsetY)
+    }
+
     private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
         guard abs(previousOffsetY - targetOffsetY) > 0.5 else { return }
         guard abs(scrollView.verticalContentOffsetExcludingBounce - previousOffsetY) <= 1 else { return }
-        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: targetOffsetY)
+        setNormalizedContentOffsetY(targetOffsetY)
+    }
+
+    private func setNormalizedContentOffsetY(_ offsetY: CGFloat) {
+        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: offsetY)
+        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+    }
+
+    private func setRawContentOffsetYIfNeeded(_ rawTopOffsetY: CGFloat) {
         guard abs(scrollView.contentOffset.y - rawTopOffsetY) > 0.5 else { return }
+        coordinator.isApplyingExternalOffset = true
+        defer { coordinator.isApplyingExternalOffset = false }
         scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
+        coordinator.resetReportedOffset(scrollView.verticalContentOffsetExcludingBounce)
     }
 
     private func clampedRawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat) -> CGFloat {
@@ -1585,6 +1617,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             self.selectedIndex = min(max(selectedIndex, 0), VideoPageTab.allCases.count - 1)
             introductionPage.update(page: introduction)
             commentsPage.update(page: comments)
+            syncInactivePageHeaderOffset()
             let consumedSettledIndex = coordinator.consumePendingSettledIndex(for: self.selectedIndex)
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
             setSelectedIndex(self.selectedIndex, animated: animated)
@@ -1622,11 +1655,32 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func settlePageAfterHorizontalSelection(_ index: Int) {
             lastSettledSelectedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            syncInactivePageHeaderOffset()
             switch VideoPageTab.page(at: index) {
             case .introduction:
                 introductionPage.settleAfterHorizontalActivation()
             case .comments:
                 commentsPage.settleAfterHorizontalActivation()
+            }
+        }
+
+        private func syncInactivePageHeaderOffset() {
+            guard let activePage = verticalPageController(for: VideoPageTab.page(at: selectedIndex)) else {
+                return
+            }
+            let activeOffset = activePage.normalizedContentOffsetY
+            let syncOffset = min(max(activeOffset, 0), activePage.visualTopContentOffsetY)
+            for tab in VideoPageTab.allCases where tab.pageIndex != selectedIndex {
+                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(syncOffset)
+            }
+        }
+
+        private func verticalPageController(for tab: VideoPageTab) -> VideoDetailVerticalScrollPageViewController? {
+            switch tab {
+            case .introduction:
+                return introductionPage
+            case .comments:
+                return commentsPage
             }
         }
     }
