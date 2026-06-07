@@ -327,10 +327,12 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
     let pinHeaderHeight: CGFloat
     let pinnedVisibleHeight: CGFloat
     let playerScrollAway: CGFloat
+    let continuationProgress: CGFloat
     let introductionContentBottomPadding: CGFloat
     let commentsContentBottomPadding: CGFloat
     let introductionContentRevision: Int
     let commentsContentRevision: Int
+    let headerContentRevision: Int
     let continuationHeader: () -> ContinuationHeader
     let isContinuationHeaderInteractive: Bool
     let introduction: () -> Introduction
@@ -348,7 +350,9 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
     var body: some View {
         VideoDetailTabPager(
             selectedTab: selectedTabBinding,
+            headerContentRevision: headerContentRevision,
             continuationHeader: AnyView(continuationHeader()),
+            continuationProgress: continuationProgress,
             isContinuationHeaderInteractive: isContinuationHeaderInteractive,
             pinHeader: AnyView(pinHeader),
             introduction: tabPage(
@@ -909,7 +913,9 @@ private extension CGRect {
 
 private struct VideoDetailTabPager: UIViewControllerRepresentable {
     @Binding var selectedTab: VideoPageTab
+    let headerContentRevision: Int
     let continuationHeader: AnyView
+    let continuationProgress: CGFloat
     let isContinuationHeaderInteractive: Bool
     let pinHeader: AnyView
     let introduction: VideoDetailTabPage
@@ -917,14 +923,18 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
     init(
         selectedTab: Binding<VideoPageTab>,
+        headerContentRevision: Int,
         continuationHeader: AnyView,
+        continuationProgress: CGFloat,
         isContinuationHeaderInteractive: Bool,
         pinHeader: AnyView,
         introduction: VideoDetailTabPage,
         comments: VideoDetailTabPage
     ) {
         _selectedTab = selectedTab
+        self.headerContentRevision = headerContentRevision
         self.continuationHeader = continuationHeader
+        self.continuationProgress = continuationProgress
         self.isContinuationHeaderInteractive = isContinuationHeaderInteractive
         self.pinHeader = pinHeader
         self.introduction = introduction
@@ -942,7 +952,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: PagingViewController, context: Context) {
         context.coordinator.selectedTab = $selectedTab
         uiViewController.updatePages(
+            headerContentRevision: headerContentRevision,
             continuationHeader: continuationHeader,
+            continuationProgress: continuationProgress,
             isContinuationHeaderInteractive: isContinuationHeaderInteractive,
             pinHeader: pinHeader,
             introduction: introduction,
@@ -1042,6 +1054,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private var pendingSelectedIndex: Int?
         private var lastLaidOutWidth: CGFloat = 0
         private var isHorizontalPagingActive = false
+        private var headerContentRevision: Int?
         private var latestPages: [VideoPageTab: VideoDetailTabPage] = [:]
 
         init(coordinator: Coordinator) {
@@ -1150,7 +1163,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         }
 
         func updatePages(
+            headerContentRevision: Int,
             continuationHeader: AnyView,
+            continuationProgress: CGFloat,
             isContinuationHeaderInteractive: Bool,
             pinHeader: AnyView,
             introduction: VideoDetailTabPage,
@@ -1163,7 +1178,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             latestPages[.introduction] = introduction
             latestPages[.comments] = comments
             updateHeaderHosts(
+                headerContentRevision: headerContentRevision,
                 continuationHeader: continuationHeader,
+                continuationProgress: continuationProgress,
                 isContinuationHeaderInteractive: isContinuationHeaderInteractive,
                 pinHeader: pinHeader,
                 page: VideoPageTab.page(at: self.selectedIndex)
@@ -1257,7 +1274,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         }
 
         private func updateHeaderHosts(
+            headerContentRevision: Int,
             continuationHeader: AnyView,
+            continuationProgress: CGFloat,
             isContinuationHeaderInteractive: Bool,
             pinHeader: AnyView,
             page tab: VideoPageTab
@@ -1266,9 +1285,13 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             headerContainerView.pinHeaderHeight = page.headerGeometry.pinHeaderHeight
             headerContainerView.continuationHeaderHeight = continuationHeaderHeight(for: page)
             headerContainerView.isContinuationHeaderInteractive = isContinuationHeaderInteractive
-            continuationHeaderHost.rootView = continuationHeader
-            pinHeaderHost.rootView = pinHeader
+            if self.headerContentRevision != headerContentRevision {
+                self.headerContentRevision = headerContentRevision
+                continuationHeaderHost.rootView = continuationHeader
+                pinHeaderHost.rootView = pinHeader
+            }
             layoutHeaderHosts()
+            applyContinuationHeaderPresentation(progress: continuationProgress)
         }
 
         private func layoutHeaderHosts() {
@@ -1300,6 +1323,15 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func continuationHeaderHeight(for page: VideoDetailTabPage) -> CGFloat {
             max(page.headerGeometry.pinnedVisibleHeight - page.headerGeometry.pinHeaderHeight, 0)
+        }
+
+        private func applyContinuationHeaderPresentation(progress: CGFloat) {
+            let clampedProgress = min(max(progress, 0), 1)
+            continuationHeaderHost.view.alpha = clampedProgress
+            continuationHeaderHost.view.transform = CGAffineTransform(
+                translationX: 0,
+                y: -8 * (1 - clampedProgress)
+            )
         }
 
         private func updateHeaderAttachmentForCurrentState() {
