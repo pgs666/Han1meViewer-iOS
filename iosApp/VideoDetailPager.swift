@@ -1644,15 +1644,17 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             commentsPage?.setHorizontalPagingActive(false)
         }
 
-        private func syncInactivePageHeaderOffset(activeOffset providedActiveOffset: CGFloat? = nil) {
+        @discardableResult
+        private func syncInactivePageHeaderOffset(activeOffset providedActiveOffset: CGFloat? = nil) -> VideoDetailSmoothHeaderSyncState? {
             guard let activePage = verticalPageController(for: VideoPageTab.page(at: pagerPosition.selectedIndex)) else {
-                return
+                return nil
             }
             let activeOffset = providedActiveOffset ?? activePage.normalizedContentOffsetY
             let nextSyncState = updateHeaderSyncState(activeOffset: activeOffset)
             for tab in VideoPageTab.allCases where tab.pageIndex != pagerPosition.selectedIndex {
                 verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(nextSyncState.inactiveSyncMode)
             }
+            return nextSyncState
         }
 
         @discardableResult
@@ -1778,17 +1780,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             applyHeaderAttachment(attachmentState, pageController: pageController)
         }
 
-        private func attachActiveHeaderToPagerContainer() {
-            let headerTab = activeHeaderTab
-            guard let page = latestPages[headerTab],
-                  let pageController = verticalPageController(for: headerTab) else { return }
-            layoutHeaderHosts()
-            let offset = pageController.normalizedContentOffsetY
-            let syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offset)
-            headerSyncState = syncState
-            attachHeader(to: view, originY: syncState.headerContainerY)
-        }
-
         private func applyHeaderAttachment(
             _ attachmentState: VideoDetailHeaderAttachmentState,
             pageController: VideoDetailVerticalScrollPageViewController
@@ -1831,10 +1822,14 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 )
                 applyHeaderAttachment(attachmentState, pageController: pageController)
             } else {
-                if tab == VideoPageTab.page(at: pagerPosition.selectedIndex) {
-                    syncInactivePageHeaderOffset(activeOffset: offsetY)
-                }
-                updateHeaderAttachmentForCurrentState()
+                let syncState = syncInactivePageHeaderOffset(activeOffset: offsetY)
+                    ?? page.headerGeometry.smoothHeaderSyncState(activeOffset: offsetY)
+                let attachmentState = VideoDetailHeaderAttachmentState.state(
+                    isHorizontalPagingActive: false,
+                    canAttachToListHeader: pageController.canAttachHeaderToListHeader(for: page),
+                    syncState: syncState
+                )
+                applyHeaderAttachment(attachmentState, pageController: pageController)
             }
         }
     }
