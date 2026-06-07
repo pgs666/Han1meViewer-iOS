@@ -18,11 +18,9 @@ struct CommentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            content
-        }
-        .padding(.horizontal, 16)
+        CommentListTableView(
+            model: tableModel
+        )
         .task {
             viewModel.loadIfNeeded()
         }
@@ -82,117 +80,38 @@ struct CommentView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            Menu {
-                ForEach(CommentViewModel.SortMode.allCases) { mode in
-                    Button {
-                        viewModel.changeSortMode(mode)
-                    } label: {
-                        if mode == viewModel.sortMode {
-                            Label(mode.title, systemImage: "checkmark")
-                        } else {
-                            Text(mode.title)
-                        }
-                    }
-                }
-            } label: {
-                Label(viewModel.sortMode.title, systemImage: "arrow.up.arrow.down")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            Spacer()
-
-            TapOnlyControl {
+    private var tableModel: CommentListTableModel {
+        CommentListTableModel(
+            state: viewModel.state,
+            sortMode: viewModel.sortMode,
+            runningActionIDs: viewModel.runningActionIDs,
+            comments: viewModel.sortedComments,
+            onChangeSortMode: { mode in
+                viewModel.changeSortMode(mode)
+            },
+            onRefresh: {
                 viewModel.load()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            },
+            onRetry: {
+                viewModel.load()
+            },
+            onReply: { comment in
+                replyText = "@\(comment.username) "
+                replyTarget = comment
+            },
+            onShowReplies: { comment in
+                repliesTarget = comment
+            },
+            onLike: { comment in
+                viewModel.like(comment: comment, isPositive: true)
+            },
+            onDislike: { comment in
+                viewModel.like(comment: comment, isPositive: false)
+            },
+            onReport: { comment in
+                reportTarget = comment
             }
-        }
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch viewModel.state {
-        case .idle, .loading:
-            HStack {
-                Spacer()
-                ProgressView()
-                Spacer()
-            }
-            .padding(.vertical, 60)
-        case .failed(let message):
-            VStack(spacing: 12) {
-                Image(systemName: "text.bubble")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-                Text("评论加载失败")
-                    .font(.headline)
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                TapOnlyControl {
-                    viewModel.load()
-                } label: {
-                    Text("重试")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-                CloudflareVerifyButton(errorMessage: message)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 60)
-        case .loaded:
-            let comments = viewModel.sortedComments
-            if comments.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    Text("暂无评论")
-                        .font(.headline)
-                    Text("成为第一个评论的人。")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 60)
-            } else {
-                CommentListTableView(
-                    comments: comments,
-                    runningActionIDs: viewModel.runningActionIDs,
-                    onReply: { comment in
-                        replyText = "@\(comment.username) "
-                        replyTarget = comment
-                    },
-                    onShowReplies: { comment in
-                        repliesTarget = comment
-                    },
-                    onLike: { comment in
-                        viewModel.like(comment: comment, isPositive: true)
-                    },
-                    onDislike: { comment in
-                        viewModel.like(comment: comment, isPositive: false)
-                    },
-                    onReport: { comment in
-                        reportTarget = comment
-                    }
-                )
-                .id(viewModel.sortMode.id)
-            }
-        }
+        )
     }
 
     private var actionMessageBinding: Binding<Bool> {
