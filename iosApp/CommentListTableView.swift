@@ -181,10 +181,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 if rows.count != previousRowCount {
                     reloadTablePreservingOffset()
                 } else {
-                    UIView.performWithoutAnimation {
-                        tableView?.beginUpdates()
-                        tableView?.endUpdates()
-                    }
+                    updateTableLayoutPreservingOffset()
                 }
             }
             return
@@ -391,9 +388,37 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         let previousOffset = tableView.contentOffset
         UIView.performWithoutAnimation {
             tableView.reloadData()
-            tableView.layoutIfNeeded()
-            tableView.setContentOffset(previousOffset, animated: false)
+            if !tableView.isTracking, !tableView.isDragging, !tableView.isDecelerating {
+                tableView.layoutIfNeeded()
+            }
+            tableView.setContentOffset(
+                clampedContentOffset(previousOffset, in: tableView),
+                animated: false
+            )
         }
+    }
+
+    private func updateTableLayoutPreservingOffset() {
+        guard let tableView else { return }
+        let previousOffset = tableView.contentOffset
+        UIView.performWithoutAnimation {
+            tableView.beginUpdates()
+            tableView.endUpdates()
+            tableView.setContentOffset(
+                clampedContentOffset(previousOffset, in: tableView),
+                animated: false
+            )
+        }
+    }
+
+    private func clampedContentOffset(_ offset: CGPoint, in tableView: UITableView) -> CGPoint {
+        let inset = tableView.adjustedContentInset
+        let minOffsetY = -inset.top
+        let maxOffsetY = max(minOffsetY, tableView.contentSize.height - tableView.bounds.height + inset.bottom)
+        return CGPoint(
+            x: offset.x,
+            y: min(max(offset.y, minOffsetY), maxOffsetY)
+        )
     }
 }
 

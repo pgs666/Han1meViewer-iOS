@@ -910,7 +910,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
                 nativeScrollDelegateAttachment = nativePage.attachScrollDelegate
                 nativePage.attachScrollDelegate(coordinator)
             }
-            nativePage.update()
         case .swiftUI:
             break
         }
@@ -963,6 +962,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentMinimumHeightConstraint?.constant = 1
             hostMinimumHeightConstraint?.isActive = false
             applyNativeInitialOffsetIfNeeded(offsetContext.initialNormalizedOffsetY)
+            if case .nativeScrollView(let nativePage) = page.content {
+                nativePage.update()
+                applyCurrentPageGeometryRules()
+            }
         }
     }
 
