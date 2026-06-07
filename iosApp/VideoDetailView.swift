@@ -1131,6 +1131,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private let coordinator: VideoDetailVerticalScrollPageCoordinator
     private let scrollView = VerticalScrollView()
     private let contentView = UIView()
+    private let listHeaderView = UIView()
     private let collapseSpacerView = UIView()
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var hostMinimumHeightConstraint: NSLayoutConstraint!
@@ -1188,6 +1189,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         contentView.backgroundColor = .clear
         scrollView.addSubview(contentView)
 
+        listHeaderView.backgroundColor = .clear
+        listHeaderView.isUserInteractionEnabled = false
+        scrollView.addSubview(listHeaderView)
+
         addChild(host)
         host.view.translatesAutoresizingMaskIntoConstraints = false
         host.view.backgroundColor = .clear
@@ -1233,6 +1238,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        applyListHeaderFrame()
         applyCurrentPageGeometryRules()
         resolvePendingTopAlignmentIfPossible()
     }
@@ -1261,6 +1267,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         lastAppliedPage = page
         coordinator.visualTopContentOffsetY = visualTopOffset
         applyTopContentInset(geometry.contentTopInset)
+        applyListHeaderFrame()
         applyBottomContentInset(page.contentBottomPadding)
         collapseSpacerHeightConstraint.constant = geometry.collapseSpacerHeight
         contentMinimumHeightConstraint.constant = geometry.minimumContentHeight(in: scrollView.bounds.height)
@@ -1303,6 +1310,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard abs(scrollView.contentInset.top - resolvedTopInset) > 0.5 else { return }
         scrollView.contentInset.top = resolvedTopInset
         scrollView.verticalScrollIndicatorInsets.top = resolvedTopInset
+        applyListHeaderFrame()
     }
 
     private func applyBottomContentInset(_ bottomInset: CGFloat) {
@@ -1310,6 +1318,18 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard abs(scrollView.contentInset.bottom - resolvedBottomInset) > 0.5 else { return }
         scrollView.contentInset.bottom = resolvedBottomInset
         scrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomInset
+    }
+
+    private func applyListHeaderFrame() {
+        let topInset = max(scrollView.contentInset.top, 0)
+        let nextFrame = CGRect(
+            x: 0,
+            y: -topInset,
+            width: scrollView.bounds.width,
+            height: topInset
+        )
+        guard !listHeaderView.frame.isApproximatelyEqual(to: nextFrame) else { return }
+        listHeaderView.frame = nextFrame
     }
 
     private func requestTopAlignment(targetOffsetY: CGFloat) {
@@ -1444,6 +1464,15 @@ private extension UIScrollView {
         let minOffsetY = -inset.top
         let maxOffsetY = max(minOffsetY, contentSize.height - bounds.height + inset.bottom)
         return min(max(contentOffset.y, minOffsetY), maxOffsetY) + inset.top
+    }
+}
+
+private extension CGRect {
+    func isApproximatelyEqual(to other: CGRect) -> Bool {
+        abs(origin.x - other.origin.x) <= 0.5
+            && abs(origin.y - other.origin.y) <= 0.5
+            && abs(size.width - other.size.width) <= 0.5
+            && abs(size.height - other.size.height) <= 0.5
     }
 }
 
