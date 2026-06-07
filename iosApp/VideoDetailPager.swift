@@ -816,6 +816,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
     }
 
+    func reportCurrentOffset() {
+        loadViewIfNeeded()
+        let offset = scrollView.verticalContentOffsetExcludingBounce
+        coordinator.resetReportedOffset(offset)
+        coordinator.onOffsetChange(coordinator.tab, offset)
+    }
+
     private func preserveVisualTopIfNeeded(previousOffsetY: CGFloat, targetOffsetY: CGFloat) {
         guard abs(previousOffsetY - targetOffsetY) > 0.5 else { return }
         guard abs(scrollView.verticalContentOffsetExcludingBounce - previousOffsetY) <= 1 else { return }
@@ -1166,8 +1173,10 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             switch VideoPageTab.page(at: index) {
             case .introduction:
                 introductionPage.settleAfterHorizontalActivation()
+                introductionPage.reportCurrentOffset()
             case .comments:
                 commentsPage.settleAfterHorizontalActivation()
+                commentsPage.reportCurrentOffset()
             }
         }
 
