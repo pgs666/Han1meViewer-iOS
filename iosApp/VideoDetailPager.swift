@@ -1709,7 +1709,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 commentsPage?.reportCurrentOffset()
             }
             updateHeaderAttachmentForCurrentState()
-            syncInactivePageHeaderOffset()
         }
 
         private func updateScrollsToTop(for activeTab: VideoPageTab) {
