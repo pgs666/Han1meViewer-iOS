@@ -11,16 +11,106 @@ struct CommentListTableView: UIViewRepresentable {
     let onReport: (CommentRow) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
+        Coordinator()
     }
 
     func makeUIView(context: Context) -> IntrinsicCommentTableView {
         let tableView = IntrinsicCommentTableView(frame: .zero, style: .plain)
+        tableView.isScrollEnabled = false
+        tableView.alwaysBounceVertical = false
+        context.coordinator.controller.attach(tableView)
+        return tableView
+    }
+
+    func updateUIView(_ tableView: IntrinsicCommentTableView, context: Context) {
+        context.coordinator.controller.update(
+            comments: comments,
+            runningActionIDs: runningActionIDs,
+            onReply: onReply,
+            onShowReplies: onShowReplies,
+            onLike: onLike,
+            onDislike: onDislike,
+            onReport: onReport
+        )
+        tableView.invalidateIntrinsicContentSize()
+    }
+
+    final class Coordinator {
+        let controller = CommentListTableController()
+    }
+}
+
+final class CommentListTableController: NSObject, UITableViewDataSource, UITableViewDelegate {
+    private(set) weak var tableView: UITableView?
+    private var comments: [CommentRow] = []
+    private var runningActionIDs: Set<String> = []
+    private var onReply: (CommentRow) -> Void = { _ in }
+    private var onShowReplies: (CommentRow) -> Void = { _ in }
+    private var onLike: (CommentRow) -> Void = { _ in }
+    private var onDislike: (CommentRow) -> Void = { _ in }
+    private var onReport: (CommentRow) -> Void = { _ in }
+
+    func attach(_ tableView: UITableView) {
+        self.tableView = tableView
+        configure(tableView)
+        tableView.dataSource = self
+        tableView.delegate = self
+    }
+
+    func update(
+        comments: [CommentRow],
+        runningActionIDs: Set<String>,
+        onReply: @escaping (CommentRow) -> Void,
+        onShowReplies: @escaping (CommentRow) -> Void,
+        onLike: @escaping (CommentRow) -> Void,
+        onDislike: @escaping (CommentRow) -> Void,
+        onReport: @escaping (CommentRow) -> Void
+    ) {
+        self.comments = comments
+        self.runningActionIDs = runningActionIDs
+        self.onReply = onReply
+        self.onShowReplies = onShowReplies
+        self.onLike = onLike
+        self.onDislike = onDislike
+        self.onReport = onReport
+        tableView?.reloadData()
+    }
+
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        comments.count + 1
+    }
+
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        if indexPath.row == comments.count {
+            let cell = tableView.dequeueReusableCell(
+                withIdentifier: CommentListFooterCell.reuseIdentifier,
+                for: indexPath
+            ) as? CommentListFooterCell ?? CommentListFooterCell(style: .default, reuseIdentifier: CommentListFooterCell.reuseIdentifier)
+            cell.configure()
+            return cell
+        }
+
+        let comment = comments[indexPath.row]
+        let cell = tableView.dequeueReusableCell(
+            withIdentifier: HostingCommentTableViewCell.reuseIdentifier,
+            for: indexPath
+        ) as? HostingCommentTableViewCell ?? HostingCommentTableViewCell(style: .default, reuseIdentifier: HostingCommentTableViewCell.reuseIdentifier)
+        cell.configure(
+            comment: comment,
+            isRunningLike: runningActionIDs.contains("like-\(comment.id)"),
+            onReply: { [weak self] in self?.onReply(comment) },
+            onShowReplies: { [weak self] in self?.onShowReplies(comment) },
+            onLike: { [weak self] in self?.onLike(comment) },
+            onDislike: { [weak self] in self?.onDislike(comment) },
+            onReport: { [weak self] in self?.onReport(comment) }
+        )
+        return cell
+    }
+
+    private func configure(_ tableView: UITableView) {
         tableView.backgroundColor = .clear
         tableView.separatorStyle = .none
         tableView.showsVerticalScrollIndicator = false
-        tableView.isScrollEnabled = false
-        tableView.alwaysBounceVertical = false
         tableView.estimatedRowHeight = 0
         tableView.estimatedSectionHeaderHeight = 0
         tableView.estimatedSectionFooterHeight = 0
@@ -28,56 +118,8 @@ struct CommentListTableView: UIViewRepresentable {
         tableView.sectionHeaderHeight = 0
         tableView.sectionFooterHeight = 0
         tableView.contentInsetAdjustmentBehavior = .never
-        tableView.dataSource = context.coordinator
-        tableView.delegate = context.coordinator
         tableView.register(HostingCommentTableViewCell.self, forCellReuseIdentifier: HostingCommentTableViewCell.reuseIdentifier)
         tableView.register(CommentListFooterCell.self, forCellReuseIdentifier: CommentListFooterCell.reuseIdentifier)
-        return tableView
-    }
-
-    func updateUIView(_ tableView: IntrinsicCommentTableView, context: Context) {
-        context.coordinator.parent = self
-        tableView.reloadData()
-        tableView.invalidateIntrinsicContentSize()
-    }
-
-    final class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate {
-        var parent: CommentListTableView
-
-        init(parent: CommentListTableView) {
-            self.parent = parent
-        }
-
-        func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-            parent.comments.count + 1
-        }
-
-        func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-            if indexPath.row == parent.comments.count {
-                let cell = tableView.dequeueReusableCell(
-                    withIdentifier: CommentListFooterCell.reuseIdentifier,
-                    for: indexPath
-                ) as? CommentListFooterCell ?? CommentListFooterCell(style: .default, reuseIdentifier: CommentListFooterCell.reuseIdentifier)
-                cell.configure()
-                return cell
-            }
-
-            let comment = parent.comments[indexPath.row]
-            let cell = tableView.dequeueReusableCell(
-                withIdentifier: HostingCommentTableViewCell.reuseIdentifier,
-                for: indexPath
-            ) as? HostingCommentTableViewCell ?? HostingCommentTableViewCell(style: .default, reuseIdentifier: HostingCommentTableViewCell.reuseIdentifier)
-            cell.configure(
-                comment: comment,
-                isRunningLike: parent.runningActionIDs.contains("like-\(comment.id)"),
-                onReply: { [weak self] in self?.parent.onReply(comment) },
-                onShowReplies: { [weak self] in self?.parent.onShowReplies(comment) },
-                onLike: { [weak self] in self?.parent.onLike(comment) },
-                onDislike: { [weak self] in self?.parent.onDislike(comment) },
-                onReport: { [weak self] in self?.parent.onReport(comment) }
-            )
-            return cell
-        }
     }
 }
 
