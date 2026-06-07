@@ -143,6 +143,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var isReloadingRows = false
     private var contentBottomPadding: CGFloat = 0
     private var pendingContentBottomPadding: CGFloat?
+    private let contentBottomPaddingFooterView = UIView(frame: .zero)
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -212,10 +213,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private func applyContentBottomPadding(_ nextPadding: CGFloat, in tableView: UITableView) {
         contentBottomPadding = nextPadding
         pendingContentBottomPadding = nil
-        UIView.performWithoutAnimation {
-            tableView.beginUpdates()
-            tableView.endUpdates()
-        }
+        updateTableFooterView(in: tableView)
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -275,7 +273,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 withIdentifier: CommentListFooterCell.reuseIdentifier,
                 for: indexPath
             ) as? CommentListFooterCell ?? CommentListFooterCell(style: .default, reuseIdentifier: CommentListFooterCell.reuseIdentifier)
-            cell.configure(bottomPadding: contentBottomPadding)
+            cell.configure()
             return cell
         case .comment(let comment):
             let cell = tableView.dequeueReusableCell(
@@ -319,7 +317,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         case .empty:
             return RowHeightEstimate.empty
         case .footer:
-            return RowHeightEstimate.footer + contentBottomPadding
+            return RowHeightEstimate.footer
         case .comment(let comment):
             guard let measuredHeight = measuredCommentHeights[comment.id],
                   measuredHeight.signature == CommentSignature(comment) else {
@@ -378,6 +376,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         tableView.sectionHeaderHeight = 0
         tableView.sectionFooterHeight = 0
         tableView.contentInsetAdjustmentBehavior = .never
+        contentBottomPaddingFooterView.backgroundColor = .clear
+        tableView.tableFooterView = contentBottomPaddingFooterView
         tableView.register(HostingCommentTableViewCell.self, forCellReuseIdentifier: HostingCommentTableViewCell.reuseIdentifier)
         tableView.register(CommentListFooterCell.self, forCellReuseIdentifier: CommentListFooterCell.reuseIdentifier)
     }
@@ -427,6 +427,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             tableView.reloadData()
             tableView.layoutIfNeeded()
             hasRenderedRows = true
+            updateTableFooterView(in: tableView)
             return
         }
         let previousOffset = tableView.contentOffset
@@ -441,6 +442,22 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 clampedContentOffset(previousOffset, in: tableView),
                 animated: false
             )
+            updateTableFooterView(in: tableView)
+        }
+    }
+
+    private func updateTableFooterView(in tableView: UITableView) {
+        let nextHeight = max(contentBottomPadding, 0)
+        var nextFrame = contentBottomPaddingFooterView.frame
+        nextFrame.size = CGSize(width: tableView.bounds.width, height: nextHeight)
+        guard abs(contentBottomPaddingFooterView.frame.height - nextHeight) > 0.5
+            || abs(contentBottomPaddingFooterView.frame.width - tableView.bounds.width) > 0.5
+            || tableView.tableFooterView !== contentBottomPaddingFooterView else {
+            return
+        }
+        UIView.performWithoutAnimation {
+            contentBottomPaddingFooterView.frame = nextFrame
+            tableView.tableFooterView = contentBottomPaddingFooterView
         }
     }
 
@@ -670,17 +687,13 @@ private final class CommentListFooterCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(bottomPadding: CGFloat) {
+    func configure() {
         contentConfiguration = UIHostingConfiguration {
-            VStack(spacing: 0) {
-                Text("comment.no_more")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                Color.clear
-                    .frame(height: max(bottomPadding, 0))
-            }
+            Text("comment.no_more")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
         }
         .margins(.all, 0)
     }
