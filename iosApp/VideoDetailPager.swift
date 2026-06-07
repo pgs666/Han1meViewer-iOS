@@ -28,6 +28,47 @@ enum VideoPlayerCollapseModel {
     }
 }
 
+enum VideoDetailPagerOffsetModel {
+    static func initialNormalizedOffsetY(
+        visualTopOffset: CGFloat,
+        collapseDistance: CGFloat
+    ) -> CGFloat {
+        clamp(visualTopOffset, upperBound: collapseDistance)
+    }
+
+    static func inactiveSyncNormalizedOffsetY(
+        activeOffset: CGFloat?,
+        initialOffset: CGFloat,
+        collapseDistance: CGFloat
+    ) -> CGFloat {
+        guard let activeOffset else { return initialOffset }
+        return clamp(activeOffset, upperBound: collapseDistance)
+    }
+
+    static func minimumContentHeight(
+        scrollBoundsHeight: CGFloat,
+        pinnedVisibleHeight: CGFloat,
+        collapseDistance: CGFloat
+    ) -> CGFloat {
+        max(
+            scrollBoundsHeight - max(pinnedVisibleHeight, 0),
+            max(collapseDistance, 0) + 1,
+            1
+        )
+    }
+
+    static func shouldAlignToVisualTopAfterHorizontalActivation(
+        currentOffset: CGFloat,
+        visualTopOffset: CGFloat
+    ) -> Bool {
+        currentOffset <= visualTopOffset + 0.5
+    }
+
+    private static func clamp(_ value: CGFloat, upperBound: CGFloat) -> CGFloat {
+        min(max(value, 0), max(upperBound, 0))
+    }
+}
+
 struct VideoDetailPagerLayoutMetrics {
     let collapseDistance: CGFloat
     let playerScrollAway: CGFloat
@@ -182,7 +223,10 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
     }
 
     var resolvedVisualTopOffset: CGFloat {
-        min(max(visualTopOffset, 0), max(collapseDistance, 0))
+        VideoDetailPagerOffsetModel.initialNormalizedOffsetY(
+            visualTopOffset: visualTopOffset,
+            collapseDistance: collapseDistance
+        )
     }
 
     var collapseSpacerHeight: CGFloat {
@@ -197,19 +241,21 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
         return VideoDetailListOffsetContext(
             contentTopInset: contentTopInset,
             initialNormalizedOffsetY: visualTopOffset,
-            inactiveSyncNormalizedOffsetY: activeOffset.map {
-                min(max($0, 0), max(collapseDistance, 0))
-            } ?? visualTopOffset,
+            inactiveSyncNormalizedOffsetY: VideoDetailPagerOffsetModel.inactiveSyncNormalizedOffsetY(
+                activeOffset: activeOffset,
+                initialOffset: visualTopOffset,
+                collapseDistance: collapseDistance
+            ),
             collapseSpacerHeight: collapseSpacerHeight,
             minimumContentHeight: minimumContentHeight(in: scrollBoundsHeight)
         )
     }
 
     func minimumContentHeight(in scrollBoundsHeight: CGFloat) -> CGFloat {
-        max(
-            scrollBoundsHeight - max(pinnedVisibleHeight, 0),
-            max(collapseDistance, 0) + 1,
-            1
+        VideoDetailPagerOffsetModel.minimumContentHeight(
+            scrollBoundsHeight: scrollBoundsHeight,
+            pinnedVisibleHeight: pinnedVisibleHeight,
+            collapseDistance: collapseDistance
         )
     }
 
@@ -725,7 +771,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: true)
             guard !needsInitialHeaderOffsetReset else { return }
         }
-        guard scrollView.verticalContentOffsetExcludingBounce <= targetOffsetY + 0.5 else {
+        guard VideoDetailPagerOffsetModel.shouldAlignToVisualTopAfterHorizontalActivation(
+            currentOffset: scrollView.verticalContentOffsetExcludingBounce,
+            visualTopOffset: targetOffsetY
+        ) else {
             cancelPendingTopAlignment()
             return
         }
