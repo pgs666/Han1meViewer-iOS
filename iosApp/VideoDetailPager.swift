@@ -344,6 +344,66 @@ private enum VideoDetailPendingTopAlignment {
     case explicit(CGFloat)
 }
 
+private struct VideoDetailListAlignmentState {
+    var pendingTopAlignment: VideoDetailPendingTopAlignment?
+    var needsInitialHeaderOffsetReset = true
+    var hasAppliedInitialListOffset = false
+    var hasCompletedFirstActiveAlignment = false
+    var firstActiveAlignedContentHeight: CGFloat?
+    var hasUserInteractedSinceFirstActiveAlignment = false
+
+    var hasExplicitPendingTopAlignment: Bool {
+        guard let pendingTopAlignment else { return false }
+        if case .explicit = pendingTopAlignment {
+            return true
+        }
+        return false
+    }
+
+    mutating func cancelPendingTopAlignment() {
+        pendingTopAlignment = nil
+    }
+
+    mutating func resetForContentUpdate() {
+        hasCompletedFirstActiveAlignment = false
+        firstActiveAlignedContentHeight = nil
+        hasUserInteractedSinceFirstActiveAlignment = false
+    }
+
+    mutating func reopenFirstActiveAlignmentAfterContentSizeChange() {
+        hasCompletedFirstActiveAlignment = false
+        firstActiveAlignedContentHeight = nil
+    }
+
+    mutating func markInitialOffsetApplied() {
+        needsInitialHeaderOffsetReset = false
+        hasAppliedInitialListOffset = true
+    }
+
+    mutating func markFirstActiveAlignmentCompleted(contentHeight: CGFloat) {
+        hasCompletedFirstActiveAlignment = true
+        firstActiveAlignedContentHeight = contentHeight
+        hasUserInteractedSinceFirstActiveAlignment = false
+    }
+
+    mutating func markUserInteractionAfterFirstActiveAlignment() {
+        hasUserInteractedSinceFirstActiveAlignment = true
+    }
+
+    func shouldReopenFirstActiveAlignment(
+        isSelected: Bool,
+        contentHeight: CGFloat
+    ) -> Bool {
+        guard isSelected,
+              hasCompletedFirstActiveAlignment,
+              !hasUserInteractedSinceFirstActiveAlignment,
+              let firstActiveAlignedContentHeight else {
+            return false
+        }
+        return abs(contentHeight - firstActiveAlignedContentHeight) > 0.5
+    }
+}
+
 private struct VideoDetailHorizontalPagerPosition: Equatable {
     private(set) var selectedIndex = 0
     private(set) var visibleIndex = 0
@@ -615,12 +675,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var collapseSpacerHeightConstraint: NSLayoutConstraint!
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
-    private var pendingTopAlignment: VideoDetailPendingTopAlignment?
-    private var needsInitialHeaderOffsetReset = true
-    private var hasAppliedInitialListOffset = false
-    private var hasCompletedFirstActiveAlignment = false
-    private var firstActiveAlignedContentHeight: CGFloat?
-    private var hasUserInteractedSinceFirstActiveAlignment = false
+    private var alignmentState = VideoDetailListAlignmentState()
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab) {
@@ -725,7 +780,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onInteractionBegan = page.onInteractionBegan
         coordinator.onTopPullDelta = page.onTopPullDelta
         coordinator.onVerticalInteractionBegan = { [weak self] in
-            self?.hasUserInteractedSinceFirstActiveAlignment = true
+            self?.alignmentState.markUserInteractionAfterFirstActiveAlignment()
             self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
         }
         coordinator.onVisibleOffsetChange = { [weak self] tab, offset in
@@ -737,11 +792,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
-            hasCompletedFirstActiveAlignment = false
-            firstActiveAlignedContentHeight = nil
-            hasUserInteractedSinceFirstActiveAlignment = false
-            if !hasAppliedInitialListOffset && !hasExplicitPendingTopAlignment {
-                needsInitialHeaderOffsetReset = true
+            alignmentState.resetForContentUpdate()
+            if !alignmentState.hasAppliedInitialListOffset && !alignmentState.hasExplicitPendingTopAlignment {
+                alignmentState.needsInitialHeaderOffsetReset = true
             }
             view.setNeedsLayout()
             view.layoutIfNeeded()
@@ -757,9 +810,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         applyBottomContentInset(page.contentBottomPadding)
         collapseSpacerHeightConstraint.constant = offsetContext.collapseSpacerHeight
         contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
-        if needsInitialHeaderOffsetReset {
+        if alignmentState.needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
-        } else if pendingTopAlignment != nil {
+        } else if alignmentState.pendingTopAlignment != nil {
             resolvePendingTopAlignmentSoon()
         }
     }
@@ -776,19 +829,21 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         }
-        if shouldReopenFirstActiveAlignmentAfterContentSizeChange(for: page) {
-            hasCompletedFirstActiveAlignment = false
-            firstActiveAlignedContentHeight = nil
+        if alignmentState.shouldReopenFirstActiveAlignment(
+            isSelected: page.isSelected,
+            contentHeight: scrollView.contentSize.height
+        ) {
+            alignmentState.reopenFirstActiveAlignmentAfterContentSizeChange()
         }
-        if pendingTopAlignment != nil {
+        if alignmentState.pendingTopAlignment != nil {
             resolvePendingTopAlignmentIfPossible()
             return
         }
-        if page.isSelected, !hasCompletedFirstActiveAlignment {
+        if page.isSelected, !alignmentState.hasCompletedFirstActiveAlignment {
             applyFirstActiveAlignmentIfNeeded()
             return
         }
-        if needsInitialHeaderOffsetReset {
+        if alignmentState.needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
         }
     }
@@ -834,9 +889,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else { return }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
-            needsInitialHeaderOffsetReset = false
-            hasAppliedInitialListOffset = true
-            cancelPendingTopAlignment()
+            alignmentState.markInitialOffsetApplied()
+            alignmentState.cancelPendingTopAlignment()
             if lastAppliedPage?.isSelected == true {
                 markFirstActiveAlignmentCompleted()
             }
@@ -844,7 +898,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: Bool = false) {
-        guard needsInitialHeaderOffsetReset, let page = lastAppliedPage else { return }
+        guard alignmentState.needsInitialHeaderOffsetReset, let page = lastAppliedPage else { return }
         if !allowDuringInteraction {
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
         }
@@ -852,23 +906,23 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             in: scrollView.bounds.height
         ).initialNormalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
-            pendingTopAlignment = .initial
+            alignmentState.pendingTopAlignment = .initial
             resolvePendingTopAlignmentSoon()
             return
         }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
-            needsInitialHeaderOffsetReset = false
-            hasAppliedInitialListOffset = true
-            cancelPendingTopAlignment()
+            alignmentState.markInitialOffsetApplied()
+            alignmentState.cancelPendingTopAlignment()
         }
     }
 
     private func cancelPendingTopAlignment() {
-        pendingTopAlignment = nil
+        alignmentState.cancelPendingTopAlignment()
     }
 
     private func pendingTopAlignmentTargetOffsetY() -> CGFloat? {
-        guard let pendingTopAlignment, let page = lastAppliedPage else { return nil }
+        guard let pendingTopAlignment = alignmentState.pendingTopAlignment,
+              let page = lastAppliedPage else { return nil }
         switch pendingTopAlignment {
         case .initial:
             return page.headerGeometry.listOffsetContext(in: scrollView.bounds.height).initialNormalizedOffsetY
@@ -878,11 +932,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private var hasExplicitPendingTopAlignment: Bool {
-        guard let pendingTopAlignment else { return false }
-        if case .explicit = pendingTopAlignment {
-            return true
-        }
-        return false
+        alignmentState.hasExplicitPendingTopAlignment
     }
 
     func settleAfterHorizontalActivation() {
@@ -896,20 +946,20 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             in: scrollView.bounds.height
         ).initialNormalizedOffsetY
         coordinator.visualTopContentOffsetY = targetOffsetY
-        if needsInitialHeaderOffsetReset {
+        if alignmentState.needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: allowDuringInteraction)
-            guard !needsInitialHeaderOffsetReset else { return }
+            guard !alignmentState.needsInitialHeaderOffsetReset else { return }
         }
         if !allowDuringInteraction {
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
         }
-        if !hasCompletedFirstActiveAlignment {
+        if !alignmentState.hasCompletedFirstActiveAlignment {
             guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
-                pendingTopAlignment = .initial
+                alignmentState.pendingTopAlignment = .initial
                 resolvePendingTopAlignmentSoon()
                 return
             }
-            hasAppliedInitialListOffset = true
+            alignmentState.markInitialOffsetApplied()
             markFirstActiveAlignmentCompleted()
             cancelPendingTopAlignment()
             return
@@ -922,24 +972,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             return
         }
         setNormalizedContentOffsetY(targetOffsetY)
-        hasAppliedInitialListOffset = true
+        alignmentState.markInitialOffsetApplied()
         markFirstActiveAlignmentCompleted()
     }
 
-    private func shouldReopenFirstActiveAlignmentAfterContentSizeChange(for page: VideoDetailTabPage) -> Bool {
-        guard page.isSelected,
-              hasCompletedFirstActiveAlignment,
-              !hasUserInteractedSinceFirstActiveAlignment,
-              let firstActiveAlignedContentHeight else {
-            return false
-        }
-        return abs(scrollView.contentSize.height - firstActiveAlignedContentHeight) > 0.5
-    }
-
     private func markFirstActiveAlignmentCompleted() {
-        hasCompletedFirstActiveAlignment = true
-        firstActiveAlignedContentHeight = scrollView.contentSize.height
-        hasUserInteractedSinceFirstActiveAlignment = false
+        alignmentState.markFirstActiveAlignmentCompleted(contentHeight: scrollView.contentSize.height)
     }
 
     var normalizedContentOffsetY: CGFloat {
@@ -952,12 +990,11 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         cancelPendingTopAlignment()
         let syncOffsetY = syncMode.normalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(syncOffsetY) else {
-            pendingTopAlignment = .explicit(syncOffsetY)
+            alignmentState.pendingTopAlignment = .explicit(syncOffsetY)
             resolvePendingTopAlignmentSoon()
             return
         }
-        needsInitialHeaderOffsetReset = false
-        hasAppliedInitialListOffset = true
+        alignmentState.markInitialOffsetApplied()
     }
 
     func setHorizontalPagingActive(_ isActive: Bool) {
