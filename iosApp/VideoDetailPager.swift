@@ -786,6 +786,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
     private var isCurrentPageSelected = false
     private var didSetNativeInitialOffset = false
+    private var nativeAlignmentGeometryRevision = 0
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab, listScrollView: UIScrollView? = nil) {
@@ -994,6 +995,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func handleScrollGeometryChange() {
+        nativeAlignmentGeometryRevision &+= 1
         applyCurrentPageGeometryRules()
         applyPendingNativePostLayoutAlignmentIfNeeded()
     }
@@ -1110,6 +1112,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func handleVerticalInteractionBegan() {
+        finishProtectedNativeAlignmentIfReached()
         alignmentState.isProtectingInitialTopAlignment = false
         if isNativeListPage {
             if let pendingOffsetY = alignmentState.pendingTopAlignmentOffsetY {
@@ -1301,13 +1304,33 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard setNativeNormalizedContentOffsetY(targetOffsetY) else { return }
         didSetNativeInitialOffset = true
         alignmentState.markInitialOffsetApplied()
-        if !alignmentState.isProtectingInitialTopAlignment {
+        if alignmentState.isProtectingInitialTopAlignment {
+            scheduleProtectedNativeAlignmentFinishIfStable(targetOffsetY: targetOffsetY)
+        } else {
             alignmentState.cancelPendingTopAlignment()
         }
     }
 
     private func finishInitialOffsetAlignment() {
         alignmentState.finishInitialTopAlignment()
+    }
+
+    private func scheduleProtectedNativeAlignmentFinishIfStable(targetOffsetY: CGFloat) {
+        let capturedRevision = nativeAlignmentGeometryRevision
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard self.nativeAlignmentGeometryRevision == capturedRevision else { return }
+            self.finishProtectedNativeAlignmentIfReached(targetOffsetY: targetOffsetY)
+        }
+    }
+
+    private func finishProtectedNativeAlignmentIfReached(targetOffsetY: CGFloat? = nil) {
+        guard isNativeListPage, alignmentState.isProtectingInitialTopAlignment else { return }
+        let resolvedTargetOffsetY = targetOffsetY ?? alignmentState.pendingTopAlignmentOffsetY
+        guard let resolvedTargetOffsetY else { return }
+        guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
+        guard abs(listScrollView.verticalContentOffsetExcludingBounce - resolvedTargetOffsetY) <= 0.5 else { return }
+        finishInitialOffsetAlignment()
     }
 
     @discardableResult
