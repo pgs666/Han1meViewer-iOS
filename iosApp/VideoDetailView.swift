@@ -549,9 +549,20 @@ struct VideoDetailView: View {
         var commentsHasher = Hasher()
         commentsHasher.combine(ObjectIdentifier(commentViewModel))
         commentsHasher.combine(commentViewModel.sortMode.id)
+        for actionID in commentViewModel.runningActionIDs.sorted() {
+            commentsHasher.combine(actionID)
+        }
         commentsHasher.combine(commentViewModel.sortedComments.count)
         for comment in commentViewModel.sortedComments {
             commentsHasher.combine(comment.id)
+            commentsHasher.combine(comment.username)
+            commentsHasher.combine(comment.date)
+            commentsHasher.combine(comment.content)
+            commentsHasher.combine(comment.hasMoreReplies)
+            commentsHasher.combine(comment.replyCount)
+            commentsHasher.combine(comment.thumbUp)
+            commentsHasher.combine(comment.likeCommentStatus)
+            commentsHasher.combine(comment.unlikeCommentStatus)
         }
         switch commentViewModel.state {
         case .idle:

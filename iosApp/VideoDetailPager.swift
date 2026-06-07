@@ -670,6 +670,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var collapseSpacerHeightConstraint: NSLayoutConstraint?
     private var contentBottomSpacerHeightConstraint: NSLayoutConstraint?
     private var contentUpdateRevision: Int?
+    private var nativeUpdateRevision: Int?
+    private var nativeContentBottomPadding: CGFloat?
     private var lastAppliedPage: VideoDetailTabPage?
     private var didApplyInitialContentOffset = false
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
@@ -824,6 +826,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentUpdateRevision = page.contentUpdateRevision
             switch page.content {
             case .swiftUI(let content):
+                nativeUpdateRevision = nil
+                nativeContentBottomPadding = nil
                 host.view.isHidden = false
                 host.rootView = content()
             case .nativeScrollView:
@@ -854,10 +858,19 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentMinimumHeightConstraint?.constant = 1
             hostMinimumHeightConstraint?.isActive = false
             if case .nativeScrollView(let nativePage) = page.content {
-                nativePage.update()
+                applyNativeUpdateIfNeeded(nativePage, page: page)
                 applyInitialContentOffsetIfNeeded(offsetContext.initialNormalizedOffsetY, isSelected: page.isSelected)
             }
         }
+    }
+
+    private func applyNativeUpdateIfNeeded(_ nativePage: VideoDetailNativeScrollPage, page: VideoDetailTabPage) {
+        let shouldUpdate = nativeUpdateRevision != page.contentUpdateRevision
+            || nativeContentBottomPadding.map { abs($0 - page.contentBottomPadding) > 0.5 } ?? true
+        guard shouldUpdate else { return }
+        nativeUpdateRevision = page.contentUpdateRevision
+        nativeContentBottomPadding = page.contentBottomPadding
+        nativePage.update()
     }
 
     private func applySwiftUIContentMinimumHeight() {
