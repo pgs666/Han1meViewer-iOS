@@ -1584,6 +1584,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             lastLaidOutWidth = width
             layoutHeaderHosts()
             updateHeaderAttachmentForCurrentState()
+            if isHorizontalSelectionInProgress {
+                return
+            }
             if let pendingSelectedIndex {
                 self.pendingSelectedIndex = nil
                 setSelectedIndex(pendingSelectedIndex, animated: false)
@@ -1604,7 +1607,11 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             animated: Bool
         ) {
             loadViewIfNeeded()
-            pagerPosition.setSelectedIndex(selectedIndex)
+            if isHorizontalSelectionInProgress {
+                pendingSelectedIndex = selectedIndex
+            } else {
+                pagerPosition.setSelectedIndex(selectedIndex)
+            }
             latestPages[.introduction] = introduction
             latestPages[.comments] = comments
             prepareCommentsPageIfNeeded(for: comments)
@@ -1653,6 +1660,13 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             scrollView.setContentOffset(targetOffset, animated: animated)
         }
 
+        private var isHorizontalSelectionInProgress: Bool {
+            pagerPosition.isPagingActive
+                || scrollView.isTracking
+                || scrollView.isDragging
+                || scrollView.isDecelerating
+        }
+
         private func settleSelectedPageIfNeeded(_ index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
             guard pagerPosition.settledIndex != clampedIndex else {
@@ -1674,6 +1688,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func finishHorizontalPaging(at index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            pendingSelectedIndex = nil
             if let activePage = verticalPageController(for: VideoPageTab.page(at: pagerPosition.selectedIndex)) {
                 updateHeaderSyncState(activeOffset: activePage.normalizedContentOffsetY)
             }
