@@ -376,9 +376,6 @@ private struct VideoDetailListAlignmentState {
     var needsInitialHeaderOffsetReset = true
     var hasAppliedInitialListOffset = false
     var hasCompletedFirstActiveAlignment = false
-    var isFirstActiveAlignmentStabilizing = false
-    var firstActiveAlignedContentHeight: CGFloat?
-    var hasUserInteractedSinceFirstActiveAlignment = false
 
     var hasExplicitPendingTopAlignment: Bool {
         guard let pendingTopAlignment else { return false }
@@ -394,15 +391,6 @@ private struct VideoDetailListAlignmentState {
 
     mutating func resetForContentUpdate() {
         hasCompletedFirstActiveAlignment = false
-        isFirstActiveAlignmentStabilizing = false
-        firstActiveAlignedContentHeight = nil
-        hasUserInteractedSinceFirstActiveAlignment = false
-    }
-
-    mutating func reopenFirstActiveAlignmentAfterContentSizeChange() {
-        hasCompletedFirstActiveAlignment = false
-        isFirstActiveAlignmentStabilizing = false
-        firstActiveAlignedContentHeight = nil
     }
 
     mutating func markInitialOffsetApplied() {
@@ -410,36 +398,8 @@ private struct VideoDetailListAlignmentState {
         hasAppliedInitialListOffset = true
     }
 
-    mutating func markFirstActiveAlignmentCompleted(contentHeight: CGFloat) {
+    mutating func markFirstActiveAlignmentCompleted() {
         hasCompletedFirstActiveAlignment = true
-        isFirstActiveAlignmentStabilizing = true
-        firstActiveAlignedContentHeight = contentHeight
-        hasUserInteractedSinceFirstActiveAlignment = false
-    }
-
-    mutating func markFirstActiveAlignmentStabilized(contentHeight: CGFloat) {
-        hasCompletedFirstActiveAlignment = true
-        isFirstActiveAlignmentStabilizing = false
-        firstActiveAlignedContentHeight = contentHeight
-        hasUserInteractedSinceFirstActiveAlignment = false
-    }
-
-    mutating func markUserInteractionAfterFirstActiveAlignment() {
-        guard hasCompletedFirstActiveAlignment, !isFirstActiveAlignmentStabilizing else { return }
-        hasUserInteractedSinceFirstActiveAlignment = true
-    }
-
-    func shouldReopenFirstActiveAlignment(
-        isSelected: Bool,
-        contentHeight: CGFloat
-    ) -> Bool {
-        guard isSelected,
-              hasCompletedFirstActiveAlignment,
-              !hasUserInteractedSinceFirstActiveAlignment,
-              let firstActiveAlignedContentHeight else {
-            return false
-        }
-        return abs(contentHeight - firstActiveAlignedContentHeight) > 0.5
     }
 }
 
@@ -806,7 +766,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var lastAppliedPage: VideoDetailTabPage?
     private var alignmentState = VideoDetailListAlignmentState()
     private var pendingTopAlignmentRetryCount = 0
-    private var firstActiveAlignmentVerificationPass = 0
     private var listScrollViewContentSizeObservation: NSKeyValueObservation?
     private var listScrollViewBoundsObservation: NSKeyValueObservation?
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
@@ -939,7 +898,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onInteractionBegan = page.onInteractionBegan
         coordinator.onTopPullDelta = page.onTopPullDelta
         coordinator.onVerticalInteractionBegan = { [weak self] in
-            self?.alignmentState.markUserInteractionAfterFirstActiveAlignment()
             self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
         }
         coordinator.onVisibleOffsetChange = { [weak self] tab, offset in
@@ -1021,12 +979,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentMinimumHeightConstraint.constant = isNativeScrollView ? 1 : offsetContext.minimumContentHeight
         }
         applyNativeMinimumContentSizeIfNeeded(page: page, offsetContext: offsetContext)
-        if alignmentState.shouldReopenFirstActiveAlignment(
-            isSelected: page.isSelected,
-            contentHeight: listScrollView.contentSize.height
-        ) {
-            alignmentState.reopenFirstActiveAlignmentAfterContentSizeChange()
-        }
         if alignmentState.pendingTopAlignment != nil {
             resolvePendingTopAlignmentIfPossible()
             return
@@ -1125,7 +1077,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             alignmentState.cancelPendingTopAlignment()
             pendingTopAlignmentRetryCount = 0
             if lastAppliedPage?.isSelected == true {
-                markFirstActiveAlignmentCompleted()
+                alignmentState.markFirstActiveAlignmentCompleted()
             }
         }
     }
@@ -1193,7 +1145,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
                 return
             }
             alignmentState.markInitialOffsetApplied()
-            markFirstActiveAlignmentCompleted()
+            alignmentState.markFirstActiveAlignmentCompleted()
             cancelPendingTopAlignment()
             return
         }
@@ -1206,40 +1158,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         setNormalizedContentOffsetY(targetOffsetY)
         alignmentState.markInitialOffsetApplied()
-        markFirstActiveAlignmentCompleted()
-    }
-
-    private func markFirstActiveAlignmentCompleted() {
-        alignmentState.markFirstActiveAlignmentCompleted(contentHeight: listScrollView.contentSize.height)
-        scheduleFirstActiveAlignmentVerification()
-    }
-
-    private func scheduleFirstActiveAlignmentVerification() {
-        guard firstActiveAlignmentVerificationPass == 0 else { return }
-        firstActiveAlignmentVerificationPass = 1
-        DispatchQueue.main.async { [weak self] in
-            self?.runFirstActiveAlignmentVerification()
-        }
-    }
-
-    private func runFirstActiveAlignmentVerification() {
-        view.layoutIfNeeded()
-        applyCurrentPageGeometryRules()
-        guard alignmentState.hasCompletedFirstActiveAlignment,
-              alignmentState.isFirstActiveAlignmentStabilizing,
-              lastAppliedPage?.isSelected == true else {
-            firstActiveAlignmentVerificationPass = 0
-            return
-        }
-        if firstActiveAlignmentVerificationPass < 3 {
-            firstActiveAlignmentVerificationPass += 1
-            DispatchQueue.main.async { [weak self] in
-                self?.runFirstActiveAlignmentVerification()
-            }
-            return
-        }
-        alignmentState.markFirstActiveAlignmentStabilized(contentHeight: listScrollView.contentSize.height)
-        firstActiveAlignmentVerificationPass = 0
+        alignmentState.markFirstActiveAlignmentCompleted()
     }
 
     var normalizedContentOffsetY: CGFloat {
@@ -1448,19 +1367,19 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         }
 
         func scrollViewDidEndDecelerating(_ listScrollView: UIScrollView) {
-            updateSelectedTab(from: listScrollView)
             onPagingActivityChanged?(false)
+            updateSelectedTab(from: listScrollView)
         }
 
         func scrollViewDidEndScrollingAnimation(_ listScrollView: UIScrollView) {
-            updateSelectedTab(from: listScrollView)
             onPagingActivityChanged?(false)
+            updateSelectedTab(from: listScrollView)
         }
 
         func scrollViewDidEndDragging(_ listScrollView: UIScrollView, willDecelerate decelerate: Bool) {
             if !decelerate {
-                updateSelectedTab(from: listScrollView)
                 onPagingActivityChanged?(false)
+                updateSelectedTab(from: listScrollView)
             }
         }
 
