@@ -531,6 +531,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var pendingTopAlignment: VideoDetailPendingTopAlignment?
     private var needsInitialHeaderOffsetReset = true
     private var hasAppliedInitialListOffset = false
+    private var hasCompletedFirstActiveAlignment = false
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab) {
@@ -646,6 +647,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             host.rootView = page.content()
+            hasCompletedFirstActiveAlignment = false
             if !hasAppliedInitialListOffset && !hasExplicitPendingTopAlignment {
                 needsInitialHeaderOffsetReset = true
             }
@@ -684,6 +686,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         if pendingTopAlignment != nil {
             resolvePendingTopAlignmentIfPossible()
+            return
+        }
+        if page.isSelected, !hasCompletedFirstActiveAlignment {
+            applyFirstActiveAlignmentIfNeeded()
             return
         }
         if needsInitialHeaderOffsetReset {
@@ -782,10 +788,32 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     func settleAfterHorizontalActivation() {
         loadViewIfNeeded()
-        let targetOffsetY = coordinator.visualTopContentOffsetY
+        applyFirstActiveAlignmentIfNeeded(allowDuringInteraction: true)
+    }
+
+    private func applyFirstActiveAlignmentIfNeeded(allowDuringInteraction: Bool = false) {
+        guard let page = lastAppliedPage else { return }
+        let targetOffsetY = page.headerGeometry.listOffsetContext(
+            in: scrollView.bounds.height
+        ).initialNormalizedOffsetY
+        coordinator.visualTopContentOffsetY = targetOffsetY
         if needsInitialHeaderOffsetReset {
-            applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: true)
+            applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: allowDuringInteraction)
             guard !needsInitialHeaderOffsetReset else { return }
+        }
+        if !allowDuringInteraction {
+            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+        }
+        if !hasCompletedFirstActiveAlignment {
+            guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
+                pendingTopAlignment = .initial
+                resolvePendingTopAlignmentSoon()
+                return
+            }
+            hasAppliedInitialListOffset = true
+            hasCompletedFirstActiveAlignment = true
+            cancelPendingTopAlignment()
+            return
         }
         guard VideoDetailPagerOffsetModel.shouldAlignToVisualTopAfterHorizontalActivation(
             currentOffset: scrollView.verticalContentOffsetExcludingBounce,
@@ -796,6 +824,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         setNormalizedContentOffsetY(targetOffsetY)
         hasAppliedInitialListOffset = true
+        hasCompletedFirstActiveAlignment = true
     }
 
     var normalizedContentOffsetY: CGFloat {
@@ -1046,18 +1075,16 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             guard width > 0 else { return }
             let index = Int(round(scrollView.contentOffset.x / width))
             let tab = VideoPageTab.page(at: index)
+            onSelectedIndexSettled?(index)
             if selectedTab.wrappedValue != tab {
                 pendingSettledIndex = index
                 selectedTab.wrappedValue = tab
-            } else {
-                onSelectedIndexSettled?(index)
             }
         }
 
         func consumePendingSettledIndex(for selectedIndex: Int) -> Bool {
             guard pendingSettledIndex == selectedIndex else { return false }
             pendingSettledIndex = nil
-            onSelectedIndexSettled?(selectedIndex)
             return true
         }
     }
@@ -1257,13 +1284,19 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private func settleSelectedPageIfNeeded(_ index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
             guard lastSettledSelectedIndex != clampedIndex else { return }
-            lastSettledSelectedIndex = clampedIndex
             settlePageAfterHorizontalSelection(clampedIndex)
         }
 
         private func settlePageAfterHorizontalSelection(_ index: Int) {
-            lastSettledSelectedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
-            headerVisibleIndex = lastSettledSelectedIndex ?? selectedIndex
+            let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            selectedIndex = clampedIndex
+            guard lastSettledSelectedIndex != clampedIndex else {
+                headerVisibleIndex = clampedIndex
+                updateHeaderAttachmentForCurrentState()
+                return
+            }
+            lastSettledSelectedIndex = clampedIndex
+            headerVisibleIndex = clampedIndex
             layoutHeaderHosts()
             switch VideoPageTab.page(at: index) {
             case .introduction:
