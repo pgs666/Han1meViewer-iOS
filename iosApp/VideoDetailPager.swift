@@ -953,7 +953,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if isNativeScrollView {
             applyNativeGeometryAlignment(
                 initialOffsetY: offsetContext.initialNormalizedOffsetY,
-                didApplyMinimumContentSize: didApplyNativeMinimumContentSize
+                didApplyMinimumContentSize: didApplyNativeMinimumContentSize,
+                isCurrentPageSelected: page.isSelected
             )
             return
         }
@@ -1090,8 +1091,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func applyNativeGeometryAlignment(
         initialOffsetY: CGFloat,
-        didApplyMinimumContentSize _: Bool
+        didApplyMinimumContentSize _: Bool,
+        isCurrentPageSelected: Bool
     ) {
+        guard isCurrentPageSelected else { return }
         applyNativeInitialOffsetIfNeeded(initialOffsetY)
     }
 
