@@ -387,6 +387,7 @@ private struct VideoDetailListAlignmentState {
     }
 
     mutating func markUserInteractionAfterFirstActiveAlignment() {
+        guard hasCompletedFirstActiveAlignment else { return }
         hasUserInteractedSinceFirstActiveAlignment = true
     }
 
