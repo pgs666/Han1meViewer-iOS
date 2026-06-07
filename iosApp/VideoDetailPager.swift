@@ -753,6 +753,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var listScrollViewBoundsObservation: NSKeyValueObservation?
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
     private var isCurrentPageSelected = false
+    private var pendingNativePostLayoutAlignmentOffsetY: CGFloat?
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab, listScrollView: UIScrollView? = nil) {
@@ -883,6 +884,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         super.viewDidLayoutSubviews()
         applyListHeaderFrame()
         handleScrollGeometryChange()
+        applyPendingNativePostLayoutAlignmentIfNeeded()
     }
 
     func update(page: VideoDetailTabPage) {
@@ -1133,7 +1135,14 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         loadViewIfNeeded()
         isCurrentPageSelected = true
         if isNativeListPage {
+            pendingNativePostLayoutAlignmentOffsetY = targetOffsetY
+            listScrollView.setNeedsLayout()
+            listScrollView.layoutIfNeeded()
             setNativeNormalizedContentOffsetY(targetOffsetY)
+            applyPendingNativePostLayoutAlignmentIfNeeded()
+            DispatchQueue.main.async { [weak self] in
+                self?.applyPendingNativePostLayoutAlignmentIfNeeded()
+            }
         } else {
             setNormalizedContentOffsetY(targetOffsetY)
         }
@@ -1204,10 +1213,20 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             setNormalizedContentOffsetY(offsetY)
             return
         }
+        listScrollView.layoutIfNeeded()
         let rawTopOffsetY = listScrollView.clampedRawVerticalContentOffsetY(
             offsetY - listScrollView.contentInset.top
         )
         setRawContentOffsetYSilentlyIfNeeded(rawTopOffsetY)
+    }
+
+    private func applyPendingNativePostLayoutAlignmentIfNeeded() {
+        guard isNativeListPage, let targetOffsetY = pendingNativePostLayoutAlignmentOffsetY else { return }
+        guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
+        listScrollView.layoutIfNeeded()
+        setNativeNormalizedContentOffsetY(targetOffsetY)
+        guard abs(listScrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 else { return }
+        pendingNativePostLayoutAlignmentOffsetY = nil
     }
 
     @discardableResult
@@ -1821,11 +1840,18 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             guard let page = latestPages[headerTab] else { return }
             layoutHeaderHosts()
             guard let pageController = verticalPageController(for: headerTab) else { return }
-            let offset = pageController.normalizedContentOffsetY
+            let syncState: VideoDetailSmoothHeaderSyncState
+            if pagerPosition.isPagingActive {
+                syncState = headerSyncState
+            } else {
+                let offset = pageController.normalizedContentOffsetY
+                syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offset)
+                headerSyncState = syncState
+            }
             let attachmentState = VideoDetailHeaderAttachmentState.state(
                 isHorizontalPagingActive: pagerPosition.isPagingActive,
                 canAttachToListHeader: pageController.canAttachHeaderToListHeader(for: page),
-                syncState: page.headerGeometry.smoothHeaderSyncState(activeOffset: offset)
+                syncState: syncState
             )
             applyHeaderAttachment(attachmentState, pageController: pageController)
         }

@@ -435,6 +435,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         _ height: CGFloat,
         commentID: String
     ) {
+        guard let tableView else { return }
+        guard !tableView.isTracking, !tableView.isDragging, !tableView.isDecelerating else { return }
         guard height > 1 else { return }
         let roundedHeight = ceil(height)
         guard let comment = comments.first(where: { $0.id == commentID }) else { return }
