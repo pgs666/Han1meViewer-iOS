@@ -368,7 +368,6 @@ private struct VideoDetailListAlignmentState {
     var pendingTopAlignment: VideoDetailPendingTopAlignment?
     var needsInitialHeaderOffsetReset = true
     var hasAppliedInitialListOffset = false
-    var hasCompletedFirstActiveAlignment = false
 
     var hasExplicitPendingTopAlignment: Bool {
         guard let pendingTopAlignment else { return false }
@@ -382,17 +381,9 @@ private struct VideoDetailListAlignmentState {
         pendingTopAlignment = nil
     }
 
-    mutating func resetForContentUpdate() {
-        hasCompletedFirstActiveAlignment = false
-    }
-
     mutating func markInitialOffsetApplied() {
         needsInitialHeaderOffsetReset = false
         hasAppliedInitialListOffset = true
-    }
-
-    mutating func markFirstActiveAlignmentCompleted() {
-        hasCompletedFirstActiveAlignment = true
     }
 }
 
@@ -751,7 +742,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private let listHeaderView = UIView()
     private let collapseSpacerView = UIView()
     private let contentBottomSpacerView = UIView()
-    private let nativeBottomSpacerView = UIView()
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var hostMinimumHeightConstraint: NSLayoutConstraint?
     private var contentMinimumHeightConstraint: NSLayoutConstraint?
@@ -892,9 +882,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         applyListHeaderFrame()
-        if usesNativeListScrollView, let page = lastAppliedPage {
-            applyNativeBottomSpacer(page.contentBottomPadding)
-        }
         handleScrollGeometryChange()
     }
 
@@ -935,7 +922,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
                     host.rootView = AnyView(EmptyView())
                 }
             }
-            alignmentState.resetForContentUpdate()
             if !alignmentState.hasAppliedInitialListOffset && !alignmentState.hasExplicitPendingTopAlignment {
                 alignmentState.needsInitialHeaderOffsetReset = true
             }
@@ -1002,10 +988,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             resolvePendingTopAlignmentIfPossible()
             return
         }
-        if page.isSelected, !alignmentState.hasCompletedFirstActiveAlignment {
-            applyFirstActiveAlignmentIfNeeded()
-            return
-        }
         if alignmentState.needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
         }
@@ -1033,24 +1015,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(listScrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
             listScrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
         }
-        if !usesContentSpacer {
-            applyNativeBottomSpacer(resolvedBottomSpacing)
-        }
-    }
-
-    private func applyNativeBottomSpacer(_ bottomSpacing: CGFloat) {
-        guard let tableView = listScrollView as? UITableView else { return }
-        let width = max(tableView.bounds.width, 1)
-        let nextFrame = CGRect(x: 0, y: 0, width: width, height: bottomSpacing)
-        nativeBottomSpacerView.backgroundColor = .clear
-        if tableView.tableFooterView !== nativeBottomSpacerView {
-            nativeBottomSpacerView.frame = nextFrame
-            tableView.tableFooterView = nativeBottomSpacerView
-            return
-        }
-        guard !nativeBottomSpacerView.frame.isApproximatelyEqual(to: nextFrame) else { return }
-        nativeBottomSpacerView.frame = nextFrame
-        tableView.tableFooterView = nativeBottomSpacerView
     }
 
     @discardableResult
@@ -1093,9 +1057,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(listScrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             alignmentState.markInitialOffsetApplied()
             alignmentState.cancelPendingTopAlignment()
-            if lastAppliedPage?.isSelected == true {
-                alignmentState.markFirstActiveAlignmentCompleted()
-            }
         }
     }
 
@@ -1139,47 +1100,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     func settleAfterHorizontalActivation(targetOffsetY: CGFloat) {
         loadViewIfNeeded()
-        applyFirstActiveAlignmentIfNeeded(
-            targetOffsetY: targetOffsetY,
-            allowDuringInteraction: true
-        )
-    }
-
-    private func applyFirstActiveAlignmentIfNeeded(allowDuringInteraction: Bool = false) {
-        guard let page = lastAppliedPage else { return }
-        let targetOffsetY = page.headerGeometry.listOffsetContext(
-            in: listScrollView.bounds.height
-        ).initialNormalizedOffsetY
-        applyFirstActiveAlignmentIfNeeded(
-            targetOffsetY: targetOffsetY,
-            allowDuringInteraction: allowDuringInteraction
-        )
-    }
-
-    private func applyFirstActiveAlignmentIfNeeded(
-        targetOffsetY: CGFloat,
-        allowDuringInteraction: Bool = false
-    ) {
-        if alignmentState.needsInitialHeaderOffsetReset {
-            alignmentState.markInitialOffsetApplied()
-        }
-        if !allowDuringInteraction {
-            guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
-        }
-        if !alignmentState.hasCompletedFirstActiveAlignment {
-            guard setNormalizedContentOffsetYForAlignment(targetOffsetY) else {
-                alignmentState.pendingTopAlignment = .initial
-                resolvePendingTopAlignmentIfPossible()
-                return
-            }
-            alignmentState.markInitialOffsetApplied()
-            alignmentState.markFirstActiveAlignmentCompleted()
-            cancelPendingTopAlignment()
-            return
-        }
-        setNormalizedContentOffsetY(targetOffsetY)
+        setNormalizedContentOffsetYForAlignment(targetOffsetY)
         alignmentState.markInitialOffsetApplied()
-        alignmentState.markFirstActiveAlignmentCompleted()
+        cancelPendingTopAlignment()
     }
 
     var normalizedContentOffsetY: CGFloat {
