@@ -676,6 +676,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
     private var alignmentState = VideoDetailListAlignmentState()
+    private var isFirstActiveAlignmentVerificationScheduled = false
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab) {
@@ -978,6 +979,18 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func markFirstActiveAlignmentCompleted() {
         alignmentState.markFirstActiveAlignmentCompleted(contentHeight: scrollView.contentSize.height)
+        scheduleFirstActiveAlignmentVerification()
+    }
+
+    private func scheduleFirstActiveAlignmentVerification() {
+        guard !isFirstActiveAlignmentVerificationScheduled else { return }
+        isFirstActiveAlignmentVerificationScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isFirstActiveAlignmentVerificationScheduled = false
+            self.view.layoutIfNeeded()
+            self.applyCurrentPageGeometryRules()
+        }
     }
 
     var normalizedContentOffsetY: CGFloat {
@@ -1225,11 +1238,12 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             guard width > 0 else { return }
             let index = Int(round(scrollView.contentOffset.x / width))
             let tab = VideoPageTab.page(at: index)
-            onSelectedIndexSettled?(index)
             if selectedTab.wrappedValue != tab {
                 pendingSettledIndex = index
                 selectedTab.wrappedValue = tab
+                return
             }
+            onSelectedIndexSettled?(index)
         }
 
         func consumePendingSettledIndex(for selectedIndex: Int) -> Bool {
@@ -1402,10 +1416,12 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             if !pagerPosition.isPagingActive {
                 syncInactivePageHeaderOffset()
             }
-            let consumedSettledIndex = coordinator.consumePendingSettledIndex(for: pagerPosition.selectedIndex)
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+            let consumedSettledIndex = coordinator.consumePendingSettledIndex(for: pagerPosition.selectedIndex)
             setSelectedIndex(pagerPosition.selectedIndex, animated: animated)
-            if !animated && !consumedSettledIndex {
+            if consumedSettledIndex {
+                finishHorizontalPaging(at: pagerPosition.selectedIndex)
+            } else if !animated {
                 settleSelectedPageIfNeeded(pagerPosition.selectedIndex)
             }
         }
