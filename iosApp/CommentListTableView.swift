@@ -135,6 +135,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var hasRenderedRows = false
     private var measuredCommentHeights: [String: MeasuredCommentHeight] = [:]
     private var isUpdatingMeasuredHeights = false
+    private var isReloadingRows = false
+    private var hasPendingMeasuredHeightLayoutUpdate = false
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -290,6 +292,9 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         if case .bottomSpacer(let height) = rows[indexPath.row] {
             return max(height, 0)
         }
+        if case .footer = rows[indexPath.row] {
+            return RowHeightEstimate.footer
+        }
         if case .comment(let comment) = rows[indexPath.row],
            let measuredHeight = measuredCommentHeights[comment.id],
            measuredHeight.signature == CommentSignature(comment) {
@@ -399,6 +404,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private func reloadTablePreservingOffset() {
         guard let tableView else { return }
         guard hasRenderedRows else {
+            isReloadingRows = true
+            defer { isReloadingRows = false }
             tableView.reloadData()
             tableView.layoutIfNeeded()
             hasRenderedRows = true
@@ -406,6 +413,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         }
         let previousOffset = tableView.contentOffset
         UIView.performWithoutAnimation {
+            isReloadingRows = true
+            defer { isReloadingRows = false }
             tableView.reloadData()
             if !tableView.isTracking, !tableView.isDragging, !tableView.isDecelerating {
                 tableView.layoutIfNeeded()
@@ -467,10 +476,27 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         )
         guard let tableView,
               !isUpdatingMeasuredHeights,
+              !isReloadingRows,
               !tableView.isTracking,
               !tableView.isDragging,
               !tableView.isDecelerating else { return }
-        updateTableLayoutPreservingOffset()
+        scheduleMeasuredHeightLayoutUpdate(tableView: tableView)
+    }
+
+    private func scheduleMeasuredHeightLayoutUpdate(tableView: UITableView) {
+        guard !hasPendingMeasuredHeightLayoutUpdate else { return }
+        hasPendingMeasuredHeightLayoutUpdate = true
+        DispatchQueue.main.async { [weak self, weak tableView] in
+            guard let self else { return }
+            self.hasPendingMeasuredHeightLayoutUpdate = false
+            guard let tableView,
+                  !self.isUpdatingMeasuredHeights,
+                  !self.isReloadingRows,
+                  !tableView.isTracking,
+                  !tableView.isDragging,
+                  !tableView.isDecelerating else { return }
+            self.updateTableLayoutPreservingOffset()
+        }
     }
 }
 
