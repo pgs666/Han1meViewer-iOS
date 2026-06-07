@@ -175,6 +175,7 @@ struct CommentRowView: View {
 
                 Text(comment.content)
                     .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 14) {
                     TapOnlyControl(isDisabled: isRunningLike) {
