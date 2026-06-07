@@ -235,6 +235,11 @@ private struct VideoDetailListOffsetContext: Equatable {
     let minimumContentHeight: CGFloat
 }
 
+private enum VideoDetailPendingTopAlignment {
+    case initial
+    case explicit(CGFloat)
+}
+
 private struct VideoDetailTabPage {
     let tab: VideoPageTab
     let contentBottomPadding: CGFloat
@@ -452,7 +457,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
     private var topAlignmentGeneration = 0
-    private var pendingTopAlignmentTargetOffsetY: CGFloat?
+    private var pendingTopAlignment: VideoDetailPendingTopAlignment?
     private var needsInitialHeaderOffsetReset = true
 
     init(tab: VideoPageTab) {
@@ -487,8 +492,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         scrollView.delegate = coordinator
         scrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
         scrollView.onGeometryChange = { [weak self] in
-            self?.applyCurrentPageGeometryRules()
-            self?.resolvePendingTopAlignmentIfPossible()
+            self?.handleScrollGeometryChange()
         }
         scrollView.shouldBeginVerticalPan = { [weak self] panGestureRecognizer, view in
             self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
@@ -548,8 +552,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         applyListHeaderFrame()
-        applyCurrentPageGeometryRules()
-        resolvePendingTopAlignmentIfPossible()
+        handleScrollGeometryChange()
     }
 
     func update(page: VideoDetailTabPage) {
@@ -561,7 +564,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onVerticalInteractionBegan = { [weak self] in
             self?.resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
         }
-        if !page.isSelected {
+        if !page.isSelected, !hasExplicitPendingTopAlignment {
             cancelPendingTopAlignment()
         }
         if contentUpdateRevision != page.contentUpdateRevision {
@@ -585,8 +588,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         if needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
-        } else if pendingTopAlignmentTargetOffsetY != nil {
-            pendingTopAlignmentTargetOffsetY = visualTopOffset
+        } else if pendingTopAlignment != nil {
             resolvePendingTopAlignmentSoon()
         } else {
             preserveVisualTopIfNeeded(
@@ -594,6 +596,11 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
                 targetOffsetY: visualTopOffset
             )
         }
+    }
+
+    private func handleScrollGeometryChange() {
+        applyCurrentPageGeometryRules()
+        resolvePendingTopAlignmentIfPossible()
     }
 
     private func applyCurrentPageGeometryRules() {
@@ -604,8 +611,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         }
         let visualTopOffset = offsetContext.initialNormalizedOffsetY
-        if pendingTopAlignmentTargetOffsetY != nil {
-            pendingTopAlignmentTargetOffsetY = visualTopOffset
+        if pendingTopAlignment != nil {
             resolvePendingTopAlignmentIfPossible()
             return
         }
@@ -647,7 +653,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     private func requestTopAlignment(targetOffsetY: CGFloat) {
         topAlignmentGeneration &+= 1
-        pendingTopAlignmentTargetOffsetY = targetOffsetY
+        pendingTopAlignment = .explicit(targetOffsetY)
         resolvePendingTopAlignmentSoon()
     }
 
@@ -661,7 +667,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func resolvePendingTopAlignmentIfPossible(allowDuringInteraction: Bool = false) {
-        guard let targetOffsetY = pendingTopAlignmentTargetOffsetY else { return }
+        guard let targetOffsetY = pendingTopAlignmentTargetOffsetY() else { return }
         if !allowDuringInteraction {
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
         }
@@ -681,7 +687,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             in: scrollView.bounds.height
         ).initialNormalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
-            pendingTopAlignmentTargetOffsetY = targetOffsetY
+            pendingTopAlignment = .initial
             return
         }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
@@ -691,7 +697,25 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     }
 
     private func cancelPendingTopAlignment() {
-        pendingTopAlignmentTargetOffsetY = nil
+        pendingTopAlignment = nil
+    }
+
+    private func pendingTopAlignmentTargetOffsetY() -> CGFloat? {
+        guard let pendingTopAlignment, let page = lastAppliedPage else { return nil }
+        switch pendingTopAlignment {
+        case .initial:
+            return page.headerGeometry.listOffsetContext(in: scrollView.bounds.height).initialNormalizedOffsetY
+        case .explicit(let offsetY):
+            return offsetY
+        }
+    }
+
+    private var hasExplicitPendingTopAlignment: Bool {
+        guard let pendingTopAlignment else { return false }
+        if case .explicit = pendingTopAlignment {
+            return true
+        }
+        return false
     }
 
     func settleAfterHorizontalActivation() {
@@ -726,7 +750,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             activeOffset: offsetY
         ).inactiveSyncNormalizedOffsetY
         guard setNormalizedContentOffsetYIfReachable(syncOffsetY) else {
-            pendingTopAlignmentTargetOffsetY = syncOffsetY
+            pendingTopAlignment = .explicit(syncOffsetY)
             return
         }
         needsInitialHeaderOffsetReset = false
