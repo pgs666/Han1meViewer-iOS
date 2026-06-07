@@ -1150,7 +1150,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func setNormalizedContentOffsetY(_ offsetY: CGFloat) {
         guard let page = lastAppliedPage else { return }
         let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: listScrollView)
-        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+        setRawContentOffsetYSilentlyIfNeeded(rawTopOffsetY)
     }
 
     private func setNativeNormalizedContentOffsetY(_ offsetY: CGFloat) {
@@ -1159,7 +1159,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             return
         }
         let rawTopOffsetY = offsetY - listScrollView.adjustedContentInset.top
-        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+        setRawContentOffsetYSilentlyIfNeeded(rawTopOffsetY)
     }
 
     @discardableResult
@@ -1173,17 +1173,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard abs(normalizedContentOffsetY(forRawOffsetY: rawTopOffsetY) - offsetY) <= 0.5 else {
             return false
         }
-        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+        setRawContentOffsetYSilentlyIfNeeded(rawTopOffsetY)
         return true
     }
 
-    private func setRawContentOffsetYIfNeeded(_ rawTopOffsetY: CGFloat) {
+    private func setRawContentOffsetYSilentlyIfNeeded(_ rawTopOffsetY: CGFloat) {
         guard abs(listScrollView.contentOffset.y - rawTopOffsetY) > 0.5 else { return }
         coordinator.isApplyingExternalOffset = true
         defer { coordinator.isApplyingExternalOffset = false }
         listScrollView.setContentOffset(CGPoint(x: listScrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
         coordinator.resetReportedOffset(listScrollView.verticalContentOffsetExcludingBounce)
-        onHeaderOffsetChanged(coordinator.tab, listScrollView.verticalContentOffsetExcludingBounce)
     }
 
     func headerAttachmentView() -> UIView {
