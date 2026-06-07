@@ -1180,27 +1180,32 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         return listScrollView.verticalContentOffsetExcludingBounce
     }
 
+    @discardableResult
     func syncHeaderOffsetFromActivePage(
         _ syncMode: VideoDetailPagerOffsetModel.InactiveSyncMode,
         consumeInitialReset: Bool = true
-    ) {
+    ) -> Bool {
         loadViewIfNeeded()
         cancelPendingTopAlignment()
         let syncOffsetY = syncMode.normalizedOffsetY
         if isNativeListPage {
-            setNativeNormalizedContentOffsetY(syncOffsetY)
+            guard setNativeNormalizedContentOffsetY(syncOffsetY) else {
+                pendingNativePostLayoutAlignmentOffsetY = syncOffsetY
+                return false
+            }
             if consumeInitialReset {
                 alignmentState.markInitialOffsetApplied()
                 pendingNativePostLayoutAlignmentOffsetY = nil
             }
-            return
+            return true
         }
         guard setNormalizedContentOffsetYForAlignment(syncOffsetY) else {
             alignmentState.pendingSwiftUITopAlignmentOffsetY = syncOffsetY
             resolvePendingSwiftUITopAlignmentIfPossible(targetOffsetY: syncOffsetY)
-            return
+            return false
         }
         alignmentState.markInitialOffsetApplied()
+        return true
     }
 
     func setHorizontalPagingActive(_ isActive: Bool) {
@@ -1774,11 +1779,16 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             }
             let activeOffset = providedActiveOffset ?? activePage.normalizedContentOffsetY
             let nextSyncState = updateHeaderSyncState(activeOffset: activeOffset)
+            var didSyncAllInactivePages = true
             for tab in VideoPageTab.allCases where tab.pageIndex != pagerPosition.selectedIndex {
-                verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(
+                let didSync = verticalPageController(for: tab)?.syncHeaderOffsetFromActivePage(
                     nextSyncState.inactiveSyncMode,
                     consumeInitialReset: false
-                )
+                ) ?? true
+                didSyncAllInactivePages = didSyncAllInactivePages && didSync
+            }
+            if !didSyncAllInactivePages {
+                updateHeaderAttachmentForCurrentState()
             }
             return nextSyncState
         }
