@@ -100,6 +100,64 @@ struct CommentListTableView: UIViewRepresentable {
 }
 
 final class CommentListTableController: NSObject, UITableViewDataSource, UITableViewDelegate {
+    private enum StateSignature: Equatable {
+        case idle
+        case loading
+        case loaded
+        case failed(String)
+
+        init(_ state: CommentViewModel.State) {
+            switch state {
+            case .idle:
+                self = .idle
+            case .loading:
+                self = .loading
+            case .loaded:
+                self = .loaded
+            case .failed(let message):
+                self = .failed(message)
+            }
+        }
+    }
+
+    private struct ModelSignature: Equatable {
+        let state: StateSignature
+        let sortMode: CommentViewModel.SortMode
+        let runningActionIDs: Set<String>
+        let comments: [CommentSignature]
+
+        init(_ model: CommentListTableModel) {
+            state = StateSignature(model.state)
+            sortMode = model.sortMode
+            runningActionIDs = model.runningActionIDs
+            comments = model.comments.map(CommentSignature.init)
+        }
+    }
+
+    private struct CommentSignature: Equatable {
+        let id: String
+        let username: String
+        let date: String
+        let content: String
+        let thumbUp: Int?
+        let hasMoreReplies: Bool
+        let replyCount: Int?
+        let likeCommentStatus: Bool
+        let unlikeCommentStatus: Bool
+
+        init(_ comment: CommentRow) {
+            id = comment.id
+            username = comment.username
+            date = comment.date
+            content = comment.content
+            thumbUp = comment.thumbUp
+            hasMoreReplies = comment.hasMoreReplies
+            replyCount = comment.replyCount
+            likeCommentStatus = comment.likeCommentStatus
+            unlikeCommentStatus = comment.unlikeCommentStatus
+        }
+    }
+
     private enum Row {
         case controls
         case loading
@@ -122,6 +180,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var onLike: (CommentRow) -> Void = { _ in }
     private var onDislike: (CommentRow) -> Void = { _ in }
     private var onReport: (CommentRow) -> Void = { _ in }
+    private var modelSignature: ModelSignature?
 
     func attach(_ tableView: UITableView) {
         self.tableView = tableView
@@ -137,6 +196,9 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     }
 
     func update(_ model: CommentListTableModel) {
+        let nextSignature = ModelSignature(model)
+        let shouldReload = modelSignature != nextSignature
+        modelSignature = nextSignature
         sortMode = model.sortMode
         comments = model.comments
         runningActionIDs = model.runningActionIDs
@@ -148,6 +210,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         onLike = model.onLike
         onDislike = model.onDislike
         onReport = model.onReport
+        guard shouldReload else { return }
         rows = rows(for: model)
         tableView?.reloadData()
     }

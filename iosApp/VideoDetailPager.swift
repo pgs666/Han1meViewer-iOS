@@ -757,6 +757,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private let listHeaderView = UIView()
     private let collapseSpacerView = UIView()
     private let contentBottomSpacerView = UIView()
+    private let nativeMinimumContentFooterView = UIView(frame: .zero)
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var hostMinimumHeightConstraint: NSLayoutConstraint!
     private var contentMinimumHeightConstraint: NSLayoutConstraint!
@@ -957,9 +958,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard let page = lastAppliedPage else { return }
         let geometry = page.headerGeometry
         let offsetContext = geometry.listOffsetContext(in: listScrollView.bounds.height)
-        if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
-            contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
+        let isNativeScrollView: Bool
+        if case .nativeScrollView = page.content {
+            isNativeScrollView = true
+        } else {
+            isNativeScrollView = false
         }
+        if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
+            contentMinimumHeightConstraint.constant = isNativeScrollView ? 1 : offsetContext.minimumContentHeight
+        }
+        applyNativeMinimumContentFooterIfNeeded(page: page, offsetContext: offsetContext)
         if alignmentState.shouldReopenFirstActiveAlignment(
             isSelected: page.isSelected,
             contentHeight: listScrollView.contentSize.height
@@ -1000,6 +1008,41 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(listScrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
             listScrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
         }
+    }
+
+    private func applyNativeMinimumContentFooterIfNeeded(
+        page: VideoDetailTabPage,
+        offsetContext: VideoDetailListOffsetContext
+    ) {
+        guard case .nativeScrollView = page.content,
+              let tableView = listScrollView as? UITableView else {
+            if let tableView = listScrollView as? UITableView,
+               tableView.tableFooterView === nativeMinimumContentFooterView {
+                tableView.tableFooterView = nil
+            }
+            return
+        }
+        tableView.layoutIfNeeded()
+        let requiredContentHeight = max(
+            offsetContext.minimumContentHeight,
+            listScrollView.bounds.height - listScrollView.adjustedContentInset.top - listScrollView.adjustedContentInset.bottom
+        )
+        let currentFooterHeight = tableView.tableFooterView === nativeMinimumContentFooterView
+            ? nativeMinimumContentFooterView.bounds.height
+            : 0
+        let currentContentHeightWithoutFooter = max(tableView.contentSize.height - currentFooterHeight, 0)
+        let footerHeight = max(requiredContentHeight - currentContentHeightWithoutFooter, 0)
+        guard abs(nativeMinimumContentFooterView.frame.height - footerHeight) > 0.5
+            || tableView.tableFooterView !== nativeMinimumContentFooterView else {
+            return
+        }
+        nativeMinimumContentFooterView.frame = CGRect(
+            x: 0,
+            y: 0,
+            width: tableView.bounds.width,
+            height: footerHeight
+        )
+        tableView.tableFooterView = footerHeight > 0 ? nativeMinimumContentFooterView : nil
     }
 
     private func applyListHeaderFrame() {
