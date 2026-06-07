@@ -1625,14 +1625,19 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func settlePageAfterHorizontalSelection(_ index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            let wasPagingActive = pagerPosition.isPagingActive
             if pagerPosition.isPagingActive {
                 deactivateHorizontalPagingForSettlement()
             }
-            finishHorizontalPaging(at: clampedIndex)
+            finishHorizontalPaging(at: clampedIndex, wasPagingActive: wasPagingActive)
         }
 
-        private func finishHorizontalPaging(at index: Int) {
+        private func finishHorizontalPaging(at index: Int, wasPagingActive: Bool) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            guard clampedIndex != pagerPosition.selectedIndex || wasPagingActive else {
+                pendingSelectedIndex = nil
+                return
+            }
             pendingSelectedIndex = nil
             if let activePage = verticalPageController(for: VideoPageTab.page(at: pagerPosition.selectedIndex)) {
                 updateHeaderSyncState(activeOffset: activePage.normalizedContentOffsetY)
@@ -1649,6 +1654,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             case .comments:
                 commentsPage?.settleAfterHorizontalActivation(targetOffsetY: activationOffset)
                 commentsPage?.reportCurrentOffset()
+            }
+            if let activePage = verticalPageController(for: VideoPageTab.page(at: clampedIndex)) {
+                syncInactivePageHeaderOffset(activeOffset: activePage.normalizedContentOffsetY)
             }
             updateHeaderAttachmentForCurrentState()
         }
