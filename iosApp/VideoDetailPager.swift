@@ -478,6 +478,37 @@ private struct VideoDetailTabPage {
         }
         return nil
     }
+
+    func withSelection(_ isSelected: Bool) -> VideoDetailTabPage {
+        switch content {
+        case .swiftUI(let content):
+            VideoDetailTabPage(
+                tab: tab,
+                contentBottomPadding: contentBottomPadding,
+                isSelected: isSelected,
+                headerGeometry: headerGeometry,
+                contentUpdateRevision: contentUpdateRevision,
+                onOffsetChange: onOffsetChange,
+                onInteractionBegan: onInteractionBegan,
+                onTopPullDelta: onTopPullDelta,
+                content: { content() }
+            )
+        case .nativeScrollView(let nativePage):
+            VideoDetailTabPage(
+                tab: tab,
+                contentBottomPadding: contentBottomPadding,
+                isSelected: isSelected,
+                headerGeometry: headerGeometry,
+                contentUpdateRevision: contentUpdateRevision,
+                onOffsetChange: onOffsetChange,
+                onInteractionBegan: onInteractionBegan,
+                onTopPullDelta: onTopPullDelta,
+                listScrollView: nativePage.listScrollView,
+                attachScrollDelegate: nativePage.attachScrollDelegate,
+                nativeUpdate: nativePage.update
+            )
+        }
+    }
 }
 
 struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, Comments: View>: View {
@@ -1608,6 +1639,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             }
             let activationOffset = headerSyncState.inactiveSyncMode.normalizedOffsetY
             pagerPosition.setSelectedIndex(clampedIndex)
+            refreshPageSelectionSnapshots(selectedTab: VideoPageTab.page(at: clampedIndex))
             updateScrollsToTop(for: VideoPageTab.page(at: clampedIndex))
             layoutHeaderHosts()
             switch VideoPageTab.page(at: clampedIndex) {
@@ -1619,6 +1651,15 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 commentsPage?.reportCurrentOffset()
             }
             updateHeaderAttachmentForCurrentState()
+        }
+
+        private func refreshPageSelectionSnapshots(selectedTab: VideoPageTab) {
+            for tab in VideoPageTab.allCases {
+                guard let page = latestPages[tab] else { continue }
+                let isSelected = tab == selectedTab
+                guard page.isSelected != isSelected else { continue }
+                latestPages[tab] = page.withSelection(isSelected)
+            }
         }
 
         private func updateScrollsToTop(for activeTab: VideoPageTab) {
