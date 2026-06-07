@@ -753,15 +753,17 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private let coordinator: VideoDetailVerticalScrollPageCoordinator
     private let listScrollView: UIScrollView
     private let defaultScrollView: VerticalScrollView?
+    private let usesNativeListScrollView: Bool
     private let contentView = UIView()
     private let listHeaderView = UIView()
     private let collapseSpacerView = UIView()
     private let contentBottomSpacerView = UIView()
+    private let nativeBottomSpacerView = UIView()
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
-    private var hostMinimumHeightConstraint: NSLayoutConstraint!
-    private var contentMinimumHeightConstraint: NSLayoutConstraint!
-    private var collapseSpacerHeightConstraint: NSLayoutConstraint!
-    private var contentBottomSpacerHeightConstraint: NSLayoutConstraint!
+    private var hostMinimumHeightConstraint: NSLayoutConstraint?
+    private var contentMinimumHeightConstraint: NSLayoutConstraint?
+    private var collapseSpacerHeightConstraint: NSLayoutConstraint?
+    private var contentBottomSpacerHeightConstraint: NSLayoutConstraint?
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
     private var alignmentState = VideoDetailListAlignmentState()
@@ -774,6 +776,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let resolvedScrollView = listScrollView ?? VerticalScrollView()
         self.listScrollView = resolvedScrollView
         self.defaultScrollView = resolvedScrollView as? VerticalScrollView
+        self.usesNativeListScrollView = listScrollView != nil
         coordinator = VideoDetailVerticalScrollPageCoordinator(
             tab: tab,
             onOffsetChange: { _, _ in },
@@ -826,67 +829,79 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
         view.addSubview(listScrollView)
 
-        contentView.translatesAutoresizingMaskIntoConstraints = false
-        contentView.backgroundColor = .clear
-        listScrollView.addSubview(contentView)
-
         listHeaderView.backgroundColor = .clear
         listHeaderView.isUserInteractionEnabled = true
         listScrollView.addSubview(listHeaderView)
 
-        addChild(host)
-        host.view.translatesAutoresizingMaskIntoConstraints = false
-        host.view.backgroundColor = .clear
-        contentView.addSubview(host.view)
-        host.didMove(toParent: self)
-
-        collapseSpacerView.translatesAutoresizingMaskIntoConstraints = false
-        collapseSpacerView.backgroundColor = .clear
-        contentView.addSubview(collapseSpacerView)
-
-        contentBottomSpacerView.translatesAutoresizingMaskIntoConstraints = false
-        contentBottomSpacerView.backgroundColor = .clear
-        contentView.addSubview(contentBottomSpacerView)
-
-        hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: listScrollView.frameLayoutGuide.heightAnchor)
-        contentMinimumHeightConstraint = contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 1)
-        collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
-        contentBottomSpacerHeightConstraint = contentBottomSpacerView.heightAnchor.constraint(equalToConstant: 0)
-
-        NSLayoutConstraint.activate([
+        var constraints = [
             listScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             listScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             listScrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ]
 
-            contentView.leadingAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.leadingAnchor),
-            contentView.trailingAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.trailingAnchor),
-            contentView.topAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.topAnchor),
-            contentView.bottomAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.bottomAnchor),
-            contentView.widthAnchor.constraint(equalTo: listScrollView.frameLayoutGuide.widthAnchor),
-            contentMinimumHeightConstraint,
+        if !usesNativeListScrollView {
+            contentView.translatesAutoresizingMaskIntoConstraints = false
+            contentView.backgroundColor = .clear
+            listScrollView.addSubview(contentView)
 
-            host.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            host.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            host.view.topAnchor.constraint(equalTo: contentView.topAnchor),
-            hostMinimumHeightConstraint,
+            addChild(host)
+            host.view.translatesAutoresizingMaskIntoConstraints = false
+            host.view.backgroundColor = .clear
+            contentView.addSubview(host.view)
+            host.didMove(toParent: self)
 
-            collapseSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            collapseSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            collapseSpacerView.topAnchor.constraint(equalTo: host.view.bottomAnchor),
-            collapseSpacerHeightConstraint,
+            collapseSpacerView.translatesAutoresizingMaskIntoConstraints = false
+            collapseSpacerView.backgroundColor = .clear
+            contentView.addSubview(collapseSpacerView)
 
-            contentBottomSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            contentBottomSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            contentBottomSpacerView.topAnchor.constraint(equalTo: collapseSpacerView.bottomAnchor),
-            contentBottomSpacerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            contentBottomSpacerHeightConstraint
-        ])
+            contentBottomSpacerView.translatesAutoresizingMaskIntoConstraints = false
+            contentBottomSpacerView.backgroundColor = .clear
+            contentView.addSubview(contentBottomSpacerView)
+
+            let hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: listScrollView.frameLayoutGuide.heightAnchor)
+            let contentMinimumHeightConstraint = contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 1)
+            let collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
+            let contentBottomSpacerHeightConstraint = contentBottomSpacerView.heightAnchor.constraint(equalToConstant: 0)
+            self.hostMinimumHeightConstraint = hostMinimumHeightConstraint
+            self.contentMinimumHeightConstraint = contentMinimumHeightConstraint
+            self.collapseSpacerHeightConstraint = collapseSpacerHeightConstraint
+            self.contentBottomSpacerHeightConstraint = contentBottomSpacerHeightConstraint
+
+            constraints.append(contentsOf: [
+                contentView.leadingAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.leadingAnchor),
+                contentView.trailingAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.trailingAnchor),
+                contentView.topAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.topAnchor),
+                contentView.bottomAnchor.constraint(equalTo: listScrollView.contentLayoutGuide.bottomAnchor),
+                contentView.widthAnchor.constraint(equalTo: listScrollView.frameLayoutGuide.widthAnchor),
+                contentMinimumHeightConstraint,
+
+                host.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                host.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                host.view.topAnchor.constraint(equalTo: contentView.topAnchor),
+                hostMinimumHeightConstraint,
+
+                collapseSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                collapseSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                collapseSpacerView.topAnchor.constraint(equalTo: host.view.bottomAnchor),
+                collapseSpacerHeightConstraint,
+
+                contentBottomSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                contentBottomSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                contentBottomSpacerView.topAnchor.constraint(equalTo: collapseSpacerView.bottomAnchor),
+                contentBottomSpacerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                contentBottomSpacerHeightConstraint
+            ])
+        }
+        NSLayoutConstraint.activate(constraints)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         applyListHeaderFrame()
+        if usesNativeListScrollView, let page = lastAppliedPage {
+            applyNativeBottomSpacer(page.contentBottomPadding)
+        }
         handleScrollGeometryChange()
     }
 
@@ -922,8 +937,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
                 host.view.isHidden = false
                 host.rootView = content()
             case .nativeScrollView:
-                host.view.isHidden = true
-                host.rootView = AnyView(EmptyView())
+                if !usesNativeListScrollView {
+                    host.view.isHidden = true
+                    host.rootView = AnyView(EmptyView())
+                }
             }
             alignmentState.resetForContentUpdate()
             if !alignmentState.hasAppliedInitialListOffset && !alignmentState.hasExplicitPendingTopAlignment {
@@ -943,14 +960,14 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         switch page.content {
         case .swiftUI:
             applyBottomContentSpacing(page.contentBottomPadding, usesContentSpacer: true)
-            collapseSpacerHeightConstraint.constant = offsetContext.collapseSpacerHeight
-            contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
-            hostMinimumHeightConstraint.isActive = true
+            collapseSpacerHeightConstraint?.constant = offsetContext.collapseSpacerHeight
+            contentMinimumHeightConstraint?.constant = offsetContext.minimumContentHeight
+            hostMinimumHeightConstraint?.isActive = true
         case .nativeScrollView:
             applyBottomContentSpacing(page.contentBottomPadding, usesContentSpacer: false)
-            collapseSpacerHeightConstraint.constant = 0
-            contentMinimumHeightConstraint.constant = 1
-            hostMinimumHeightConstraint.isActive = false
+            collapseSpacerHeightConstraint?.constant = 0
+            contentMinimumHeightConstraint?.constant = 1
+            hostMinimumHeightConstraint?.isActive = false
         }
         if alignmentState.needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded()
@@ -974,7 +991,8 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         } else {
             isNativeScrollView = false
         }
-        if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
+        if let contentMinimumHeightConstraint,
+           abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = isNativeScrollView ? 1 : offsetContext.minimumContentHeight
         }
         applyNativeMinimumContentSizeIfNeeded(page: page, offsetContext: offsetContext)
@@ -1002,16 +1020,35 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private func applyBottomContentSpacing(_ bottomSpacing: CGFloat, usesContentSpacer: Bool) {
         let resolvedBottomSpacing = max(bottomSpacing, 0)
         let contentSpacerHeight = usesContentSpacer ? resolvedBottomSpacing : 0
-        if abs(contentBottomSpacerHeightConstraint.constant - contentSpacerHeight) > 0.5 {
+        if let contentBottomSpacerHeightConstraint,
+           abs(contentBottomSpacerHeightConstraint.constant - contentSpacerHeight) > 0.5 {
             contentBottomSpacerHeightConstraint.constant = contentSpacerHeight
         }
-        let bottomInset = usesContentSpacer ? 0 : resolvedBottomSpacing
+        let bottomInset: CGFloat = 0
         if abs(listScrollView.contentInset.bottom - bottomInset) > 0.5 {
             listScrollView.contentInset.bottom = bottomInset
         }
         if abs(listScrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
             listScrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
         }
+        if !usesContentSpacer {
+            applyNativeBottomSpacer(resolvedBottomSpacing)
+        }
+    }
+
+    private func applyNativeBottomSpacer(_ bottomSpacing: CGFloat) {
+        guard let tableView = listScrollView as? UITableView else { return }
+        let width = max(tableView.bounds.width, 1)
+        let nextFrame = CGRect(x: 0, y: 0, width: width, height: bottomSpacing)
+        nativeBottomSpacerView.backgroundColor = .clear
+        if tableView.tableFooterView !== nativeBottomSpacerView {
+            nativeBottomSpacerView.frame = nextFrame
+            tableView.tableFooterView = nativeBottomSpacerView
+            return
+        }
+        guard !nativeBottomSpacerView.frame.isApproximatelyEqual(to: nextFrame) else { return }
+        nativeBottomSpacerView.frame = nextFrame
+        tableView.tableFooterView = nativeBottomSpacerView
     }
 
     private func applyNativeMinimumContentSizeIfNeeded(
@@ -1343,18 +1380,18 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         }
 
         func scrollViewDidEndDecelerating(_ listScrollView: UIScrollView) {
-            updateSelectedTab(from: listScrollView)
+            settleSelectedIndex(from: listScrollView)
             onPagingActivityChanged?(false)
         }
 
         func scrollViewDidEndScrollingAnimation(_ listScrollView: UIScrollView) {
-            updateSelectedTab(from: listScrollView)
+            settleSelectedIndex(from: listScrollView)
             onPagingActivityChanged?(false)
         }
 
         func scrollViewDidEndDragging(_ listScrollView: UIScrollView, willDecelerate decelerate: Bool) {
             if !decelerate {
-                updateSelectedTab(from: listScrollView)
+                settleSelectedIndex(from: listScrollView)
                 onPagingActivityChanged?(false)
             }
         }
@@ -1376,15 +1413,15 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             return horizontal > 8 && horizontal > vertical * 1.18
         }
 
-        private func updateSelectedTab(from listScrollView: UIScrollView) {
+        private func settleSelectedIndex(from listScrollView: UIScrollView) {
             let width = listScrollView.bounds.width
             guard width > 0 else { return }
             let index = Int(round(listScrollView.contentOffset.x / width))
+            onSelectedIndexSettled?(index)
             let tab = VideoPageTab.page(at: index)
             if selectedTab.wrappedValue != tab {
                 selectedTab.wrappedValue = tab
             }
-            onSelectedIndexSettled?(index)
         }
     }
 
