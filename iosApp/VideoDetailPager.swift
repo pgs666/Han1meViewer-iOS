@@ -97,25 +97,6 @@ private struct VideoDetailInactiveHeaderSyncResult {
     let didSyncAllInactivePages: Bool
 }
 
-private enum VideoDetailHeaderAttachmentState: Equatable {
-    case listHeader
-    case pagerContainer(CGFloat)
-
-    static func state(
-        isHorizontalPagingActive: Bool,
-        canAttachToListHeader: Bool,
-        syncState: VideoDetailSmoothHeaderSyncState
-    ) -> VideoDetailHeaderAttachmentState {
-        if isHorizontalPagingActive {
-            return .pagerContainer(syncState.headerContainerY)
-        }
-        if canAttachToListHeader {
-            return .listHeader
-        }
-        return .pagerContainer(syncState.headerContainerY)
-    }
-}
-
 private extension VideoDetailPagerOffsetModel.InactiveSyncMode {
     var normalizedOffsetY: CGFloat {
         switch self {
@@ -1255,12 +1236,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.onOffsetChange(coordinator.tab, offset)
     }
 
-    func canAttachHeaderToListHeader(for page: VideoDetailTabPage) -> Bool {
-        loadViewIfNeeded()
-        let pinnedVisibleHeight = max(page.headerGeometry.pinnedVisibleHeight, page.headerGeometry.pinHeaderHeight)
-        return listScrollView.contentOffset.y <= -pinnedVisibleHeight + 0.5
-    }
-
     private func setNormalizedContentOffsetY(_ offsetY: CGFloat) {
         guard let page = lastAppliedPage else { return }
         let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: listScrollView)
@@ -1373,11 +1348,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         defer { coordinator.isApplyingExternalOffset = false }
         listScrollView.setContentOffset(CGPoint(x: listScrollView.contentOffset.x, y: rawTopOffsetY), animated: false)
         coordinator.resetReportedOffset(listScrollView.verticalContentOffsetExcludingBounce)
-    }
-
-    func headerAttachmentView() -> UIView {
-        loadViewIfNeeded()
-        return listHeaderView
     }
 
     private func clampedRawContentOffsetY(forNormalizedOffsetY offsetY: CGFloat) -> CGFloat {
@@ -1658,6 +1628,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             pinHeaderHost.view.backgroundColor = .clear
             headerContainerView.addSubview(pinHeaderHost.view)
             pinHeaderHost.didMove(toParent: self)
+            view.addSubview(headerContainerView)
 
             updateScrollsToTop(for: VideoPageTab.page(at: pagerPosition.selectedIndex))
             introductionPage.onHeaderOffsetChanged = { [weak self] tab, offset in
@@ -2006,65 +1977,37 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offset)
                 headerSyncState = syncState
             }
-            let attachmentState = VideoDetailHeaderAttachmentState.state(
-                isHorizontalPagingActive: pagerPosition.isPagingActive,
-                canAttachToListHeader: pageController.canAttachHeaderToListHeader(for: page),
-                syncState: syncState
-            )
-            applyHeaderAttachment(attachmentState, pageController: pageController)
-        }
-
-        private func applyHeaderAttachment(
-            _ attachmentState: VideoDetailHeaderAttachmentState,
-            pageController: VideoDetailVerticalScrollPageViewController
-        ) {
-            switch attachmentState {
-            case .listHeader:
-                attachHeader(to: pageController.headerAttachmentView(), originY: 0)
-            case .pagerContainer(let originY):
-                attachHeader(to: view, originY: originY)
-            }
+            attachHeader(originY: syncState.headerContainerY)
         }
 
         private var activeHeaderTab: VideoPageTab {
             VideoPageTab.page(at: pagerPosition.activeHeaderIndex)
         }
 
-        private func attachHeader(to parentView: UIView, originY: CGFloat) {
-            if headerContainerView.superview !== parentView {
+        private func attachHeader(originY: CGFloat) {
+            if headerContainerView.superview !== view {
                 headerContainerView.removeFromSuperview()
-                parentView.addSubview(headerContainerView)
+                view.addSubview(headerContainerView)
             }
             var frame = headerContainerView.frame
             frame.origin = CGPoint(x: 0, y: originY)
-            frame.size.width = parentView.bounds.width
+            frame.size.width = view.bounds.width
             headerContainerView.frame = frame
-            parentView.bringSubviewToFront(headerContainerView)
+            view.bringSubviewToFront(headerContainerView)
         }
 
         private func updateHeaderContainerPosition(for tab: VideoPageTab, offsetY: CGFloat) {
             guard tab == activeHeaderTab else { return }
             guard let page = latestPages[tab] else { return }
-            guard let pageController = verticalPageController(for: tab) else { return }
             if pagerPosition.isPagingActive {
                 let syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offsetY)
                 headerSyncState = syncState
-                let attachmentState = VideoDetailHeaderAttachmentState.state(
-                    isHorizontalPagingActive: true,
-                    canAttachToListHeader: pageController.canAttachHeaderToListHeader(for: page),
-                    syncState: syncState
-                )
-                applyHeaderAttachment(attachmentState, pageController: pageController)
+                attachHeader(originY: syncState.headerContainerY)
             } else {
                 let syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offsetY)
                 headerSyncState = syncState
                 syncInactivePageHeaderOffset(activeOffset: offsetY)
-                let attachmentState = VideoDetailHeaderAttachmentState.state(
-                    isHorizontalPagingActive: false,
-                    canAttachToListHeader: pageController.canAttachHeaderToListHeader(for: page),
-                    syncState: syncState
-                )
-                applyHeaderAttachment(attachmentState, pageController: pageController)
+                attachHeader(originY: syncState.headerContainerY)
             }
         }
     }
