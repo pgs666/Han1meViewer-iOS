@@ -797,7 +797,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private let listHeaderView = UIView()
     private let collapseSpacerView = UIView()
     private let contentBottomSpacerView = UIView()
-    private let nativeMinimumContentFooterView = UIView(frame: .zero)
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var hostMinimumHeightConstraint: NSLayoutConstraint!
     private var contentMinimumHeightConstraint: NSLayoutConstraint!
@@ -1021,7 +1020,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if abs(contentMinimumHeightConstraint.constant - offsetContext.minimumContentHeight) > 0.5 {
             contentMinimumHeightConstraint.constant = isNativeScrollView ? 1 : offsetContext.minimumContentHeight
         }
-        applyNativeMinimumContentFooterIfNeeded(page: page, offsetContext: offsetContext)
+        applyNativeMinimumContentSizeIfNeeded(page: page, offsetContext: offsetContext)
         if alignmentState.shouldReopenFirstActiveAlignment(
             isSelected: page.isSelected,
             contentHeight: listScrollView.contentSize.height
@@ -1064,36 +1063,21 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         }
     }
 
-    private func applyNativeMinimumContentFooterIfNeeded(
+    private func applyNativeMinimumContentSizeIfNeeded(
         page: VideoDetailTabPage,
         offsetContext: VideoDetailListOffsetContext
     ) {
-        guard case .nativeScrollView = page.content,
-              let tableView = listScrollView as? UITableView else {
-            if let tableView = listScrollView as? UITableView,
-               tableView.tableFooterView === nativeMinimumContentFooterView {
-                tableView.tableFooterView = nil
-            }
+        guard case .nativeScrollView = page.content else {
             return
         }
-        tableView.layoutIfNeeded()
         let requiredContentHeight = offsetContext.minimumListContentHeight
-        let currentFooterHeight = tableView.tableFooterView === nativeMinimumContentFooterView
-            ? nativeMinimumContentFooterView.bounds.height
-            : 0
-        let currentContentHeightWithoutFooter = max(tableView.contentSize.height - currentFooterHeight, 0)
-        let footerHeight = max(requiredContentHeight - currentContentHeightWithoutFooter, 0)
-        guard abs(nativeMinimumContentFooterView.frame.height - footerHeight) > 0.5
-            || tableView.tableFooterView !== nativeMinimumContentFooterView else {
+        guard listScrollView.contentSize.height < requiredContentHeight - 0.5 else {
             return
         }
-        nativeMinimumContentFooterView.frame = CGRect(
-            x: 0,
-            y: 0,
-            width: tableView.bounds.width,
-            height: footerHeight
+        listScrollView.contentSize = CGSize(
+            width: listScrollView.contentSize.width,
+            height: requiredContentHeight
         )
-        tableView.tableFooterView = footerHeight > 0 ? nativeMinimumContentFooterView : nil
     }
 
     private func applyListHeaderFrame() {
@@ -1441,7 +1425,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         var onPagingActivityChanged: ((Bool) -> Void)?
         var onHorizontalVisibleIndexChanged: ((Int) -> Void)?
         private var lastProgrammaticIndex: Int?
-        private var pendingSettledIndex: Int?
 
         init(selectedTab: Binding<VideoPageTab>) {
             self.selectedTab = selectedTab
@@ -1504,17 +1487,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let index = Int(round(listScrollView.contentOffset.x / width))
             let tab = VideoPageTab.page(at: index)
             if selectedTab.wrappedValue != tab {
-                pendingSettledIndex = index
                 selectedTab.wrappedValue = tab
-                return
             }
             onSelectedIndexSettled?(index)
-        }
-
-        func consumePendingSettledIndex(for selectedIndex: Int) -> Bool {
-            guard pendingSettledIndex == selectedIndex else { return false }
-            pendingSettledIndex = nil
-            return true
         }
     }
 
@@ -1673,11 +1648,8 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
                 syncInactivePageHeaderOffset()
             }
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
-            let consumedSettledIndex = coordinator.consumePendingSettledIndex(for: pagerPosition.selectedIndex)
             setSelectedIndex(pagerPosition.selectedIndex, animated: animated)
-            if consumedSettledIndex {
-                finishHorizontalPaging(at: pagerPosition.selectedIndex)
-            } else if !animated {
+            if !animated {
                 settleSelectedPageIfNeeded(pagerPosition.selectedIndex)
             }
         }
