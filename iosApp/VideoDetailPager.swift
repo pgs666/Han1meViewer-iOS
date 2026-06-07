@@ -945,6 +945,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         case .swiftUI:
             break
         }
+        let isNativeScrollPage: Bool
+        if case .nativeScrollView = page.content {
+            isNativeScrollPage = true
+        } else {
+            isNativeScrollPage = false
+        }
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
             switch page.content {
@@ -957,7 +963,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
                     host.rootView = AnyView(EmptyView())
                 }
             }
-            if !alignmentState.hasPendingTopAlignment {
+            if !isNativeScrollPage, !alignmentState.hasPendingTopAlignment {
                 alignmentState.requestInitialOffsetReset()
             }
             view.setNeedsLayout()
