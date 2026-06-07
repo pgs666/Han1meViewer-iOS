@@ -271,6 +271,7 @@ struct VideoDetailView: View {
                             pinHeaderHeight: pagerPinHeaderHeight,
                             pinnedVisibleHeight: playerContinuationStripHeight + pagerPinHeaderHeight,
                             playerScrollAway: pagerMetrics.playerScrollAway,
+                            continuationProgress: pagerMetrics.continuationProgress,
                             introductionContentClearance: introductionContentClearance(),
                             composerContentClearance: commentComposerContentClearance(
                                 safeAreaBottom: proxy.safeAreaInsets.bottom
@@ -286,12 +287,6 @@ struct VideoDetailView: View {
                                 height: currentPlayerHeight
                             )
                             .offset(y: isPlayerFullscreen ? 0 : -pagerMetrics.playerScrollAway)
-
-                        if !isPlayerFullscreen,
-                           pagerMetrics.continuationProgress > 0 {
-                            continuePlayingStrip(snapshot: snapshot, progress: pagerMetrics.continuationProgress)
-                                .frame(width: leftWidth, height: playerContinuationStripHeight)
-                        }
                     }
                     .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
                     .clipped()
@@ -406,6 +401,7 @@ struct VideoDetailView: View {
         pinHeaderHeight: CGFloat,
         pinnedVisibleHeight: CGFloat,
         playerScrollAway: CGFloat,
+        continuationProgress: CGFloat,
         introductionContentClearance: CGFloat,
         composerContentClearance: CGFloat
     ) -> some View {
@@ -422,6 +418,12 @@ struct VideoDetailView: View {
             commentsContentBottomPadding: composerContentClearance,
             introductionContentRevision: contentRevision.introduction,
             commentsContentRevision: contentRevision.comments,
+            continuationHeader: {
+                continuePlayingStrip(snapshot: snapshot, progress: continuationProgress)
+                .frame(height: playerContinuationStripHeight)
+                .opacity(isPlayerFullscreen ? 0 : 1)
+            },
+            isContinuationHeaderInteractive: !isPlayerFullscreen && continuationProgress > 0.05,
             introduction: {
                 AndroidStyleIntroduction(
                     snapshot: snapshot,
