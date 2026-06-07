@@ -9,6 +9,7 @@ struct VideoDetailView: View {
     @StateObject private var viewModel: VideoDetailViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
+    @State private var pageScrollOffsets: [VideoPageTab: CGFloat] = [:]
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -234,11 +235,13 @@ struct VideoDetailView: View {
                 .zIndex(0)
 
             if !isPlayerFullscreen {
-                pagingLayer(
-                    snapshot: snapshot,
-                    topInset: currentPlayerHeight,
-                    showsRelated: showsRelated
-                )
+                TopPassthroughContainer(minimumHitY: pagingTabOffset(topInset: currentPlayerHeight)) {
+                    pagingLayer(
+                        snapshot: snapshot,
+                        topInset: currentPlayerHeight,
+                        showsRelated: showsRelated
+                    )
+                }
                 .frame(width: panelWidth, height: panelHeight)
                 .zIndex(1)
             }
@@ -270,51 +273,72 @@ struct VideoDetailView: View {
         topInset: CGFloat,
         showsRelated: Bool
     ) -> some View {
-        TabView(selection: $selectedTab) {
-            pagingScroll(topInset: topInset) {
-                AndroidStyleIntroduction(
-                    snapshot: snapshot,
-                    videoFeature: videoFeature,
-                    commentFeature: commentFeature,
-                    isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                    onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                    onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                    onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                    onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                    onShowMessage: { viewModel.showActionMessage($0) },
-                    showsRelated: showsRelated
-                )
-            }
-            .tag(VideoPageTab.introduction)
+        ZStack(alignment: .top) {
+            TabView(selection: $selectedTab) {
+                pagingScroll(tab: .introduction, topInset: topInset) {
+                    AndroidStyleIntroduction(
+                        snapshot: snapshot,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature,
+                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                        onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                        onShowMessage: { viewModel.showActionMessage($0) },
+                        showsRelated: showsRelated
+                    )
+                }
+                .tag(VideoPageTab.introduction)
 
-            pagingScroll(topInset: topInset) {
-                CommentView(videoCode: videoCode, commentFeature: commentFeature)
+                pagingScroll(tab: .comments, topInset: topInset) {
+                    CommentView(videoCode: videoCode, commentFeature: commentFeature)
+                }
+                .tag(VideoPageTab.comments)
             }
-            .tag(VideoPageTab.comments)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            pagingTabBar
+                .offset(y: pagingTabOffset(topInset: topInset))
+                .zIndex(2)
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
     }
 
     private func pagingScroll<Content: View>(
+        tab: VideoPageTab,
         topInset: CGFloat,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                Color.clear
-                    .frame(height: topInset)
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: VideoPageScrollOffsetPreferenceKey.self,
+                    value: VideoPageScrollOffset(tab: tab, offset: -proxy.frame(in: .named(tab.scrollCoordinateSpaceName)).minY)
+                )
+            }
+            .frame(height: 0)
 
-                Section {
-                    content()
-                        .padding(.top, 16)
-                        .padding(.bottom, 24)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.systemGroupedBackground))
-                } header: {
-                    pagingTabBar
-                }
+            LazyVStack(alignment: .leading, spacing: 0) {
+                Color.clear
+                    .frame(height: topInset + VideoPagingMetrics.tabBarHeight)
+
+                content()
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemGroupedBackground))
             }
         }
+        .coordinateSpace(name: tab.scrollCoordinateSpaceName)
+        .onPreferenceChange(VideoPageScrollOffsetPreferenceKey.self) { value in
+            guard value.tab == tab else { return }
+            pageScrollOffsets[tab] = max(0, value.offset)
+        }
+    }
+
+    private func pagingTabOffset(topInset: CGFloat) -> CGFloat {
+        let offset = pageScrollOffsets[selectedTab] ?? 0
+        return max(0, topInset - offset)
     }
 
     private var pagingTabBar: some View {
@@ -327,14 +351,118 @@ struct VideoDetailView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(.background)
+        .frame(height: VideoPagingMetrics.tabBarHeight)
     }
 }
 
-private enum VideoPageTab: String, CaseIterable, Identifiable {
+private enum VideoPagingMetrics {
+    static let tabBarHeight: CGFloat = 48
+}
+
+private struct VideoPageScrollOffset: Equatable {
+    let tab: VideoPageTab
+    let offset: CGFloat
+}
+
+private struct VideoPageScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue = VideoPageScrollOffset(tab: .introduction, offset: 0)
+    static func reduce(value: inout VideoPageScrollOffset, nextValue: () -> VideoPageScrollOffset) {
+        value = nextValue()
+    }
+}
+
+private struct TopPassthroughContainer<Content: View>: UIViewControllerRepresentable {
+    let minimumHitY: CGFloat
+    let content: Content
+
+    init(minimumHitY: CGFloat, @ViewBuilder content: () -> Content) {
+        self.minimumHitY = minimumHitY
+        self.content = content()
+    }
+
+    func makeUIViewController(context: Context) -> PassthroughContainerController<Content> {
+        let controller = PassthroughContainerController(rootView: content)
+        controller.minimumHitY = minimumHitY
+        return controller
+    }
+
+    func updateUIViewController(_ controller: PassthroughContainerController<Content>, context: Context) {
+        controller.rootView = content
+        controller.minimumHitY = minimumHitY
+    }
+}
+
+private final class PassthroughContainerController<Content: View>: UIViewController {
+    private let hostingController: UIHostingController<Content>
+
+    var minimumHitY: CGFloat = 0 {
+        didSet {
+            passthroughView.minimumHitYProvider = { [weak self] in self?.minimumHitY ?? 0 }
+        }
+    }
+
+    var rootView: Content {
+        get { hostingController.rootView }
+        set { hostingController.rootView = newValue }
+    }
+
+    private var passthroughView: TopPassthroughHostingView {
+        view as! TopPassthroughHostingView
+    }
+
+    init(rootView: Content) {
+        hostingController = UIHostingController(rootView: rootView)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        view = TopPassthroughHostingView()
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        passthroughView.minimumHitYProvider = { [weak self] in self?.minimumHitY ?? 0 }
+
+        addChild(hostingController)
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.isOpaque = false
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(hostingController.view)
+        NSLayoutConstraint.activate([
+            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        hostingController.didMove(toParent: self)
+    }
+}
+
+private final class TopPassthroughHostingView: UIView {
+    var minimumHitYProvider: () -> CGFloat = { 0 }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard point.y >= minimumHitYProvider() else { return nil }
+        return super.hitTest(point, with: event)
+    }
+}
+
+private enum VideoPageTab: String, CaseIterable, Identifiable, Hashable {
     case introduction
     case comments
 
     var id: String { rawValue }
+
+    var scrollCoordinateSpaceName: String {
+        "videoPageScroll-\(rawValue)"
+    }
 
     var title: String {
         switch self {
