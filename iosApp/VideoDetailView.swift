@@ -14,6 +14,10 @@ private final class NativeCommentListHolder: ObservableObject {
         controller.update(model)
     }
 
+    func updateContentBottomPadding(_ bottomPadding: CGFloat) {
+        controller.updateContentBottomPadding(bottomPadding)
+    }
+
     func attachScrollDelegate(_ delegate: UIScrollViewDelegate?) {
         controller.scrollDelegate = delegate
     }
@@ -473,6 +477,7 @@ struct VideoDetailView: View {
                     nativeCommentList.attachScrollDelegate(delegate)
                 },
                 nativeCommentsUpdate: {
+                    nativeCommentList.updateContentBottomPadding(composerContentClearance)
                     nativeCommentList.update(commentTableModel)
                 }
             )
