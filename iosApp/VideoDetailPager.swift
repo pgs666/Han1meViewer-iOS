@@ -186,7 +186,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
     }
 
     var collapseSpacerHeight: CGFloat {
-        max(collapseDistance - resolvedVisualTopOffset + 1, 1)
+        max(collapseDistance + 1, 1)
     }
 
     func listOffsetContext(
@@ -665,9 +665,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if !allowDuringInteraction {
             guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
         }
-        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: targetOffsetY)
-        guard abs(normalizedContentOffsetY(forRawOffsetY: rawTopOffsetY) - targetOffsetY) <= 0.5 else { return }
-        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+        guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else { return }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             needsInitialHeaderOffsetReset = false
             cancelPendingTopAlignment()
@@ -682,9 +680,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let targetOffsetY = page.headerGeometry.listOffsetContext(
             in: scrollView.bounds.height
         ).initialNormalizedOffsetY
-        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: targetOffsetY)
-        guard abs(normalizedContentOffsetY(forRawOffsetY: rawTopOffsetY) - targetOffsetY) <= 0.5 else { return }
-        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+        guard setNormalizedContentOffsetYIfReachable(targetOffsetY) else {
+            pendingTopAlignmentTargetOffsetY = targetOffsetY
+            return
+        }
         if abs(scrollView.verticalContentOffsetExcludingBounce - targetOffsetY) <= 0.5 {
             needsInitialHeaderOffsetReset = false
             cancelPendingTopAlignment()
@@ -698,8 +697,6 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     func settleAfterHorizontalActivation() {
         loadViewIfNeeded()
         let targetOffsetY = coordinator.visualTopContentOffsetY
-        guard needsInitialHeaderOffsetReset
-            || scrollView.verticalContentOffsetExcludingBounce <= targetOffsetY + 8 else { return }
         if needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: true)
             guard !needsInitialHeaderOffsetReset else { return }
@@ -724,12 +721,15 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         loadViewIfNeeded()
         guard let page = lastAppliedPage else { return }
         cancelPendingTopAlignment()
-        guard !needsInitialHeaderOffsetReset else { return }
         let syncOffsetY = page.headerGeometry.listOffsetContext(
             in: scrollView.bounds.height,
             activeOffset: offsetY
         ).inactiveSyncNormalizedOffsetY
-        setNormalizedContentOffsetY(syncOffsetY)
+        guard setNormalizedContentOffsetYIfReachable(syncOffsetY) else {
+            pendingTopAlignmentTargetOffsetY = syncOffsetY
+            return
+        }
+        needsInitialHeaderOffsetReset = false
     }
 
     func setHorizontalPagingActive(_ isActive: Bool) {
@@ -749,6 +749,16 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         guard let page = lastAppliedPage else { return }
         let rawTopOffsetY = page.headerGeometry.rawContentOffsetY(forNormalizedOffsetY: offsetY, in: scrollView)
         setRawContentOffsetYIfNeeded(rawTopOffsetY)
+    }
+
+    @discardableResult
+    private func setNormalizedContentOffsetYIfReachable(_ offsetY: CGFloat) -> Bool {
+        let rawTopOffsetY = clampedRawContentOffsetY(forNormalizedOffsetY: offsetY)
+        guard abs(normalizedContentOffsetY(forRawOffsetY: rawTopOffsetY) - offsetY) <= 0.5 else {
+            return false
+        }
+        setRawContentOffsetYIfNeeded(rawTopOffsetY)
+        return true
     }
 
     private func setRawContentOffsetYIfNeeded(_ rawTopOffsetY: CGFloat) {

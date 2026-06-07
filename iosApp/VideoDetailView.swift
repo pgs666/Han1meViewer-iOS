@@ -10,7 +10,7 @@ struct VideoDetailView: View {
     private let tabletSidebarMinimumWidth: CGFloat = 360
     private let playerContinuationStripHeight: CGFloat = 56
     private let pagerPinHeaderHeight: CGFloat = 48
-    private let commentComposerBottomSlack: CGFloat = 96
+    private let commentComposerBottomSlack: CGFloat = 24
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
     @State private var pagerState = VideoDetailPagerState()
