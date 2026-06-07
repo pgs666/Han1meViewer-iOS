@@ -198,7 +198,7 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
             contentTopInset: contentTopInset,
             initialNormalizedOffsetY: visualTopOffset,
             inactiveSyncNormalizedOffsetY: activeOffset.map {
-                min(max($0, 0), visualTopOffset)
+                min(max($0, 0), max(collapseDistance, 0))
             } ?? visualTopOffset,
             collapseSpacerHeight: collapseSpacerHeight,
             minimumContentHeight: minimumContentHeight(in: scrollBoundsHeight)
@@ -724,6 +724,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if needsInitialHeaderOffsetReset {
             applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: true)
             guard !needsInitialHeaderOffsetReset else { return }
+        }
+        guard scrollView.verticalContentOffsetExcludingBounce <= targetOffsetY + 0.5 else {
+            cancelPendingTopAlignment()
+            return
         }
         requestTopAlignment(targetOffsetY: targetOffsetY)
         resolvePendingTopAlignmentIfPossible(allowDuringInteraction: true)
