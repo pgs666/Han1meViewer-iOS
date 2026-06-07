@@ -2,6 +2,19 @@ import SwiftUI
 import UIKit
 import Han1meShared
 
+private final class NativeCommentListHolder: ObservableObject {
+    let controller = CommentListTableController()
+    let tableView: UITableView
+
+    init() {
+        tableView = controller.makeTableView()
+    }
+
+    func update(_ model: CommentListTableModel) {
+        controller.update(model)
+    }
+}
+
 struct VideoDetailView: View {
     let videoCode: String
     private let videoFeature: VideoFeature
@@ -13,6 +26,7 @@ struct VideoDetailView: View {
     private let commentComposerBottomSlack: CGFloat = 24
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
+    @StateObject private var nativeCommentList = NativeCommentListHolder()
     @State private var pagerState = VideoDetailPagerState()
     @State private var isPlayerFullscreen = false
     @State private var playerPlayRequestToken = 0
@@ -408,49 +422,54 @@ struct VideoDetailView: View {
         let contentRevision = tabContentRevision(snapshot: snapshot, showsRelated: showsRelated)
         let headerContentRevision = pagerHeaderContentRevision(snapshot: snapshot)
 
-        return VideoDetailPagerContainer(
-            state: $pagerState,
-            collapseDistance: collapseDistance,
-            headerHeight: headerHeight,
-            pinHeaderHeight: pinHeaderHeight,
-            pinnedVisibleHeight: pinnedVisibleHeight,
-            playerScrollAway: playerScrollAway,
-            continuationProgress: continuationProgress,
-            introductionContentBottomPadding: introductionContentClearance,
-            commentsContentBottomPadding: composerContentClearance,
-            introductionContentRevision: contentRevision.introduction,
-            commentsContentRevision: contentRevision.comments,
-            headerContentRevision: headerContentRevision,
-            continuationHeader: {
-                continuePlayingStrip(snapshot: snapshot, progress: 1)
-                .frame(height: playerContinuationStripHeight)
-            },
-            isContinuationHeaderInteractive: !isPlayerFullscreen && continuationProgress > 0.05,
-            introduction: {
-                AndroidStyleIntroduction(
-                    snapshot: snapshot,
-                    videoFeature: videoFeature,
-                    commentFeature: commentFeature,
-                    isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                    onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                    onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                    onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                    onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                    onShowMessage: { viewModel.showActionMessage($0) },
-                    showsRelated: showsRelated
-                )
-                .padding(.top, 16)
-            },
-            comments: {
-                CommentView(
-                    viewModel: commentViewModel,
-                    onOverlayActivityChanged: { isActive in
-                        isCommentInternalOverlayActive = isActive
-                    }
-                )
-                .padding(.top, 16)
+        return CommentOverlayHost(
+            viewModel: commentViewModel,
+            onOverlayActivityChanged: { isActive in
+                isCommentInternalOverlayActive = isActive
             }
-        )
+        ) { commentTableModel in
+            VideoDetailPagerContainer(
+                state: $pagerState,
+                collapseDistance: collapseDistance,
+                headerHeight: headerHeight,
+                pinHeaderHeight: pinHeaderHeight,
+                pinnedVisibleHeight: pinnedVisibleHeight,
+                playerScrollAway: playerScrollAway,
+                continuationProgress: continuationProgress,
+                introductionContentBottomPadding: introductionContentClearance,
+                commentsContentBottomPadding: composerContentClearance,
+                introductionContentRevision: contentRevision.introduction,
+                commentsContentRevision: contentRevision.comments,
+                headerContentRevision: headerContentRevision,
+                continuationHeader: {
+                    continuePlayingStrip(snapshot: snapshot, progress: 1)
+                    .frame(height: playerContinuationStripHeight)
+                },
+                isContinuationHeaderInteractive: !isPlayerFullscreen && continuationProgress > 0.05,
+                introduction: {
+                    AndroidStyleIntroduction(
+                        snapshot: snapshot,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature,
+                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                        onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                        onShowMessage: { viewModel.showActionMessage($0) },
+                        showsRelated: showsRelated
+                    )
+                    .padding(.top, 16)
+                },
+                comments: {
+                    EmptyView()
+                },
+                nativeCommentsListScrollView: nativeCommentList.tableView,
+                nativeCommentsUpdate: {
+                    nativeCommentList.update(commentTableModel)
+                }
+            )
+        }
     }
 
     private func submitComment() {
