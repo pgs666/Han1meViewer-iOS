@@ -294,7 +294,9 @@ struct VideoDetailView: View {
                             pinnedVisibleHeight: playerContinuationStripHeight + pagerPinHeaderHeight,
                             playerScrollAway: pagerMetrics.playerScrollAway,
                             continuationProgress: pagerMetrics.continuationProgress,
-                            introductionContentClearance: introductionContentClearance(),
+                            introductionContentClearance: introductionContentClearance(
+                                usesTabletRelatedSidebar: isWide
+                            ),
                             composerContentClearance: commentComposerContentClearance(
                                 safeAreaBottom: proxy.safeAreaInsets.bottom
                             )
@@ -515,8 +517,8 @@ struct VideoDetailView: View {
             + commentComposerBottomSlack
     }
 
-    private func introductionContentClearance() -> CGFloat {
-        currentWindowBottomSafeAreaInset() + 24
+    private func introductionContentClearance(usesTabletRelatedSidebar: Bool) -> CGFloat {
+        currentWindowBottomSafeAreaInset() + (usesTabletRelatedSidebar ? 0 : 24)
     }
 
     private func currentWindowBottomSafeAreaInset() -> CGFloat {
