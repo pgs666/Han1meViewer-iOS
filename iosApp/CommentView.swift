@@ -170,36 +170,26 @@ struct CommentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 60)
             } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(comments) { comment in
-                        CommentRowView(
-                            comment: comment,
-                            isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)"),
-                            onReply: {
-                                replyText = "@\(comment.username) "
-                                replyTarget = comment
-                            },
-                            onShowReplies: {
-                                repliesTarget = comment
-                            },
-                            onLike: {
-                                viewModel.like(comment: comment, isPositive: true)
-                            },
-                            onDislike: {
-                                viewModel.like(comment: comment, isPositive: false)
-                            },
-                            onReport: {
-                                reportTarget = comment
-                            }
-                        )
+                CommentListTableView(
+                    comments: comments,
+                    runningActionIDs: viewModel.runningActionIDs,
+                    onReply: { comment in
+                        replyText = "@\(comment.username) "
+                        replyTarget = comment
+                    },
+                    onShowReplies: { comment in
+                        repliesTarget = comment
+                    },
+                    onLike: { comment in
+                        viewModel.like(comment: comment, isPositive: true)
+                    },
+                    onDislike: { comment in
+                        viewModel.like(comment: comment, isPositive: false)
+                    },
+                    onReport: { comment in
+                        reportTarget = comment
                     }
-
-                    Text("comment.no_more")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                }
+                )
                 .id(viewModel.sortMode.id)
             }
         }
@@ -234,7 +224,7 @@ struct CommentView: View {
 
 }
 
-private struct CommentRowView: View {
+struct CommentRowView: View {
     let comment: CommentRow
     let isRunningLike: Bool
     let onReply: () -> Void
