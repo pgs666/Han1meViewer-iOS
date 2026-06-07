@@ -181,6 +181,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var onDislike: (CommentRow) -> Void = { _ in }
     private var onReport: (CommentRow) -> Void = { _ in }
     private var modelSignature: ModelSignature?
+    weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
         self.tableView = tableView
@@ -310,6 +311,26 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             )
             return cell
         }
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        scrollDelegate?.scrollViewDidScroll?(scrollView)
+    }
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        scrollDelegate?.scrollViewWillBeginDragging?(scrollView)
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        scrollDelegate?.scrollViewDidEndDragging?(scrollView, willDecelerate: decelerate)
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        scrollDelegate?.scrollViewDidEndDecelerating?(scrollView)
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        scrollDelegate?.scrollViewDidEndScrollingAnimation?(scrollView)
     }
 
     private func configure(_ tableView: UITableView) {

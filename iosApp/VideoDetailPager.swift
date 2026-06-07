@@ -360,9 +360,15 @@ private enum VideoDetailPendingTopAlignment {
     case explicit(CGFloat)
 }
 
+private struct VideoDetailNativeScrollPage {
+    let listScrollView: UIScrollView
+    let attachScrollDelegate: (UIScrollViewDelegate?) -> Void
+    let update: () -> Void
+}
+
 private enum VideoDetailTabPageContent {
     case swiftUI(() -> AnyView)
-    case nativeScrollView(listScrollView: UIScrollView, update: () -> Void)
+    case nativeScrollView(VideoDetailNativeScrollPage)
 }
 
 private struct VideoDetailListAlignmentState {
@@ -527,6 +533,7 @@ private struct VideoDetailTabPage {
         onInteractionBegan: @escaping (VideoPageTab) -> Void,
         onTopPullDelta: @escaping (VideoPageTab, CGFloat) -> Void,
         listScrollView: UIScrollView,
+        attachScrollDelegate: @escaping (UIScrollViewDelegate?) -> Void,
         nativeUpdate: @escaping () -> Void
     ) {
         self.tab = tab
@@ -537,12 +544,25 @@ private struct VideoDetailTabPage {
         self.onOffsetChange = onOffsetChange
         self.onInteractionBegan = onInteractionBegan
         self.onTopPullDelta = onTopPullDelta
-        self.content = .nativeScrollView(listScrollView: listScrollView, update: nativeUpdate)
+        self.content = .nativeScrollView(
+            VideoDetailNativeScrollPage(
+                listScrollView: listScrollView,
+                attachScrollDelegate: attachScrollDelegate,
+                update: nativeUpdate
+            )
+        )
     }
 
     var nativeListScrollView: UIScrollView? {
-        if case .nativeScrollView(let listScrollView, _) = content {
-            return listScrollView
+        if case .nativeScrollView(let nativePage) = content {
+            return nativePage.listScrollView
+        }
+        return nil
+    }
+
+    var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)? {
+        if case .nativeScrollView(let nativePage) = content {
+            return nativePage.attachScrollDelegate
         }
         return nil
     }
@@ -566,6 +586,7 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
     let introduction: () -> Introduction
     let comments: () -> Comments
     let nativeCommentsListScrollView: UIScrollView?
+    let nativeCommentsAttachScrollDelegate: ((UIScrollViewDelegate?) -> Void)?
     let nativeCommentsUpdate: (() -> Void)?
 
     private var selectedTabBinding: Binding<VideoPageTab> {
@@ -658,7 +679,9 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
             visualTopOffset: playerScrollAway,
             pinnedVisibleHeight: pinnedVisibleHeight
         )
-        if let nativeCommentsListScrollView, let nativeCommentsUpdate {
+        if let nativeCommentsListScrollView,
+           let nativeCommentsAttachScrollDelegate,
+           let nativeCommentsUpdate {
             return VideoDetailTabPage(
                 tab: .comments,
                 contentBottomPadding: commentsContentBottomPadding,
@@ -681,6 +704,7 @@ struct VideoDetailPagerContainer<ContinuationHeader: View, Introduction: View, C
                     }
                 },
                 listScrollView: nativeCommentsListScrollView,
+                attachScrollDelegate: nativeCommentsAttachScrollDelegate,
                 nativeUpdate: nativeCommentsUpdate
             )
         }
@@ -786,6 +810,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var firstActiveAlignmentVerificationPass = 0
     private var listScrollViewContentSizeObservation: NSKeyValueObservation?
     private var listScrollViewBoundsObservation: NSKeyValueObservation?
+    private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab, listScrollView: UIScrollView? = nil) {
@@ -806,6 +831,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        nativeScrollDelegateAttachment?(nil)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
@@ -820,7 +849,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         listScrollView.isDirectionalLockEnabled = true
         listScrollView.contentInsetAdjustmentBehavior = .never
         listScrollView.keyboardDismissMode = .interactive
-        listScrollView.delegate = coordinator
+        if defaultScrollView != nil {
+            listScrollView.delegate = coordinator
+        }
         listScrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(VideoDetailVerticalScrollPageCoordinator.handlePan(_:)))
         defaultScrollView?.onGeometryChange = { [weak self] in
             self?.handleScrollGeometryChange()
@@ -918,8 +949,15 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         if !page.isSelected, !hasExplicitPendingTopAlignment {
             cancelPendingTopAlignment()
         }
-        if case .nativeScrollView(_, let update) = page.content {
-            update()
+        switch page.content {
+        case .nativeScrollView(let nativePage):
+            if nativeScrollDelegateAttachment == nil {
+                nativeScrollDelegateAttachment = nativePage.attachScrollDelegate
+                nativePage.attachScrollDelegate(coordinator)
+            }
+            nativePage.update()
+        case .swiftUI:
+            break
         }
         if contentUpdateRevision != page.contentUpdateRevision {
             contentUpdateRevision = page.contentUpdateRevision
