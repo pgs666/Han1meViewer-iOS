@@ -1133,9 +1133,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         alignmentState.hasExplicitPendingTopAlignment
     }
 
-    func settleAfterHorizontalActivation() {
+    func settleAfterHorizontalActivation(targetOffsetY: CGFloat) {
         loadViewIfNeeded()
-        applyFirstActiveAlignmentIfNeeded(allowDuringInteraction: true)
+        applyFirstActiveAlignmentIfNeeded(
+            targetOffsetY: targetOffsetY,
+            allowDuringInteraction: true
+        )
     }
 
     private func applyFirstActiveAlignmentIfNeeded(allowDuringInteraction: Bool = false) {
@@ -1143,10 +1146,19 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         let targetOffsetY = page.headerGeometry.listOffsetContext(
             in: listScrollView.bounds.height
         ).initialNormalizedOffsetY
+        applyFirstActiveAlignmentIfNeeded(
+            targetOffsetY: targetOffsetY,
+            allowDuringInteraction: allowDuringInteraction
+        )
+    }
+
+    private func applyFirstActiveAlignmentIfNeeded(
+        targetOffsetY: CGFloat,
+        allowDuringInteraction: Bool = false
+    ) {
         coordinator.visualTopContentOffsetY = targetOffsetY
         if alignmentState.needsInitialHeaderOffsetReset {
-            applyInitialHeaderOffsetResetIfNeeded(allowDuringInteraction: allowDuringInteraction)
-            guard !alignmentState.needsInitialHeaderOffsetReset else { return }
+            alignmentState.markInitialOffsetApplied()
         }
         if !allowDuringInteraction {
             guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
@@ -1626,18 +1638,22 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func finishHorizontalPaging(at index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
+            if let activePage = verticalPageController(for: VideoPageTab.page(at: pagerPosition.selectedIndex)) {
+                updateHeaderSyncState(activeOffset: activePage.normalizedContentOffsetY)
+            }
+            let activationOffset = headerSyncState.inactiveSyncMode.normalizedOffsetY
             let didChangeSettledIndex = pagerPosition.markSettled(clampedIndex)
             updateScrollsToTop(for: VideoPageTab.page(at: clampedIndex))
             layoutHeaderHosts()
             switch VideoPageTab.page(at: clampedIndex) {
             case .introduction:
                 if didChangeSettledIndex {
-                    introductionPage.settleAfterHorizontalActivation()
+                    introductionPage.settleAfterHorizontalActivation(targetOffsetY: activationOffset)
                 }
                 introductionPage.reportCurrentOffset()
             case .comments:
                 if didChangeSettledIndex {
-                    commentsPage?.settleAfterHorizontalActivation()
+                    commentsPage?.settleAfterHorizontalActivation(targetOffsetY: activationOffset)
                 }
                 commentsPage?.reportCurrentOffset()
             }
