@@ -1567,7 +1567,7 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         ) {
             loadViewIfNeeded()
             if isHorizontalSelectionInProgress {
-                pendingSelectedIndex = selectedIndex
+                pendingSelectedIndex = selectedIndex == pagerPosition.selectedIndex ? nil : selectedIndex
             } else {
                 pagerPosition.setSelectedIndex(selectedIndex)
             }
