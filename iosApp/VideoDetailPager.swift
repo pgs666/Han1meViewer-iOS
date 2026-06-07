@@ -54,6 +54,13 @@ enum VideoDetailPagerOffsetModel {
         )
     }
 
+    static func minimumListContentHeight(
+        scrollBoundsHeight: CGFloat,
+        pinHeaderHeight: CGFloat
+    ) -> CGFloat {
+        max(scrollBoundsHeight - max(pinHeaderHeight, 0), 1)
+    }
+
     static func shouldAlignToVisualTopAfterHorizontalActivation(
         currentOffset: CGFloat,
         visualTopOffset: CGFloat
@@ -298,7 +305,8 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
             initialNormalizedOffsetY: visualTopOffset,
             inactiveSyncMode: inactiveSyncMode,
             collapseSpacerHeight: collapseSpacerHeight,
-            minimumContentHeight: minimumContentHeight(in: scrollBoundsHeight)
+            minimumContentHeight: minimumContentHeight(in: scrollBoundsHeight),
+            minimumListContentHeight: minimumListContentHeight(in: scrollBoundsHeight)
         )
     }
 
@@ -314,6 +322,13 @@ private struct VideoDetailSmoothHeaderGeometry: Equatable {
             scrollBoundsHeight: scrollBoundsHeight,
             pinnedVisibleHeight: pinnedVisibleHeight,
             collapseDistance: collapseDistance
+        )
+    }
+
+    func minimumListContentHeight(in scrollBoundsHeight: CGFloat) -> CGFloat {
+        VideoDetailPagerOffsetModel.minimumListContentHeight(
+            scrollBoundsHeight: scrollBoundsHeight,
+            pinHeaderHeight: pinHeaderHeight
         )
     }
 
@@ -337,6 +352,7 @@ private struct VideoDetailListOffsetContext: Equatable {
     let inactiveSyncMode: VideoDetailPagerOffsetModel.InactiveSyncMode
     let collapseSpacerHeight: CGFloat
     let minimumContentHeight: CGFloat
+    let minimumListContentHeight: CGFloat
 }
 
 private enum VideoDetailPendingTopAlignment {
@@ -1023,10 +1039,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             return
         }
         tableView.layoutIfNeeded()
-        let requiredContentHeight = max(
-            offsetContext.minimumContentHeight,
-            listScrollView.bounds.height - listScrollView.adjustedContentInset.top - listScrollView.adjustedContentInset.bottom
-        )
+        let requiredContentHeight = offsetContext.minimumListContentHeight
         let currentFooterHeight = tableView.tableFooterView === nativeMinimumContentFooterView
             ? nativeMinimumContentFooterView.bounds.height
             : 0
