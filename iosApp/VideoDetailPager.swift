@@ -92,6 +92,26 @@ private struct VideoDetailSmoothHeaderSyncState: Equatable {
     }
 }
 
+private enum VideoDetailHeaderAttachmentState: Equatable {
+    case listHeader
+    case pagerContainer(CGFloat)
+
+    static func state(
+        isHorizontalPagingActive: Bool,
+        selectedOffset: CGFloat,
+        syncState: VideoDetailSmoothHeaderSyncState,
+        collapseDistance: CGFloat
+    ) -> VideoDetailHeaderAttachmentState {
+        if isHorizontalPagingActive {
+            return .pagerContainer(syncState.headerContainerY)
+        }
+        if selectedOffset <= collapseDistance + 0.5 {
+            return .listHeader
+        }
+        return .pagerContainer(syncState.headerContainerY)
+    }
+}
+
 private extension VideoDetailPagerOffsetModel.InactiveSyncMode {
     var normalizedOffsetY: CGFloat {
         switch self {
@@ -1556,25 +1576,27 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             let headerTab = activeHeaderTab
             guard let page = latestPages[headerTab] else { return }
             layoutHeaderHosts()
-            if pagerPosition.isPagingActive {
-                attachHeaderToPagerContainer(page: page)
-                return
-            }
-            let selectedPageController = verticalPageController(for: headerTab)
-            guard let selectedPageController else { return }
-            let selectedOffset = selectedPageController.normalizedContentOffsetY
-            let shouldAttachToListHeader = selectedOffset <= page.headerGeometry.collapseDistance + 0.5
-            if shouldAttachToListHeader {
-                attachHeader(to: selectedPageController.headerAttachmentView(), originY: 0)
-            } else {
-                attachHeaderToPagerContainer(page: page)
-            }
+            guard let pageController = verticalPageController(for: headerTab) else { return }
+            let offset = pageController.normalizedContentOffsetY
+            let attachmentState = VideoDetailHeaderAttachmentState.state(
+                isHorizontalPagingActive: pagerPosition.isPagingActive,
+                selectedOffset: offset,
+                syncState: page.headerGeometry.smoothHeaderSyncState(activeOffset: offset),
+                collapseDistance: page.headerGeometry.collapseDistance
+            )
+            applyHeaderAttachment(attachmentState, pageController: pageController)
         }
 
-        private func attachHeaderToPagerContainer(page: VideoDetailTabPage) {
-            let offset = verticalPageController(for: activeHeaderTab)?.normalizedContentOffsetY ?? 0
-            let syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offset)
-            attachHeader(to: view, originY: syncState.headerContainerY)
+        private func applyHeaderAttachment(
+            _ attachmentState: VideoDetailHeaderAttachmentState,
+            pageController: VideoDetailVerticalScrollPageViewController
+        ) {
+            switch attachmentState {
+            case .listHeader:
+                attachHeader(to: pageController.headerAttachmentView(), originY: 0)
+            case .pagerContainer(let originY):
+                attachHeader(to: view, originY: originY)
+            }
         }
 
         private var activeHeaderTab: VideoPageTab {
@@ -1596,10 +1618,17 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
         private func updateHeaderContainerPosition(for tab: VideoPageTab, offsetY: CGFloat) {
             guard tab == activeHeaderTab else { return }
             guard let page = latestPages[tab] else { return }
+            guard let pageController = verticalPageController(for: tab) else { return }
             if pagerPosition.isPagingActive {
                 let syncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: offsetY)
                 headerSyncState = syncState
-                attachHeader(to: view, originY: syncState.headerContainerY)
+                let attachmentState = VideoDetailHeaderAttachmentState.state(
+                    isHorizontalPagingActive: true,
+                    selectedOffset: offsetY,
+                    syncState: syncState,
+                    collapseDistance: page.headerGeometry.collapseDistance
+                )
+                applyHeaderAttachment(attachmentState, pageController: pageController)
             } else {
                 if tab == VideoPageTab.page(at: pagerPosition.selectedIndex) {
                     updateHeaderSyncState(activeOffset: offsetY)
