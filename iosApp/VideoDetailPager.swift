@@ -395,11 +395,6 @@ private struct VideoDetailListAlignmentState {
         }
     }
 
-    mutating func maintainNativeAlignment(offsetY: CGFloat) {
-        maintainsNativeInitialAlignment = true
-        nativeMaintainedAlignmentOffsetY = offsetY
-    }
-
     mutating func stopMaintainingNativeAlignment() {
         maintainsNativeInitialAlignment = false
         nativeMaintainedAlignmentOffsetY = nil
@@ -757,6 +752,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private var listScrollViewContentSizeObservation: NSKeyValueObservation?
     private var listScrollViewBoundsObservation: NSKeyValueObservation?
     private var nativeScrollDelegateAttachment: ((UIScrollViewDelegate?) -> Void)?
+    private var isCurrentPageSelected = false
     var onHeaderOffsetChanged: (VideoPageTab, CGFloat) -> Void = { _, _ in }
 
     init(tab: VideoPageTab, listScrollView: UIScrollView? = nil) {
@@ -891,6 +887,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     func update(page: VideoDetailTabPage) {
         loadViewIfNeeded()
+        isCurrentPageSelected = page.isSelected
         coordinator.tab = page.tab
         coordinator.onOffsetChange = page.onOffsetChange
         coordinator.onInteractionBegan = page.onInteractionBegan
@@ -1166,9 +1163,9 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
 
     func settleAfterHorizontalActivation(targetOffsetY: CGFloat) {
         loadViewIfNeeded()
+        isCurrentPageSelected = true
         if isNativeListPage {
             setNativeNormalizedContentOffsetY(targetOffsetY)
-            alignmentState.maintainNativeAlignment(offsetY: targetOffsetY)
         } else {
             setNormalizedContentOffsetY(targetOffsetY)
         }
@@ -1245,6 +1242,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             return initialOffsetY
         }
         if alignmentState.maintainsNativeInitialAlignment,
+           !isCurrentPageSelected,
            !listScrollView.isTracking,
            !listScrollView.isDragging,
            !listScrollView.isDecelerating {
