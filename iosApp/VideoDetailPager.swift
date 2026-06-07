@@ -669,10 +669,12 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
     private let contentView = UIView()
     private let listHeaderView = UIView()
     private let collapseSpacerView = UIView()
+    private let contentBottomSpacerView = UIView()
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private var hostMinimumHeightConstraint: NSLayoutConstraint!
     private var contentMinimumHeightConstraint: NSLayoutConstraint!
     private var collapseSpacerHeightConstraint: NSLayoutConstraint!
+    private var contentBottomSpacerHeightConstraint: NSLayoutConstraint!
     private var contentUpdateRevision: Int?
     private var lastAppliedPage: VideoDetailTabPage?
     private var alignmentState = VideoDetailListAlignmentState()
@@ -738,9 +740,14 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         collapseSpacerView.backgroundColor = .clear
         contentView.addSubview(collapseSpacerView)
 
+        contentBottomSpacerView.translatesAutoresizingMaskIntoConstraints = false
+        contentBottomSpacerView.backgroundColor = .clear
+        contentView.addSubview(contentBottomSpacerView)
+
         hostMinimumHeightConstraint = host.view.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor)
         contentMinimumHeightConstraint = contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 1)
         collapseSpacerHeightConstraint = collapseSpacerView.heightAnchor.constraint(equalToConstant: 1)
+        contentBottomSpacerHeightConstraint = contentBottomSpacerView.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -763,8 +770,13 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             collapseSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             collapseSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             collapseSpacerView.topAnchor.constraint(equalTo: host.view.bottomAnchor),
-            collapseSpacerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            collapseSpacerHeightConstraint
+            collapseSpacerHeightConstraint,
+
+            contentBottomSpacerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            contentBottomSpacerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            contentBottomSpacerView.topAnchor.constraint(equalTo: collapseSpacerView.bottomAnchor),
+            contentBottomSpacerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            contentBottomSpacerHeightConstraint
         ])
     }
 
@@ -808,7 +820,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.visualTopContentOffsetY = visualTopOffset
         applyTopContentInset(offsetContext.contentTopInset)
         applyListHeaderFrame()
-        applyBottomContentInset(page.contentBottomPadding)
+        applyBottomContentSpacing(page.contentBottomPadding)
         collapseSpacerHeightConstraint.constant = offsetContext.collapseSpacerHeight
         contentMinimumHeightConstraint.constant = offsetContext.minimumContentHeight
         if alignmentState.needsInitialHeaderOffsetReset {
@@ -857,11 +869,17 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         applyListHeaderFrame()
     }
 
-    private func applyBottomContentInset(_ bottomInset: CGFloat) {
-        let resolvedBottomInset = max(bottomInset, 0)
-        guard abs(scrollView.contentInset.bottom - resolvedBottomInset) > 0.5 else { return }
-        scrollView.contentInset.bottom = resolvedBottomInset
-        scrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomInset
+    private func applyBottomContentSpacing(_ bottomSpacing: CGFloat) {
+        let resolvedBottomSpacing = max(bottomSpacing, 0)
+        if abs(contentBottomSpacerHeightConstraint.constant - resolvedBottomSpacing) > 0.5 {
+            contentBottomSpacerHeightConstraint.constant = resolvedBottomSpacing
+        }
+        if abs(scrollView.contentInset.bottom) > 0.5 {
+            scrollView.contentInset.bottom = 0
+        }
+        if abs(scrollView.verticalScrollIndicatorInsets.bottom - resolvedBottomSpacing) > 0.5 {
+            scrollView.verticalScrollIndicatorInsets.bottom = resolvedBottomSpacing
+        }
     }
 
     private func applyListHeaderFrame() {
