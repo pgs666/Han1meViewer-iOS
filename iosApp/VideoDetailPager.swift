@@ -403,6 +403,16 @@ private struct VideoDetailHorizontalPagerPosition: Equatable {
         return true
     }
 
+    mutating func settleHorizontalPaging(at index: Int) -> (previousSelectedIndex: Int, wasPagingActive: Bool) {
+        let previousSelectedIndex = selectedIndex
+        let wasPagingActive = isPagingActive
+        let resolvedIndex = clamped(index)
+        selectedIndex = resolvedIndex
+        activeHeaderIndex = resolvedIndex
+        isPagingActive = false
+        return (previousSelectedIndex, wasPagingActive)
+    }
+
     private func clamped(_ index: Int) -> Int {
         min(max(index, 0), VideoPageTab.allCases.count - 1)
     }
@@ -1109,11 +1119,10 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             in: listScrollView.bounds.height
         ).initialNormalizedOffsetY
         if isNativeListPage {
-            guard setNativeNormalizedContentOffsetY(targetOffsetY) else {
-                pendingNativePostLayoutAlignmentOffsetY = targetOffsetY
-                return
-            }
-            finishInitialOffsetAlignment()
+            applyNativePendingAlignment(
+                targetOffsetY: targetOffsetY,
+                allowDuringInteraction: allowDuringInteraction
+            )
             return
         }
         guard setNormalizedContentOffsetYForAlignment(targetOffsetY) else {
@@ -1687,25 +1696,24 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         private func settlePageAfterHorizontalSelection(_ index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
-            let wasPagingActive = pagerPosition.isPagingActive
-            if pagerPosition.isPagingActive {
-                deactivateHorizontalPagingForSettlement()
-            }
-            finishHorizontalPaging(at: clampedIndex, wasPagingActive: wasPagingActive)
+            finishHorizontalPaging(at: clampedIndex)
         }
 
-        private func finishHorizontalPaging(at index: Int, wasPagingActive: Bool) {
+        private func finishHorizontalPaging(at index: Int) {
             let clampedIndex = min(max(index, 0), VideoPageTab.allCases.count - 1)
-            guard clampedIndex != pagerPosition.selectedIndex || wasPagingActive else {
+            let settlement = pagerPosition.settleHorizontalPaging(at: clampedIndex)
+            introductionPage.setHorizontalPagingActive(false)
+            commentsPage?.setHorizontalPagingActive(false)
+            guard clampedIndex != settlement.previousSelectedIndex || settlement.wasPagingActive else {
                 pendingSelectedIndex = nil
                 return
             }
             pendingSelectedIndex = nil
-            if let activePage = verticalPageController(for: VideoPageTab.page(at: pagerPosition.selectedIndex)) {
-                updateHeaderSyncState(activeOffset: activePage.normalizedContentOffsetY)
+            let previousTab = VideoPageTab.page(at: settlement.previousSelectedIndex)
+            if let activePage = verticalPageController(for: previousTab) {
+                updateHeaderSyncState(for: previousTab, activeOffset: activePage.normalizedContentOffsetY)
             }
             let activationOffset = headerSyncState.inactiveSyncMode.normalizedOffsetY
-            pagerPosition.setSelectedIndex(clampedIndex)
             refreshPageSelectionSnapshots(selectedTab: VideoPageTab.page(at: clampedIndex))
             updateScrollsToTop(for: VideoPageTab.page(at: clampedIndex))
             layoutHeaderHosts()
@@ -1756,12 +1764,6 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             updateHeaderAttachmentForCurrentState()
         }
 
-        private func deactivateHorizontalPagingForSettlement() {
-            guard pagerPosition.setPagingActive(false) else { return }
-            introductionPage.setHorizontalPagingActive(false)
-            commentsPage?.setHorizontalPagingActive(false)
-        }
-
         @discardableResult
         private func syncInactivePageHeaderOffset(activeOffset providedActiveOffset: CGFloat? = nil) -> VideoDetailSmoothHeaderSyncState? {
             guard !pagerPosition.isPagingActive else {
@@ -1783,7 +1785,18 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
 
         @discardableResult
         private func updateHeaderSyncState(activeOffset: CGFloat) -> VideoDetailSmoothHeaderSyncState {
-            guard let page = latestPages[VideoPageTab.page(at: pagerPosition.selectedIndex)] else {
+            updateHeaderSyncState(
+                for: VideoPageTab.page(at: pagerPosition.selectedIndex),
+                activeOffset: activeOffset
+            )
+        }
+
+        @discardableResult
+        private func updateHeaderSyncState(
+            for tab: VideoPageTab,
+            activeOffset: CGFloat
+        ) -> VideoDetailSmoothHeaderSyncState {
+            guard let page = latestPages[tab] else {
                 return headerSyncState
             }
             headerSyncState = page.headerGeometry.smoothHeaderSyncState(activeOffset: activeOffset)
