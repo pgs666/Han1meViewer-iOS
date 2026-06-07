@@ -141,6 +141,8 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
     private var hasRenderedRows = false
     private var measuredCommentHeights: [String: MeasuredCommentHeight] = [:]
     private var isReloadingRows = false
+    private var contentBottomPadding: CGFloat = 0
+    private var pendingContentBottomPadding: CGFloat?
     weak var scrollDelegate: UIScrollViewDelegate?
 
     func attach(_ tableView: UITableView) {
@@ -191,6 +193,29 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         }
         rows = rows(for: model)
         reloadTablePreservingOffset()
+    }
+
+    func updateContentBottomPadding(_ bottomPadding: CGFloat) {
+        let nextPadding = max(bottomPadding, 0)
+        guard abs(contentBottomPadding - nextPadding) > 0.5 else { return }
+        guard let tableView, hasRenderedRows else {
+            contentBottomPadding = nextPadding
+            return
+        }
+        guard !tableView.isTracking, !tableView.isDragging, !tableView.isDecelerating else {
+            pendingContentBottomPadding = nextPadding
+            return
+        }
+        applyContentBottomPadding(nextPadding, in: tableView)
+    }
+
+    private func applyContentBottomPadding(_ nextPadding: CGFloat, in tableView: UITableView) {
+        contentBottomPadding = nextPadding
+        pendingContentBottomPadding = nil
+        UIView.performWithoutAnimation {
+            tableView.beginUpdates()
+            tableView.endUpdates()
+        }
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -250,7 +275,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
                 withIdentifier: CommentListFooterCell.reuseIdentifier,
                 for: indexPath
             ) as? CommentListFooterCell ?? CommentListFooterCell(style: .default, reuseIdentifier: CommentListFooterCell.reuseIdentifier)
-            cell.configure()
+            cell.configure(bottomPadding: contentBottomPadding)
             return cell
         case .comment(let comment):
             let cell = tableView.dequeueReusableCell(
@@ -294,7 +319,7 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         case .empty:
             return RowHeightEstimate.empty
         case .footer:
-            return RowHeightEstimate.footer
+            return RowHeightEstimate.footer + contentBottomPadding
         case .comment(let comment):
             guard let measuredHeight = measuredCommentHeights[comment.id],
                   measuredHeight.signature == CommentSignature(comment) else {
@@ -327,14 +352,19 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         scrollDelegate?.scrollViewDidEndDragging?(scrollView, willDecelerate: decelerate)
+        if !decelerate {
+            applyPendingContentBottomPaddingIfNeeded()
+        }
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         scrollDelegate?.scrollViewDidEndDecelerating?(scrollView)
+        applyPendingContentBottomPaddingIfNeeded()
     }
 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
         scrollDelegate?.scrollViewDidEndScrollingAnimation?(scrollView)
+        applyPendingContentBottomPaddingIfNeeded()
     }
 
     private func configure(_ tableView: UITableView) {
@@ -448,6 +478,11 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             signature: signature,
             height: roundedHeight
         )
+    }
+
+    private func applyPendingContentBottomPaddingIfNeeded() {
+        guard let tableView, let pendingContentBottomPadding else { return }
+        applyContentBottomPadding(pendingContentBottomPadding, in: tableView)
     }
 }
 
@@ -635,13 +670,17 @@ private final class CommentListFooterCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure() {
+    func configure(bottomPadding: CGFloat) {
         contentConfiguration = UIHostingConfiguration {
-            Text("comment.no_more")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
+            VStack(spacing: 0) {
+                Text("comment.no_more")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                Color.clear
+                    .frame(height: max(bottomPadding, 0))
+            }
         }
         .margins(.all, 0)
     }
