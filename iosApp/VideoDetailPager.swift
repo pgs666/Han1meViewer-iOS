@@ -855,7 +855,7 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
             hostMinimumHeightConstraint?.isActive = false
             if case .nativeScrollView(let nativePage) = page.content {
                 nativePage.update()
-                applyInitialContentOffsetIfNeeded(offsetContext.initialNormalizedOffsetY)
+                applyInitialContentOffsetIfNeeded(offsetContext.initialNormalizedOffsetY, isSelected: page.isSelected)
             }
         }
     }
@@ -918,11 +918,21 @@ private final class VideoDetailVerticalScrollPageViewController: UIViewControlle
         coordinator.visualTopContentOffsetY = page.headerGeometry.resolvedVisualTopOffset
     }
 
-    private func applyInitialContentOffsetIfNeeded(_ offsetY: CGFloat) {
+    private func applyInitialContentOffsetIfNeeded(_ offsetY: CGFloat, isSelected: Bool) {
+        guard isSelected else { return }
         guard !didApplyInitialContentOffset else { return }
         guard !listScrollView.isTracking, !listScrollView.isDragging, !listScrollView.isDecelerating else { return }
         guard setNormalizedContentOffsetYIfReachable(offsetY) else { return }
         didApplyInitialContentOffset = true
+    }
+
+    func applyInitialContentOffsetForSelectionIfNeeded() {
+        loadViewIfNeeded()
+        guard let page = lastAppliedPage else { return }
+        applyInitialContentOffsetIfNeeded(
+            page.headerGeometry.resolvedVisualTopOffset,
+            isSelected: page.isSelected
+        )
     }
 
     var normalizedContentOffsetY: CGFloat {
@@ -1360,7 +1370,9 @@ private struct VideoDetailTabPager: UIViewControllerRepresentable {
             refreshPageSelectionSnapshots(selectedTab: VideoPageTab.page(at: clampedIndex))
             updateScrollsToTop(for: VideoPageTab.page(at: clampedIndex))
             layoutHeaderHosts()
-            verticalPageController(for: VideoPageTab.page(at: clampedIndex))?.reportCurrentOffset()
+            let selectedPage = verticalPageController(for: VideoPageTab.page(at: clampedIndex))
+            selectedPage?.applyInitialContentOffsetForSelectionIfNeeded()
+            selectedPage?.reportCurrentOffset()
             syncInactivePageHeaderOffset()
             updateHeaderAttachmentForCurrentState()
         }
