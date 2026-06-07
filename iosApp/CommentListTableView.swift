@@ -16,89 +16,6 @@ struct CommentListTableModel {
     let onReport: (CommentRow) -> Void
 }
 
-struct CommentListTableView: UIViewRepresentable {
-    private let mode: Mode
-
-    private enum Mode {
-        case full(CommentListTableModel)
-        case rows(
-            comments: [CommentRow],
-            runningActionIDs: Set<String>,
-            onReply: (CommentRow) -> Void,
-            onShowReplies: (CommentRow) -> Void,
-            onLike: (CommentRow) -> Void,
-            onDislike: (CommentRow) -> Void,
-            onReport: (CommentRow) -> Void
-        )
-    }
-
-    init(model: CommentListTableModel) {
-        mode = .full(model)
-    }
-
-    init(
-        comments: [CommentRow],
-        runningActionIDs: Set<String>,
-        onReply: @escaping (CommentRow) -> Void,
-        onShowReplies: @escaping (CommentRow) -> Void,
-        onLike: @escaping (CommentRow) -> Void,
-        onDislike: @escaping (CommentRow) -> Void,
-        onReport: @escaping (CommentRow) -> Void
-    ) {
-        mode = .rows(
-            comments: comments,
-            runningActionIDs: runningActionIDs,
-            onReply: onReply,
-            onShowReplies: onShowReplies,
-            onLike: onLike,
-            onDislike: onDislike,
-            onReport: onReport
-        )
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> IntrinsicCommentTableView {
-        let tableView = IntrinsicCommentTableView(frame: .zero, style: .plain)
-        tableView.isScrollEnabled = false
-        tableView.alwaysBounceVertical = false
-        context.coordinator.controller.attach(tableView)
-        return tableView
-    }
-
-    func updateUIView(_ tableView: IntrinsicCommentTableView, context: Context) {
-        switch mode {
-        case .full(let model):
-            context.coordinator.controller.update(model)
-        case .rows(
-            let comments,
-            let runningActionIDs,
-            let onReply,
-            let onShowReplies,
-            let onLike,
-            let onDislike,
-            let onReport
-        ):
-            context.coordinator.controller.updateRows(
-                comments: comments,
-                runningActionIDs: runningActionIDs,
-                onReply: onReply,
-                onShowReplies: onShowReplies,
-                onLike: onLike,
-                onDislike: onDislike,
-                onReport: onReport
-            )
-        }
-        tableView.invalidateIntrinsicContentSize()
-    }
-
-    final class Coordinator {
-        let controller = CommentListTableController()
-    }
-}
-
 final class CommentListTableController: NSObject, UITableViewDataSource, UITableViewDelegate {
     private enum StateSignature: Equatable {
         case idle
@@ -213,26 +130,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
         onReport = model.onReport
         guard shouldReload else { return }
         rows = rows(for: model)
-        tableView?.reloadData()
-    }
-
-    func updateRows(
-        comments: [CommentRow],
-        runningActionIDs: Set<String>,
-        onReply: @escaping (CommentRow) -> Void,
-        onShowReplies: @escaping (CommentRow) -> Void,
-        onLike: @escaping (CommentRow) -> Void,
-        onDislike: @escaping (CommentRow) -> Void,
-        onReport: @escaping (CommentRow) -> Void
-    ) {
-        self.comments = comments
-        self.runningActionIDs = runningActionIDs
-        self.onReply = onReply
-        self.onShowReplies = onShowReplies
-        self.onLike = onLike
-        self.onDislike = onDislike
-        self.onReport = onReport
-        rows = comments.map { .comment($0) } + [.footer]
         tableView?.reloadData()
     }
 
@@ -360,20 +257,6 @@ final class CommentListTableController: NSObject, UITableViewDataSource, UITable
             }
             return [.controls] + model.comments.map { .comment($0) } + [.footer]
         }
-    }
-}
-
-final class IntrinsicCommentTableView: UITableView {
-    override var contentSize: CGSize {
-        didSet {
-            guard abs(contentSize.height - oldValue.height) > 0.5 else { return }
-            invalidateIntrinsicContentSize()
-        }
-    }
-
-    override var intrinsicContentSize: CGSize {
-        layoutIfNeeded()
-        return CGSize(width: UIView.noIntrinsicMetric, height: contentSize.height)
     }
 }
 
