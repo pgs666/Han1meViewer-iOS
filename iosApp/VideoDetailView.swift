@@ -10,7 +10,6 @@ struct VideoDetailView: View {
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
     @State private var isPlayerPlaying = false
-    @State private var pageScrollOffsets: [VideoPageTab: CGFloat] = [:]
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -233,7 +232,7 @@ struct VideoDetailView: View {
         let pagingTopOffset = allowsVideoOverlay ? 0 : currentPlayerHeight
         let pagingHeight = max(0, panelHeight - pagingTopOffset)
         let pagingTopInset = allowsVideoOverlay ? currentPlayerHeight : 0
-        let pagingMinimumHitY = allowsVideoOverlay ? pagingTabOffset(topInset: currentPlayerHeight) : 0
+        let pagingMinimumHitY = allowsVideoOverlay ? currentPlayerHeight : 0
 
         return ZStack(alignment: .top) {
             playerArea(snapshot: snapshot)
@@ -287,51 +286,36 @@ struct VideoDetailView: View {
         topInset: CGFloat,
         showsRelated: Bool
     ) -> some View {
-        ZStack(alignment: .top) {
-            TabView(selection: $selectedTab) {
-                pagingScroll(tab: .introduction, topInset: topInset) {
-                    AndroidStyleIntroduction(
-                        snapshot: snapshot,
-                        videoFeature: videoFeature,
-                        commentFeature: commentFeature,
-                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                        onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
-                        onShowMessage: { viewModel.showActionMessage($0) },
-                        showsRelated: showsRelated
-                    )
-                }
-                .tag(VideoPageTab.introduction)
-
-                pagingScroll(tab: .comments, topInset: topInset) {
-                    CommentView(videoCode: videoCode, commentFeature: commentFeature)
-                }
-                .tag(VideoPageTab.comments)
+        TabView(selection: $selectedTab) {
+            pagingScroll(topInset: topInset) {
+                AndroidStyleIntroduction(
+                    snapshot: snapshot,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature,
+                    isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                    onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                    onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                    onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                    onSetMyListItem: { item, isSelected in viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected) },
+                    onShowMessage: { viewModel.showActionMessage($0) },
+                    showsRelated: showsRelated
+                )
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .tag(VideoPageTab.introduction)
 
-            pagingTabBar
-                .offset(y: pagingTabOffset(topInset: topInset))
-                .zIndex(2)
+            pagingScroll(topInset: topInset) {
+                CommentView(videoCode: videoCode, commentFeature: commentFeature)
+            }
+            .tag(VideoPageTab.comments)
         }
+        .tabViewStyle(.page(indexDisplayMode: .never))
     }
 
     private func pagingScroll<Content: View>(
-        tab: VideoPageTab,
         topInset: CGFloat,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         ScrollView {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: VideoPageScrollOffsetPreferenceKey.self,
-                    value: VideoPageScrollOffset(tab: tab, offset: -proxy.frame(in: .named(tab.scrollCoordinateSpaceName)).minY)
-                )
-            }
-            .frame(height: 0)
-
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 Color.clear
                     .frame(height: topInset)
@@ -343,21 +327,10 @@ struct VideoDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(.systemGroupedBackground))
                 } header: {
-                    Color(.systemBackground)
-                        .frame(height: VideoPagingMetrics.tabBarHeight)
+                    pagingTabBar
                 }
             }
         }
-        .coordinateSpace(name: tab.scrollCoordinateSpaceName)
-        .onPreferenceChange(VideoPageScrollOffsetPreferenceKey.self) { value in
-            guard value.tab == tab else { return }
-            pageScrollOffsets[tab] = max(0, value.offset)
-        }
-    }
-
-    private func pagingTabOffset(topInset: CGFloat) -> CGFloat {
-        let offset = pageScrollOffsets[selectedTab] ?? 0
-        return max(0, topInset - offset)
     }
 
     private var pagingTabBar: some View {
@@ -376,18 +349,6 @@ struct VideoDetailView: View {
 
 private enum VideoPagingMetrics {
     static let tabBarHeight: CGFloat = 48
-}
-
-private struct VideoPageScrollOffset: Equatable {
-    let tab: VideoPageTab
-    let offset: CGFloat
-}
-
-private struct VideoPageScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue = VideoPageScrollOffset(tab: .introduction, offset: 0)
-    static func reduce(value: inout VideoPageScrollOffset, nextValue: () -> VideoPageScrollOffset) {
-        value = nextValue()
-    }
 }
 
 private struct TopPassthroughContainer<Content: View>: UIViewControllerRepresentable {
