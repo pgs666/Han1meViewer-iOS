@@ -16,19 +16,16 @@ import AVFoundation
 /// 隔离**，会让外层整个 app 进入 dark mode。`KSVideoPlayerViewBuilder` 是 internal enum
 /// 也用不了。
 ///
-/// 通过 `@Binding isFullscreen` / `@Binding isCollapsed` 让外部容器（VideoDetailView）
+/// 通过 `@Binding isFullscreen` 让外部容器（VideoDetailView）
 /// 控制 player 形态。**关键**：始终在 SwiftUI view tree 同一位置，仅靠外层 frame 切换大小,
 /// view identity 不变 → KSPlayerLayer 复用 → 视频不重新加载，进度不丢失。
 @MainActor
 struct KSPlayerView: View {
     let snapshot: VideoDetailScreenSnapshot
     @Binding var isFullscreen: Bool
-    @Binding var isCollapsed: Bool
     let onProgress: (TimeInterval) -> Void
     let onPlaybackEnded: () -> Void
     /// Optional: invoked whenever the player's playing/paused state flips.
-    /// Used by the parent to decide whether to allow scroll-driven shrink
-    /// of the player area (only paused state shrinks).
     let onPlayingChanged: (Bool) -> Void
     /// Optional: invoked whenever the controls overlay shows / hides. Lets
     /// the parent slide the navigation bar in / out together with the
@@ -39,17 +36,6 @@ struct KSPlayerView: View {
     /// removed (parent hides the navigation bar entirely), so this is the
     /// player's only way back.
     let onBack: () -> Void
-    /// True when the parent has shrunk the player below its 16:9 size via
-    /// the follow-finger collapse (paused + scrolled). When this is true,
-    /// a single tap on the video does NOT toggle the controls overlay —
-    /// it instead asks the parent to expand the player back to 16:9. This
-    /// is the user-requested workaround for the visible "video + controls
-    /// pulse" that occurred when the controls overlay materialised on
-    /// top of a shrunken player.
-    let isShrunken: Bool
-    /// Tap handler invoked when the user taps a shrunken player; parent is
-    /// expected to expand the player back to its full size.
-    let onRequestExpand: () -> Void
     /// Optional: invoked the first time the underlying media reports a
     /// non-zero natural size. Lets the parent decide whether the video is
     /// landscape or portrait so it can pick the right fullscreen
@@ -178,35 +164,27 @@ struct KSPlayerView: View {
     init(
         snapshot: VideoDetailScreenSnapshot,
         isFullscreen: Binding<Bool>,
-        isCollapsed: Binding<Bool>,
         onProgress: @escaping (TimeInterval) -> Void = { _ in },
         onPlaybackEnded: @escaping () -> Void = {},
         onPlayingChanged: @escaping (Bool) -> Void = { _ in },
         onControlsVisibilityChanged: @escaping (Bool) -> Void = { _ in },
         onBack: @escaping () -> Void = {},
-        isShrunken: Bool = false,
-        onRequestExpand: @escaping () -> Void = {},
         onNaturalSize: @escaping (CGSize) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self._isFullscreen = isFullscreen
-        self._isCollapsed = isCollapsed
         self.onProgress = onProgress
         self.onPlaybackEnded = onPlaybackEnded
         self.onPlayingChanged = onPlayingChanged
         self.onControlsVisibilityChanged = onControlsVisibilityChanged
         self.onBack = onBack
-        self.isShrunken = isShrunken
-        self.onRequestExpand = onRequestExpand
         self.onNaturalSize = onNaturalSize
     }
 
     var body: some View {
         let _ = Self.configureKSPlayerGlobalsOnce
         Group {
-            if isCollapsed {
-                collapsedStrip
-            } else if let activeSource = activeSource,
+            if let activeSource = activeSource,
                       let url = URL(string: activeSource.url) {
                 playerWithControls(url: url)
             } else {
@@ -353,16 +331,6 @@ struct KSPlayerView: View {
                     }
                     .onTapGesture(count: 1) {
                         if isBoosted { endBoost() }
-                        if isShrunken {
-                            // Player is currently shrunk by scroll. First
-                            // tap restores it to 16:9 instead of opening the
-                            // controls — avoids the visible layout pulse
-                            // that would otherwise happen when the controls
-                            // overlay tries to materialise on top of a
-                            // mid-collapse-animation player.
-                            onRequestExpand()
-                            return
-                        }
                         withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
                         AppLogger.log("gesture: tap controls=\(showsControls ? "show" : "hide")")
                         onControlsVisibilityChanged(showsControls)
@@ -484,18 +452,6 @@ struct KSPlayerView: View {
             // navigation stack — without an explicit pause, BOTH videos
             // would keep playing audio simultaneously.
             coordinator.playerLayer?.pause()
-        }
-        .onValueChange(of: isShrunken) { newValue in
-            // The moment the parent reports the player has begun shrinking
-            // (paused user starts scrolling content up), hide the controls
-            // overlay. Otherwise the HUD would persist over a steadily
-            // shrinking player and look stuck / out-of-sync.
-            guard newValue, showsControls else { return }
-            withAnimation(.easeInOut(duration: 0.18)) {
-                showsControls = false
-            }
-            onControlsVisibilityChanged(false)
-            hideControlsTask?.cancel()
         }
         .onValueChange(of: statusObserver.isWaitingForPlayback) { waiting in
             // Speed sampler only runs while the player is genuinely waiting
@@ -721,12 +677,6 @@ struct KSPlayerView: View {
             ) {
                 coordinator.isMuted.toggle()
             }
-            // 收起按钮（暂停 + 非全屏时显示，跟 mute 等并排）
-            if !isFullscreen, !isPlaying {
-                iconButton(systemImage: "chevron.up", label: "收起播放器") {
-                    withAnimation(.easeInOut(duration: 0.25)) { isCollapsed = true }
-                }
-            }
             // 比例 fit/fill
             iconButton(
                 systemImage: coordinator.isScaleAspectFill
@@ -737,8 +687,7 @@ struct KSPlayerView: View {
                 coordinator.isScaleAspectFill.toggle()
             }
             // Fullscreen toggle has been moved into bottomBar (right of the
-            // playback-rate menu) — see `bottomBar`. Keeping the cluster
-            // {mute, collapse, aspect} on the right of topBar.
+            // playback-rate menu) — see `bottomBar`.
         }
     }
 
@@ -995,28 +944,6 @@ struct KSPlayerView: View {
                     .foregroundStyle(.white)
             }
         }
-    }
-
-    // MARK: - Collapsed strip
-
-    private var collapsedStrip: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "play.rectangle.fill")
-                .foregroundStyle(.white)
-                .font(.title2)
-            Text(snapshot.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-            Spacer()
-            iconButton(systemImage: "chevron.down", label: "展开播放器") {
-                withAnimation(.easeInOut(duration: 0.25)) { isCollapsed = false }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .background(Color.black)
     }
 
     // MARK: - Helpers
