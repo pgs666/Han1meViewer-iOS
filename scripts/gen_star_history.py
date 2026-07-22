@@ -10,7 +10,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections import Counter
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 
@@ -67,7 +67,7 @@ def render_svg(repo: str, dates: list[date]) -> str:
     counts = Counter(dates)
     unique_dates = sorted(counts)
     today = datetime.now(timezone.utc).date()
-    first_date = unique_dates[0] if unique_dates else today
+    first_date = unique_dates[0] - timedelta(days=1) if unique_dates else today
     last_date = max(today, unique_dates[-1] if unique_dates else today)
     span_days = max(1, (last_date - first_date).days)
     y_max = nice_ceiling(max(1, len(dates)))
@@ -82,12 +82,24 @@ def render_svg(repo: str, dates: list[date]) -> str:
     running_total = 0
     for day in unique_dates:
         x = x_position(day)
-        points.append((x, y_position(running_total)))
         running_total += counts[day]
         points.append((x, y_position(running_total)))
-    points.append((LEFT + plot_width, y_position(running_total)))
-    polyline = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
-    area = f"{LEFT},{TOP + plot_height} {polyline} {LEFT + plot_width},{TOP + plot_height}"
+    if points[-1][0] < LEFT + plot_width:
+        points.append((LEFT + plot_width, y_position(running_total)))
+
+    curve_parts = [f"M {points[0][0]:.1f} {points[0][1]:.1f}"]
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        midpoint = (x0 + x1) / 2
+        curve_parts.append(
+            f"C {midpoint:.1f} {y0:.1f}, {midpoint:.1f} {y1:.1f}, {x1:.1f} {y1:.1f}"
+        )
+    curve_path = " ".join(curve_parts)
+    area_path = (
+        f"M {LEFT:.1f} {TOP + plot_height:.1f} "
+        f"L {points[0][0]:.1f} {points[0][1]:.1f} "
+        + " ".join(curve_parts[1:])
+        + f" L {LEFT + plot_width:.1f} {TOP + plot_height:.1f} Z"
+    )
 
     grid_lines: list[str] = []
     for index in range(5):
@@ -127,8 +139,8 @@ def render_svg(repo: str, dates: list[date]) -> str:
   <text class="subheading" x="{WIDTH - RIGHT}" y="26" text-anchor="end">Updated {generated}</text>
   {''.join(grid_lines)}
   {''.join(x_labels)}
-  <polygon class="area" points="{area}" />
-  <polyline class="line" points="{polyline}" />
+  <path class="area" d="{area_path}" />
+  <path class="line" d="{curve_path}" />
 </svg>
 '''
 
