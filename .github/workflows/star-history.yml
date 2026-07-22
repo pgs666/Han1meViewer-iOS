@@ -24,7 +24,7 @@ jobs:
 
       - name: Generate chart
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.STAR_HISTORY_TOKEN }}
         run: python scripts/gen_star_history.py
 
       - name: Commit updated chart
