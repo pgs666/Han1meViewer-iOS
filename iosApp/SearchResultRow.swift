@@ -6,10 +6,13 @@ struct SearchResultRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 96)
-                .frame(width: 96, height: 96 / coverLayout.aspectRatio)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: 96,
+                layout: coverLayout,
+                cornerRadius: 6
+            )
+            .frame(width: 96)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(video.title)

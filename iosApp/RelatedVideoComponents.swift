@@ -146,22 +146,29 @@ struct TabletRelatedVideoRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 128)
-                .frame(width: 128, height: 72)
-                .clipped()
-
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: 128,
+                layout: .landscape,
+                cornerRadius: 8
+            ) {
                 if let duration = video.duration, !duration.isEmpty {
-                    Text(duration)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.black.opacity(0.65), in: Capsule())
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Text(duration)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.black.opacity(0.65), in: Capsule())
+                        }
                         .padding(5)
+                    }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(width: 128)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(video.title)
@@ -191,32 +198,41 @@ struct RelatedVideoCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottomLeading) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
-                .frame(height: 96)
-                .clipped()
-
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: 172,
+                layout: .landscape
+            ) {
                 if showPlaying && video.isPlaying {
-                    Text("正在播放")
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.regularMaterial, in: Capsule())
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text("正在播放")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.regularMaterial, in: Capsule())
+                            Spacer()
+                        }
                         .padding(6)
+                    }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Text(video.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
+                .frame(height: 38, alignment: .topLeading)
 
             if !video.metadata.isEmpty {
                 Text(video.metadata)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .frame(height: 34, alignment: .topLeading)
+            } else {
+                Color.clear.frame(height: 34)
             }
         }
         .frame(width: 172, alignment: .leading)
