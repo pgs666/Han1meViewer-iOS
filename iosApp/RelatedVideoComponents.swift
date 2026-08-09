@@ -9,6 +9,8 @@ struct HorizontalVideoSection: View {
     let commentFeature: CommentFeature
     let showPlaying: Bool
 
+    @State private var isShowingAllVideos = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -22,18 +24,14 @@ struct HorizontalVideoSection: View {
                     }
                 }
                 Spacer()
-                NavigationLink {
-                    RelatedVideoListView(
-                        title: title,
-                        videos: videos,
-                        videoFeature: videoFeature,
-                        commentFeature: commentFeature,
-                        showPlaying: showPlaying
-                    )
+                Button {
+                    isShowingAllVideos = true
                 } label: {
                     Text("更多")
                         .font(.caption.weight(.semibold))
                 }
+                .accessibilityLabel(Text("查看全部\(title)"))
+                .accessibilityValue(Text("共 \(videos.count) 部影片"))
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -49,10 +47,19 @@ struct HorizontalVideoSection: View {
                 }
             }
         }
+        .sheet(isPresented: $isShowingAllVideos) {
+            SeriesVideosSheet(
+                title: title,
+                videos: videos,
+                videoFeature: videoFeature,
+                commentFeature: commentFeature,
+                showPlaying: showPlaying
+            )
+        }
     }
 }
 
-struct RelatedVideoListView: View {
+private struct SeriesVideosSheet: View {
     let title: String
     let videos: [VideoRelatedRow]
     let videoFeature: VideoFeature
@@ -60,30 +67,34 @@ struct RelatedVideoListView: View {
     let showPlaying: Bool
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 160), spacing: 12)],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                ForEach(videos) { video in
-                    NavigationLink {
-                        VideoDetailView(
-                            videoCode: video.videoCode,
-                            videoFeature: videoFeature,
-                            commentFeature: commentFeature
-                        )
-                    } label: {
-                        RelatedVideoCard(video: video, showPlaying: showPlaying)
+        CompatibleNavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(videos) { video in
+                        NavigationLink {
+                            VideoDetailView(
+                                videoCode: video.videoCode,
+                                videoFeature: videoFeature,
+                                commentFeature: commentFeature
+                            )
+                        } label: {
+                            TabletRelatedVideoRow(
+                                video: video,
+                                showPlaying: showPlaying
+                            )
+                            .accessibilityElement(children: .combine)
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider()
+                            .padding(.leading, 156)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.bottom, 24)
             }
-            .padding(16)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
-        .hidesTabBarOnAppear()
     }
 }
 
@@ -143,6 +154,12 @@ struct TabletRelatedSidebar: View {
 
 struct TabletRelatedVideoRow: View {
     let video: VideoRelatedRow
+    let showPlaying: Bool
+
+    init(video: VideoRelatedRow, showPlaying: Bool = false) {
+        self.video = video
+        self.showPlaying = showPlaying
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -152,11 +169,20 @@ struct TabletRelatedVideoRow: View {
                 layout: .landscape,
                 cornerRadius: 8
             ) {
-                if let duration = video.duration, !duration.isEmpty {
-                    VStack {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 6) {
+                        if showPlaying && video.isPlaying {
+                            Text("正在播放")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.regularMaterial, in: Capsule())
+                        }
+
                         Spacer()
-                        HStack {
-                            Spacer()
+
+                        if let duration = video.duration, !duration.isEmpty {
                             Text(duration)
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.white)
@@ -164,8 +190,8 @@ struct TabletRelatedVideoRow: View {
                                 .padding(.vertical, 2)
                                 .background(.black.opacity(0.65), in: Capsule())
                         }
-                        .padding(5)
                     }
+                    .padding(5)
                 }
             }
             .frame(width: 128)
