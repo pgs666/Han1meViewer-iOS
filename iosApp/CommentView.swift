@@ -2,31 +2,43 @@ import SwiftUI
 import Han1meShared
 
 struct CommentView: View {
-    @StateObject private var viewModel: CommentViewModel
-    @State private var composeText = ""
+    @ObservedObject var viewModel: CommentViewModel
+    let isActive: Bool
+    let onPresentAction: () -> Void
+    let onScrollDirectionChange: (Bool) -> Void
+
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var isShowingComposer = false
-
-    init(videoCode: String, commentFeature: CommentFeature) {
-        _viewModel = StateObject(
-            wrappedValue: CommentViewModel(feature: commentFeature, videoCode: videoCode)
-        )
-    }
+    @State private var previousDragTranslationY: CGFloat = 0
+    @State private var accumulatedScrollDelta: CGFloat = 0
+    @State private var isComposerShownForScroll = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            content
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                content
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, 16)
+        .scrollDismissesKeyboard(.interactively)
+        .simultaneousGesture(commentScrollGesture)
         .refreshable {
             await viewModel.refresh()
         }
         .task {
             viewModel.loadIfNeeded()
+        }
+        .onValueChange(of: isActive) { isActive in
+            previousDragTranslationY = 0
+            accumulatedScrollDelta = 0
+            if isActive {
+                setComposerShownForScroll(true)
+            }
         }
         .alert("提示", isPresented: actionMessageBinding) {
             Button("好", role: .cancel) {
@@ -34,23 +46,6 @@ struct CommentView: View {
             }
         } message: {
             Text(viewModel.actionMessage ?? "")
-        }
-        .sheet(isPresented: $isShowingComposer) {
-            CommentTextSheet(
-                title: "发表评论",
-                text: $composeText,
-                placeholder: "输入评论",
-                submitTitle: "发送",
-                onCancel: {
-                    isShowingComposer = false
-                    composeText = ""
-                },
-                onSubmit: {
-                    viewModel.postComment(text: composeText)
-                    isShowingComposer = false
-                    composeText = ""
-                }
-            )
         }
         .sheet(item: $replyTarget) { comment in
             CommentTextSheet(
@@ -105,13 +100,7 @@ struct CommentView: View {
             Spacer()
 
             Button {
-                isShowingComposer = true
-            } label: {
-                Label("评论", systemImage: "square.and.pencil")
-            }
-            .buttonStyle(.borderedProminent)
-
-            Button {
+                onPresentAction()
                 viewModel.load()
             } label: {
                 Image(systemName: "arrow.clockwise")
@@ -171,10 +160,12 @@ struct CommentView: View {
                             comment: comment,
                             isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)"),
                             onReply: {
+                                onPresentAction()
                                 replyText = "@\(comment.username) "
                                 replyTarget = comment
                             },
                             onShowReplies: {
+                                onPresentAction()
                                 repliesTarget = comment
                             },
                             onLike: {
@@ -184,6 +175,7 @@ struct CommentView: View {
                                 viewModel.like(comment: comment, isPositive: false)
                             },
                             onReport: {
+                                onPresentAction()
                                 reportTarget = comment
                             }
                         )
@@ -205,6 +197,53 @@ struct CommentView: View {
             get: { reportTarget != nil },
             set: { if !$0 { reportTarget = nil } }
         )
+    }
+
+    private var commentScrollGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                let horizontalDistance = abs(value.translation.width)
+                let verticalDistance = abs(value.translation.height)
+                guard verticalDistance > horizontalDistance else { return }
+
+                let delta = value.translation.height - previousDragTranslationY
+                previousDragTranslationY = value.translation.height
+                updateScrollDirection(delta: delta)
+            }
+            .onEnded { _ in
+                previousDragTranslationY = 0
+                accumulatedScrollDelta = 0
+            }
+    }
+
+    private func updateScrollDirection(delta: CGFloat) {
+        guard delta != 0 else { return }
+        guard case .loaded = viewModel.state, !viewModel.sortedComments.isEmpty else {
+            accumulatedScrollDelta = 0
+            setComposerShownForScroll(true)
+            return
+        }
+
+        if (accumulatedScrollDelta > 0 && delta < 0)
+            || (accumulatedScrollDelta < 0 && delta > 0) {
+            accumulatedScrollDelta = delta
+        } else {
+            accumulatedScrollDelta += delta
+        }
+
+        if accumulatedScrollDelta <= -14 {
+            accumulatedScrollDelta = 0
+            setComposerShownForScroll(false)
+        } else if accumulatedScrollDelta >= 10 {
+            accumulatedScrollDelta = 0
+            setComposerShownForScroll(true)
+        }
+    }
+
+    private func setComposerShownForScroll(_ isShown: Bool) {
+        guard isComposerShownForScroll != isShown else { return }
+        isComposerShownForScroll = isShown
+        onScrollDirectionChange(isShown)
     }
 }
 

@@ -83,18 +83,28 @@ final class CommentViewModel: ObservableObject {
         await loadComments(generation: generation)
     }
 
-    func postComment(text: String) {
+    @discardableResult
+    func postComment(text: String) async -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             actionMessage = String(localized: "评论太短")
-            return
+            return false
         }
         guard let snapshot = currentSnapshot, let userId = snapshot.currentUserId else {
             actionMessage = String(localized: "请先登录")
-            return
+            return false
         }
 
-        runAction(id: "post-comment") {
+        let actionID = "post-comment"
+        guard !runningActionIDs.contains(actionID) else {
+            return false
+        }
+        runningActionIDs.insert(actionID)
+        defer {
+            runningActionIDs.remove(actionID)
+        }
+
+        do {
             try await self.feature.postVideoComment(
                 videoCode: self.videoCode,
                 currentUserId: userId,
@@ -103,7 +113,21 @@ final class CommentViewModel: ObservableObject {
             )
             self.actionMessage = String(localized: "评论已发送")
             self.load()
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+            actionMessage = ErrorMessage.userFriendly(error)
+            return false
         }
+    }
+
+    var canAttemptPostComment: Bool {
+        if case .loaded = state {
+            return true
+        }
+        return false
     }
 
     func postReply(to comment: CommentRow, text: String) {

@@ -7,7 +7,11 @@ struct VideoDetailView: View {
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
     @StateObject private var viewModel: VideoDetailViewModel
+    @StateObject private var commentViewModel: CommentViewModel
     @State private var selectedTab = VideoPageTab.introduction
+    @State private var commentDraft = ""
+    @State private var isCommentComposerHiddenByScroll = false
+    @FocusState private var isCommentComposerFocused: Bool
     @State private var isPlayerFullscreen = false
     @State private var pushedSeriesVideoCode: String?
     @State private var isPushingSeriesVideo = false
@@ -30,6 +34,9 @@ struct VideoDetailView: View {
         self.videoFeature = videoFeature
         self.commentFeature = commentFeature
         _viewModel = StateObject(wrappedValue: VideoDetailViewModel(videoFeature: videoFeature))
+        _commentViewModel = StateObject(
+            wrappedValue: CommentViewModel(feature: commentFeature, videoCode: videoCode)
+        )
     }
 
     var body: some View {
@@ -284,46 +291,198 @@ struct VideoDetailView: View {
 
             Divider()
 
-            TabView(selection: $selectedTab) {
-                ScrollView {
-                    AndroidStyleIntroduction(
-                        snapshot: snapshot,
-                        videoFeature: videoFeature,
-                        commentFeature: commentFeature,
-                        isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
-                        onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
-                        onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
-                        onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
-                        onSetMyListItem: { item, isSelected in
-                            viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected)
-                        },
-                        onShowMessage: { viewModel.showActionMessage($0) },
-                        onOpenSeriesVideo: {
-                            pushedSeriesVideoCode = $0
-                            isPushingSeriesVideo = true
-                        },
-                        showsRelated: showsRelated
-                    )
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
-                }
-                .refreshable {
-                    await viewModel.refresh(videoCode: videoCode)
-                }
-                .background(PagerEdgePopPriorityBridge())
-                .tag(VideoPageTab.introduction)
-
-                ScrollView {
-                    CommentView(videoCode: videoCode, commentFeature: commentFeature)
-                        .padding(.top, 12)
-                        .padding(.bottom, 24)
-                }
-                .background(PagerEdgePopPriorityBridge())
-                .tag(VideoPageTab.comments)
+            if #available(iOS 26.0, *) {
+                detailPager(snapshot: snapshot, showsRelated: showsRelated)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if isCommentComposerVisible {
+                            liquidGlassCommentComposer
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                                .padding(.bottom, 16)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+            } else {
+                detailPager(snapshot: snapshot, showsRelated: showsRelated)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if isCommentComposerVisible {
+                            VStack(spacing: 0) {
+                                Divider()
+                                legacyCommentComposer
+                            }
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+        }
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isCommentComposerVisible)
+        .onValueChange(of: selectedTab) { tab in
+            if tab == .comments {
+                isCommentComposerHiddenByScroll = false
+            } else {
+                isCommentComposerFocused = false
+            }
+        }
+        .onDisappear {
+            isCommentComposerFocused = false
         }
         .background(Color(.systemGroupedBackground))
+    }
+
+    private func detailPager(snapshot: VideoDetailScreenSnapshot, showsRelated: Bool) -> some View {
+        TabView(selection: $selectedTab) {
+            ScrollView {
+                AndroidStyleIntroduction(
+                    snapshot: snapshot,
+                    videoFeature: videoFeature,
+                    commentFeature: commentFeature,
+                    isArtistActionRunning: viewModel.isActionRunning("artistSubscription"),
+                    onToggleArtistSubscription: { viewModel.toggleArtistSubscription(snapshot: snapshot) },
+                    onToggleFavorite: { viewModel.toggleFavorite(snapshot: snapshot) },
+                    onToggleWatchLater: { viewModel.toggleWatchLater(snapshot: snapshot) },
+                    onSetMyListItem: { item, isSelected in
+                        viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected)
+                    },
+                    onShowMessage: { viewModel.showActionMessage($0) },
+                    onOpenSeriesVideo: {
+                        pushedSeriesVideoCode = $0
+                        isPushingSeriesVideo = true
+                    },
+                    showsRelated: showsRelated
+                )
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+            }
+            .refreshable {
+                await viewModel.refresh(videoCode: videoCode)
+            }
+            .background(PagerEdgePopPriorityBridge())
+            .tag(VideoPageTab.introduction)
+
+            CommentView(
+                viewModel: commentViewModel,
+                isActive: selectedTab == .comments,
+                onPresentAction: {
+                    isCommentComposerFocused = false
+                },
+                onScrollDirectionChange: { shouldShowComposer in
+                    guard selectedTab == .comments else { return }
+                    let shouldHideComposer = !shouldShowComposer
+                    guard isCommentComposerHiddenByScroll != shouldHideComposer else { return }
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                        if shouldHideComposer {
+                            isCommentComposerFocused = false
+                        }
+                        isCommentComposerHiddenByScroll = shouldHideComposer
+                    }
+                }
+            )
+            .background(PagerEdgePopPriorityBridge())
+            .tag(VideoPageTab.comments)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+
+    private var isCommentComposerVisible: Bool {
+        selectedTab == .comments
+            && !isCommentComposerHiddenByScroll
+    }
+
+    private var canSubmitComment: Bool {
+        commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
+            && commentViewModel.canAttemptPostComment
+            && !isSubmittingComment
+    }
+
+    private var isSubmittingComment: Bool {
+        commentViewModel.runningActionIDs.contains("post-comment")
+    }
+
+    @available(iOS 26.0, *)
+    private var liquidGlassCommentComposer: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            TextField("发表评论", text: $commentDraft, axis: .vertical)
+                .lineLimit(1...4)
+                .submitLabel(.send)
+                .textFieldStyle(.plain)
+                .focused($isCommentComposerFocused)
+                .onSubmit {
+                    if canSubmitComment {
+                        submitComment()
+                    }
+                }
+                .padding(.leading, 8)
+
+            Button(action: submitComment) {
+                commentSubmitLabel
+            }
+            .buttonStyle(.plain)
+            .frame(width: 40, height: 40)
+            .foregroundStyle(canSubmitComment ? Color.accentColor : Color.secondary)
+            .disabled(!canSubmitComment)
+            .accessibilityLabel("发送评论")
+        }
+        .padding(6)
+        .frame(minHeight: 52)
+        .glassEffect(
+            .regular.interactive(),
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+    }
+
+    private var legacyCommentComposer: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            TextField("发表评论", text: $commentDraft, axis: .vertical)
+                .lineLimit(1...4)
+                .submitLabel(.send)
+                .textFieldStyle(.roundedBorder)
+                .focused($isCommentComposerFocused)
+                .onSubmit {
+                    if canSubmitComment {
+                        submitComment()
+                    }
+                }
+
+            Button(action: submitComment) {
+                commentSubmitLabel
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.circle)
+            .frame(width: 44, height: 44)
+            .disabled(!canSubmitComment)
+            .accessibilityLabel("发送评论")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemBackground))
+    }
+
+    private var commentSubmitLabel: some View {
+        Group {
+            if isSubmittingComment {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: "arrow.up")
+                    .font(.headline.weight(.semibold))
+            }
+        }
+        .frame(width: 20, height: 20)
+    }
+
+    private func submitComment() {
+        guard canSubmitComment else { return }
+        let submittedText = commentDraft
+        isCommentComposerFocused = false
+
+        Task {
+            let didPost = await commentViewModel.postComment(text: submittedText)
+            if didPost && commentDraft == submittedText {
+                commentDraft = ""
+            }
+        }
     }
 }
 
