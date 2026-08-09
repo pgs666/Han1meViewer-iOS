@@ -229,6 +229,11 @@ struct VideoDetailView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
+            // The parent TabView still reports the home-indicator safe area
+            // after its tab bar has been hidden. Extend the detail layout —
+            // not just its background — through that stale bottom inset so
+            // the pager receives the full remaining screen height.
+            .ignoresSafeArea(.container, edges: .bottom)
         }
     }
 
