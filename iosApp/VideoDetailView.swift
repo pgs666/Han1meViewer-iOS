@@ -9,9 +9,6 @@ struct VideoDetailView: View {
     @StateObject private var viewModel: VideoDetailViewModel
     @StateObject private var commentViewModel: CommentViewModel
     @State private var selectedTab = VideoPageTab.introduction
-    @State private var commentDraft = ""
-    @State private var isCommentEditorPresented = false
-    @State private var isCommentComposerHiddenByScroll = false
     @State private var isPlayerFullscreen = false
     @State private var pushedSeriesVideoCode: String?
     @State private var isPushingSeriesVideo = false
@@ -78,23 +75,11 @@ struct VideoDetailView: View {
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
-            .fullScreenCover(isPresented: $isCommentEditorPresented) {
-                CommentEditorView(
-                    text: $commentDraft,
-                    canSubmit: canSubmitComment,
-                    isSubmitting: isSubmittingComment,
-                    onSubmit: submitComment
-                )
-                .transparentPresentationBackground()
-            }
             .onDisappear {
                 // KSPlayer pauses itself in its own .onDisappear; the
                 // detail VM no longer owns a player.
                 if isPlayerFullscreen {
                     AppOrientationController.shared.unlockAfterFullscreen()
-                }
-                if !isCommentEditorPresented {
-                    commentDraft = ""
                 }
             }
             // Apple-Music-style centred HUD for action results
@@ -296,37 +281,7 @@ struct VideoDetailView: View {
 
             Divider()
 
-            if #available(iOS 26.0, *) {
-                detailPager(snapshot: snapshot, showsRelated: showsRelated)
-                    .overlay(alignment: .bottom) {
-                        if isCommentComposerVisible {
-                            liquidGlassCommentComposer
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                                .padding(.bottom, 16)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
-            } else {
-                detailPager(snapshot: snapshot, showsRelated: showsRelated)
-                    .overlay(alignment: .bottom) {
-                        if isCommentComposerVisible {
-                            VStack(spacing: 0) {
-                                Divider()
-                                legacyCommentComposer
-                            }
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
-            }
-        }
-        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isCommentComposerVisible)
-        .onValueChange(of: selectedTab) { tab in
-            if tab == .comments {
-                isCommentComposerHiddenByScroll = false
-            } else {
-                isCommentEditorPresented = false
-            }
+            detailPager(snapshot: snapshot, showsRelated: showsRelated)
         }
         .background(Color(.systemGroupedBackground))
     }
@@ -361,253 +316,13 @@ struct VideoDetailView: View {
             .background(PagerEdgePopPriorityBridge())
             .tag(VideoPageTab.introduction)
 
-            CommentView(
-                viewModel: commentViewModel,
-                isActive: selectedTab == .comments,
-                onPresentAction: {
-                    isCommentEditorPresented = false
-                },
-                onScrollDirectionChange: { shouldShowComposer in
-                    guard selectedTab == .comments else { return }
-                    let shouldHideComposer = !shouldShowComposer
-                    guard isCommentComposerHiddenByScroll != shouldHideComposer else { return }
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                        isCommentComposerHiddenByScroll = shouldHideComposer
-                    }
-                }
-            )
+            CommentView(viewModel: commentViewModel)
             .background(PagerEdgePopPriorityBridge())
             .tag(VideoPageTab.comments)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
     }
 
-    private var isCommentComposerVisible: Bool {
-        selectedTab == .comments
-            && !isCommentComposerHiddenByScroll
-            && !isCommentEditorPresented
-    }
-
-    private var canSubmitComment: Bool {
-        commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
-            && commentViewModel.canAttemptPostComment
-            && !isSubmittingComment
-    }
-
-    private var isSubmittingComment: Bool {
-        commentViewModel.runningActionIDs.contains("post-comment")
-    }
-
-    @available(iOS 26.0, *)
-    private var liquidGlassCommentComposer: some View {
-        Button(action: presentCommentEditor) {
-            HStack(spacing: 8) {
-                fakeComposerText
-                Spacer()
-                Image(systemName: "arrow.up")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 40, height: 40)
-            }
-            .padding(.leading, 14)
-            .padding(6)
-            .frame(minHeight: 52)
-            .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .glassEffect(
-            .regular.interactive(),
-            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
-        )
-        .accessibilityLabel("发表评论")
-    }
-
-    private var legacyCommentComposer: some View {
-        Button(action: presentCommentEditor) {
-            HStack {
-                fakeComposerText
-                Spacer()
-                Image(systemName: "arrow.up")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 14)
-            .frame(minHeight: 44)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
-        .accessibilityLabel("发表评论")
-    }
-
-    private var fakeComposerText: some View {
-        Text(commentDraft.isEmpty ? "发表评论" : commentDraft)
-            .foregroundStyle(commentDraft.isEmpty ? Color.secondary : Color.primary)
-            .lineLimit(1)
-            .truncationMode(.tail)
-    }
-
-    private func presentCommentEditor() {
-        isCommentComposerHiddenByScroll = false
-        isCommentEditorPresented = true
-    }
-
-    private func submitComment() {
-        guard canSubmitComment else { return }
-        let submittedText = commentDraft
-
-        Task {
-            let didPost = await commentViewModel.postComment(text: submittedText)
-            if didPost && commentDraft == submittedText {
-                commentDraft = ""
-                isCommentEditorPresented = false
-            }
-        }
-    }
-}
-
-private struct CommentEditorView: View {
-    @Binding var text: String
-    let canSubmit: Bool
-    let isSubmitting: Bool
-    let onSubmit: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @FocusState private var isFocused: Bool
-    @State private var keyboardHeight: CGFloat = 0
-    @State private var hasShownKeyboard = false
-    @State private var isClosing = false
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .bottom) {
-                Color.black.opacity(0.18)
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        isFocused = false
-                    }
-
-                editorPanel
-                    .frame(height: panelHeight)
-                    .padding(.bottom, keyboardHeight)
-                    .transition(.move(edge: .bottom))
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .ignoresSafeArea(.keyboard)
-        .onAppear {
-            Task { @MainActor in
-                await Task.yield()
-                isFocused = true
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) {
-            updateKeyboardFrame(from: $0)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            closeEditor()
-        }
-    }
-
-    private var panelHeight: CGFloat {
-        guard keyboardHeight > 0 else { return 220 }
-        return min(max(keyboardHeight, 220), 420)
-    }
-
-    private var editorPanel: some View {
-        VStack(spacing: 0) {
-            Capsule()
-                .fill(Color.secondary.opacity(0.35))
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 12)
-
-            HStack(alignment: .top, spacing: 12) {
-                TextEditor(text: $text)
-                    .focused($isFocused)
-                    .scrollContentBackground(.hidden)
-                    .font(.body)
-                    .padding(10)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .accessibilityLabel("评论内容")
-
-                Button(action: onSubmit) {
-                    Group {
-                        if isSubmitting {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.up")
-                                .font(.headline.weight(.semibold))
-                        }
-                    }
-                    .frame(width: 22, height: 22)
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .frame(width: 44, height: 44)
-                .disabled(!canSubmit)
-                .accessibilityLabel("发送评论")
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-        }
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 24,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 24,
-                style: .continuous
-            )
-        )
-        .shadow(color: .black.opacity(0.12), radius: 18, y: -4)
-    }
-
-    private func updateKeyboardFrame(from notification: Notification) {
-        guard let endFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-            return
-        }
-
-        let screenBounds = UIScreen.main.bounds
-        let isDockedToBottom = endFrame.maxY >= screenBounds.maxY - 1
-        let overlap = isDockedToBottom ? max(0, screenBounds.maxY - endFrame.minY) : 0
-        keyboardHeight = overlap
-        if overlap > 0 {
-            hasShownKeyboard = true
-        }
-    }
-
-    private func closeEditor() {
-        guard hasShownKeyboard, !isClosing else { return }
-        isClosing = true
-        withAnimation(.easeInOut(duration: 0.25)) {
-            keyboardHeight = 0
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            dismiss()
-        }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func transparentPresentationBackground() -> some View {
-        if #available(iOS 16.4, *) {
-            presentationBackground(.clear)
-        } else {
-            self
-        }
-    }
 }
 
 private enum VideoPageTab: String, CaseIterable, Identifiable {

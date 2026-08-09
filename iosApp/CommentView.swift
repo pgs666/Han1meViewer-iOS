@@ -1,19 +1,15 @@
 import SwiftUI
 import Han1meShared
-import UIKit
 
 struct CommentView: View {
     @ObservedObject var viewModel: CommentViewModel
-    let isActive: Bool
-    let onPresentAction: () -> Void
-    let onScrollDirectionChange: (Bool) -> Void
 
+    @State private var composeText = ""
+    @State private var isShowingComposer = false
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var accumulatedScrollDelta: CGFloat = 0
-    @State private var isComposerShownForScroll = true
 
     var body: some View {
         ScrollView {
@@ -24,22 +20,9 @@ struct CommentView: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 24)
-            .background {
-                CommentScrollDirectionObserver { delta in
-                    guard isActive else { return }
-                    updateScrollDirection(delta: delta)
-                }
-            }
         }
-        .scrollDismissesKeyboard(.interactively)
         .task {
             viewModel.loadIfNeeded()
-        }
-        .onValueChange(of: isActive) { isActive in
-            accumulatedScrollDelta = 0
-            if isActive {
-                setComposerShownForScroll(true)
-            }
         }
         .alert("提示", isPresented: actionMessageBinding) {
             Button("好", role: .cancel) {
@@ -47,6 +30,22 @@ struct CommentView: View {
             }
         } message: {
             Text(viewModel.actionMessage ?? "")
+        }
+        .sheet(isPresented: $isShowingComposer) {
+            CommentTextSheet(
+                title: "发表评论",
+                text: $composeText,
+                placeholder: "输入评论",
+                submitTitle: "发送",
+                onCancel: {
+                    isShowingComposer = false
+                    composeText = ""
+                },
+                onSubmit: {
+                    submitComment()
+                }
+            )
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: $replyTarget) { comment in
             CommentTextSheet(
@@ -96,6 +95,22 @@ struct CommentView: View {
             .pickerStyle(.menu)
 
             Spacer()
+
+            Button {
+                isShowingComposer = true
+            } label: {
+                Label("评论", systemImage: "square.and.pencil")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private func submitComment() {
+        let text = composeText
+        Task { @MainActor in
+            guard await viewModel.postComment(text: text) else { return }
+            isShowingComposer = false
+            composeText = ""
         }
     }
 
@@ -159,12 +174,10 @@ struct CommentView: View {
                             comment: comment,
                             isRunningLike: viewModel.runningActionIDs.contains("like-\(comment.id)"),
                             onReply: {
-                                onPresentAction()
                                 replyText = "@\(comment.username) "
                                 replyTarget = comment
                             },
                             onShowReplies: {
-                                onPresentAction()
                                 repliesTarget = comment
                             },
                             onLike: {
@@ -174,7 +187,6 @@ struct CommentView: View {
                                 viewModel.like(comment: comment, isPositive: false)
                             },
                             onReport: {
-                                onPresentAction()
                                 reportTarget = comment
                             }
                         )
@@ -198,134 +210,6 @@ struct CommentView: View {
         )
     }
 
-    private func updateScrollDirection(delta: CGFloat) {
-        guard delta != 0 else { return }
-        guard case .loaded = viewModel.state, !viewModel.sortedComments.isEmpty else {
-            accumulatedScrollDelta = 0
-            setComposerShownForScroll(true)
-            return
-        }
-
-        if (accumulatedScrollDelta > 0 && delta < 0)
-            || (accumulatedScrollDelta < 0 && delta > 0) {
-            accumulatedScrollDelta = delta
-        } else {
-            accumulatedScrollDelta += delta
-        }
-
-        if accumulatedScrollDelta <= -14 {
-            accumulatedScrollDelta = 0
-            setComposerShownForScroll(false)
-        } else if accumulatedScrollDelta >= 10 {
-            accumulatedScrollDelta = 0
-            setComposerShownForScroll(true)
-        }
-    }
-
-    private func setComposerShownForScroll(_ isShown: Bool) {
-        guard isComposerShownForScroll != isShown else { return }
-        isComposerShownForScroll = isShown
-        onScrollDirectionChange(isShown)
-    }
-}
-
-private struct CommentScrollDirectionObserver: UIViewRepresentable {
-    let onScrollDelta: (CGFloat) -> Void
-
-    func makeUIView(context: Context) -> ObserverView {
-        let view = ObserverView()
-        view.isUserInteractionEnabled = false
-        view.onScrollDelta = onScrollDelta
-        return view
-    }
-
-    func updateUIView(_ uiView: ObserverView, context: Context) {
-        uiView.onScrollDelta = onScrollDelta
-        uiView.scheduleAttachment()
-    }
-
-    static func dismantleUIView(_ uiView: ObserverView, coordinator: ()) {
-        uiView.detach()
-    }
-
-    final class ObserverView: UIView {
-        var onScrollDelta: (CGFloat) -> Void = { _ in }
-
-        private weak var observedScrollView: UIScrollView?
-        private weak var observedPanGesture: UIPanGestureRecognizer?
-        private var previousContentOffsetY: CGFloat?
-        private var isAttachmentScheduled = false
-
-        override func didMoveToSuperview() {
-            super.didMoveToSuperview()
-            scheduleAttachment()
-        }
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            if window == nil {
-                detach()
-            } else {
-                scheduleAttachment()
-            }
-        }
-
-        func scheduleAttachment() {
-            guard !isAttachmentScheduled else { return }
-            isAttachmentScheduled = true
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.isAttachmentScheduled = false
-                self.attachToEnclosingScrollView()
-            }
-        }
-
-        func detach() {
-            observedPanGesture?.removeTarget(self, action: #selector(handlePan(_:)))
-            observedPanGesture = nil
-            observedScrollView = nil
-            previousContentOffsetY = nil
-        }
-
-        private func attachToEnclosingScrollView() {
-            var ancestor = superview
-            while let view = ancestor {
-                if let scrollView = view as? UIScrollView {
-                    guard observedScrollView !== scrollView else { return }
-                    detach()
-                    observedScrollView = scrollView
-                    observedPanGesture = scrollView.panGestureRecognizer
-                    scrollView.panGestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
-                    return
-                }
-                ancestor = view.superview
-            }
-        }
-
-        @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
-            guard let scrollView = observedScrollView else { return }
-
-            switch recognizer.state {
-            case .began:
-                previousContentOffsetY = scrollView.contentOffset.y
-            case .changed:
-                let contentOffsetY = scrollView.contentOffset.y
-                guard let previousContentOffsetY else {
-                    self.previousContentOffsetY = contentOffsetY
-                    return
-                }
-                self.previousContentOffsetY = contentOffsetY
-
-                let delta = previousContentOffsetY - contentOffsetY
-                guard delta != 0, abs(delta) < 80 else { return }
-                onScrollDelta(delta)
-            case .ended, .cancelled, .failed:
-                previousContentOffsetY = nil
-            default:
-                break
-            }
-        }
-    }
 }
 
 private struct CommentRowView: View {
