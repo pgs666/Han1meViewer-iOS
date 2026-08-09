@@ -40,7 +40,7 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        content
+        contentWithCommentComposer
             .logScreen("VideoDetail v=\(videoCode)")
             .navigationDestination(
                 isPresented: $isPushingSeriesVideo
@@ -145,6 +145,40 @@ struct VideoDetailView: View {
             }
     }
 
+    @ViewBuilder
+    private var contentWithCommentComposer: some View {
+        if #available(iOS 26.0, *) {
+            ZStack(alignment: .bottomLeading) {
+                content
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+
+                if isCommentComposerVisible && !isPlayerFullscreen {
+                    GeometryReader { proxy in
+                        let isWide = horizontalSizeClass == .regular
+                            && proxy.size.width >= 900
+                            && proxy.size.width > proxy.size.height
+                        let leftWidth: CGFloat = isWide
+                            ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
+                            : proxy.size.width
+
+                        VStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            liquidGlassCommentComposer
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                                .padding(.bottom, 16)
+                                .frame(width: leftWidth)
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isCommentComposerVisible)
+        } else {
+            content
+        }
+    }
+
     /// Decides whether the player should rotate to landscape or stay in
     /// portrait when entering fullscreen. Defaults to landscape (existing
     /// behaviour); switches to portrait only when both:
@@ -241,16 +275,7 @@ struct VideoDetailView: View {
                         }
                     }
 
-                    if #available(iOS 26.0, *), isCommentComposerVisible, !isPlayerFullscreen {
-                        liquidGlassCommentComposer
-                            .padding(.horizontal, 16)
-                            .padding(.top, 8)
-                            .padding(.bottom, 16)
-                            .frame(width: leftWidth)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
                 }
-                .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isCommentComposerVisible)
             }
             .background(Color(.systemGroupedBackground))
             // The parent TabView still reports the home-indicator safe area
