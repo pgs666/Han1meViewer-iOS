@@ -293,6 +293,7 @@ struct VideoDetailView: View {
                 .refreshable {
                     await viewModel.refresh(videoCode: videoCode)
                 }
+                .background(PagerEdgePopPriorityBridge())
                 .tag(VideoPageTab.introduction)
 
                 ScrollView {
@@ -300,6 +301,7 @@ struct VideoDetailView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 24)
                 }
+                .background(PagerEdgePopPriorityBridge())
                 .tag(VideoPageTab.comments)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))

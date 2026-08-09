@@ -83,8 +83,7 @@ final class PopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
         // private paging scroll view used by SwiftUI's page-style TabView.
         // The interactive-pop recognizer can then own a left-edge drag
         // instead of the pager responding alongside it.
-        if let scrollView = otherGestureRecognizer.view as? UIScrollView,
-           otherGestureRecognizer === scrollView.panGestureRecognizer {
+        if isScrollViewPan(otherGestureRecognizer) {
             return false
         }
 
@@ -92,6 +91,99 @@ final class PopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
         // it claims touches immediately, but deliberately does no work inside
         // its edge dead zone so interactive pop can drive navigation.
         return true
+    }
+
+    private func isScrollViewPan(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let scrollView = gestureRecognizer.view as? UIScrollView else {
+            return false
+        }
+        return gestureRecognizer === scrollView.panGestureRecognizer
+    }
+}
+
+/// Connects SwiftUI's page-style TabView paging recognizer to UIKit's
+/// interactive-pop recognizer with the correct failure direction:
+/// pager.pan requires edge-pop to fail.
+struct PagerEdgePopPriorityBridge: UIViewRepresentable {
+    func makeUIView(context: Context) -> CoordinatorView {
+        CoordinatorView()
+    }
+
+    func updateUIView(_ uiView: CoordinatorView, context: Context) {
+        uiView.scheduleConfiguration()
+    }
+
+    final class CoordinatorView: UIView {
+        private var isConfigurationScheduled = false
+        private var remainingRetries = 12
+        private var configuredPagingRecognizers = Set<ObjectIdentifier>()
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            remainingRetries = 12
+            scheduleConfiguration()
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            remainingRetries = 12
+            scheduleConfiguration()
+        }
+
+        func scheduleConfiguration() {
+            guard !isConfigurationScheduled else { return }
+            isConfigurationScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isConfigurationScheduled = false
+                if !self.configureFailureRequirement(), self.remainingRetries > 0 {
+                    self.remainingRetries -= 1
+                    self.scheduleConfiguration()
+                }
+            }
+        }
+
+        private func configureFailureRequirement() -> Bool {
+            guard let popGesture = enclosingNavigationController?
+                .interactivePopGestureRecognizer else {
+                return false
+            }
+
+            var configuredAny = false
+            var ancestor = superview
+            while let view = ancestor {
+                if let scrollView = view as? UIScrollView, scrollView.isPagingEnabled {
+                    let panGesture = scrollView.panGestureRecognizer
+                    let identifier = ObjectIdentifier(panGesture)
+                    if !configuredPagingRecognizers.contains(identifier) {
+                        // Apple-supported precedence API: the pager waits for
+                        // the system edge-pop recognizer to fail. This keeps
+                        // normal paging away from the edge while guaranteeing
+                        // that a valid back swipe wins at the left edge.
+                        panGesture.require(toFail: popGesture)
+                        configuredPagingRecognizers.insert(identifier)
+                    }
+                    configuredAny = true
+                }
+                ancestor = view.superview
+            }
+            return configuredAny
+        }
+
+        private var enclosingNavigationController: UINavigationController? {
+            var responder: UIResponder? = self
+            while let current = responder {
+                if let navigationController = current as? UINavigationController {
+                    return navigationController
+                }
+                if let viewController = current as? UIViewController,
+                   let navigationController = viewController.navigationController {
+                    return navigationController
+                }
+                responder = current.next
+            }
+            return nil
+        }
     }
 }
 
