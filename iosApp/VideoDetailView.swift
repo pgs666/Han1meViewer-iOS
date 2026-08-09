@@ -9,6 +9,8 @@ struct VideoDetailView: View {
     @StateObject private var viewModel: VideoDetailViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
+    @State private var pushedSeriesVideoCode: String?
+    @State private var isPushingSeriesVideo = false
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -33,6 +35,17 @@ struct VideoDetailView: View {
     var body: some View {
         content
             .logScreen("VideoDetail v=\(videoCode)")
+            .navigationDestination(
+                isPresented: $isPushingSeriesVideo
+            ) {
+                if let pushedSeriesVideoCode {
+                    VideoDetailView(
+                        videoCode: pushedSeriesVideoCode,
+                        videoFeature: videoFeature,
+                        commentFeature: commentFeature
+                    )
+                }
+            }
             // Navigation bar (and its system back button) is hidden the
             // whole time. The player draws its own floating back button
             // inside the controls overlay — that way show/hide of the
@@ -285,6 +298,10 @@ struct VideoDetailView: View {
                             viewModel.setMyListItem(snapshot: snapshot, item: item, isSelected: isSelected)
                         },
                         onShowMessage: { viewModel.showActionMessage($0) },
+                        onOpenSeriesVideo: {
+                            pushedSeriesVideoCode = $0
+                            isPushingSeriesVideo = true
+                        },
                         showsRelated: showsRelated
                     )
                     .padding(.top, 16)
@@ -336,6 +353,7 @@ private struct AndroidStyleIntroduction: View {
     let onToggleWatchLater: () -> Void
     let onSetMyListItem: (VideoMyListRow, Bool) -> Void
     let onShowMessage: (String) -> Void
+    let onOpenSeriesVideo: (String) -> Void
     let showsRelated: Bool
 
     var body: some View {
@@ -390,7 +408,8 @@ private struct AndroidStyleIntroduction: View {
                     videos: snapshot.playlistVideos,
                     videoFeature: videoFeature,
                     commentFeature: commentFeature,
-                    showPlaying: true
+                    showPlaying: true,
+                    onOpenVideo: onOpenSeriesVideo
                 )
             }
 

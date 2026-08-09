@@ -8,8 +8,11 @@ struct HorizontalVideoSection: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let showPlaying: Bool
+    let onOpenVideo: (String) -> Void
 
     @State private var isShowingAllVideos = false
+    @State private var pendingVideoCode: String?
+    @State private var isSelectionPending = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -47,36 +50,51 @@ struct HorizontalVideoSection: View {
                 }
             }
         }
-        .sheet(isPresented: $isShowingAllVideos) {
+        .sheet(isPresented: $isShowingAllVideos, onDismiss: openPendingVideo) {
             SeriesVideosSheet(
                 title: title,
                 videos: videos,
-                videoFeature: videoFeature,
-                commentFeature: commentFeature,
-                showPlaying: showPlaying
+                showPlaying: showPlaying,
+                onSelectVideo: selectVideo
             )
         }
+    }
+
+    private func selectVideo(_ videoCode: String) {
+        guard !isSelectionPending else { return }
+        isSelectionPending = true
+
+        if showPlaying,
+           videos.first(where: { $0.videoCode == videoCode })?.isPlaying == true {
+            isShowingAllVideos = false
+            return
+        }
+
+        pendingVideoCode = videoCode
+        isShowingAllVideos = false
+    }
+
+    private func openPendingVideo() {
+        isSelectionPending = false
+        guard let videoCode = pendingVideoCode else { return }
+        pendingVideoCode = nil
+        onOpenVideo(videoCode)
     }
 }
 
 private struct SeriesVideosSheet: View {
     let title: String
     let videos: [VideoRelatedRow]
-    let videoFeature: VideoFeature
-    let commentFeature: CommentFeature
     let showPlaying: Bool
+    let onSelectVideo: (String) -> Void
 
     var body: some View {
         CompatibleNavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(videos) { video in
-                        NavigationLink {
-                            VideoDetailView(
-                                videoCode: video.videoCode,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature
-                            )
+                        Button {
+                            onSelectVideo(video.videoCode)
                         } label: {
                             TabletRelatedVideoRow(
                                 video: video,
