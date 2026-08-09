@@ -194,16 +194,18 @@ struct VideoDetailView: View {
                 let leftWidth: CGFloat = isWide
                     ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
                     : proxy.size.width
+                let resolvedPlayerHeight = playerHeight(
+                    panelWidth: leftWidth,
+                    parentHeight: proxy.size.height
+                )
+                let pagerHeight = max(0, proxy.size.height - resolvedPlayerHeight)
 
                 HStack(alignment: .top, spacing: 0) {
                     VStack(spacing: 0) {
                         playerArea(snapshot: snapshot)
                             .frame(
                                 width: leftWidth,
-                                height: playerHeight(
-                                    panelWidth: leftWidth,
-                                    parentHeight: proxy.size.height
-                                )
+                                height: resolvedPlayerHeight
                             )
 
                         if !isPlayerFullscreen {
@@ -211,10 +213,10 @@ struct VideoDetailView: View {
                             // dedicated right sidebar already shows related videos —
                             // duplicating them in the bottom scroll would be redundant.
                             belowPlayerPager(snapshot: snapshot, showsRelated: !isWide)
-                                .frame(maxHeight: .infinity)
+                                .frame(width: leftWidth, height: pagerHeight)
                         }
                     }
-                    .frame(width: leftWidth)
+                    .frame(width: leftWidth, height: proxy.size.height, alignment: .top)
 
                     if isWide {
                         Divider()
@@ -227,8 +229,16 @@ struct VideoDetailView: View {
                         .background(Color(.systemBackground))
                     }
                 }
+                .frame(
+                    width: proxy.size.width,
+                    height: proxy.size.height,
+                    alignment: .topLeading
+                )
             }
-            .background(Color(.systemGroupedBackground))
+            .background(
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea(edges: .bottom)
+            )
         }
     }
 
