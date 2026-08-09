@@ -78,13 +78,6 @@ struct VideoDetailView: View {
             .task {
                 viewModel.loadIfNeeded(videoCode: videoCode)
             }
-            .refreshable {
-                // Refresh without the full-screen .loading spinner flash:
-                // keep the current content visible while re-fetching. The
-                // player is rebuilt on success (acceptable for an explicit
-                // refresh); this just removes the abrupt blank-out.
-                await viewModel.refresh(videoCode: videoCode)
-            }
             .onDisappear {
                 // KSPlayer pauses itself in its own .onDisappear; the
                 // detail VM no longer owns a player.

@@ -414,7 +414,6 @@ private struct CommentRepliesSheet: View {
                 .navigationTitle("回复")
                 .navigationBarTitleDisplayMode(.inline)
         }
-        .environment(\.refresh, nil)
         .task {
             await load()
         }
