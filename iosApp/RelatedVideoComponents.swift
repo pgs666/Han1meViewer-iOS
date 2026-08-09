@@ -57,6 +57,7 @@ struct HorizontalVideoSection: View {
                 showPlaying: showPlaying,
                 onSelectVideo: selectVideo
             )
+            .presentationDragIndicator(.visible)
         }
     }
 

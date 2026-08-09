@@ -864,6 +864,7 @@ private struct ActionButtonRow: View {
         .sheet(isPresented: $isShowingShareSheet) {
             if let videoURL {
                 ActivityView(activityItems: [videoURL])
+                    .presentationDragIndicator(.visible)
             }
         }
         .confirmationDialog("选择下载画质", isPresented: $isShowingDownloadQuality, titleVisibility: .visible) {

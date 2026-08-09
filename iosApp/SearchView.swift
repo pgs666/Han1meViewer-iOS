@@ -71,6 +71,7 @@ struct SearchView: View {
                         viewModel.resetFilters()
                     }
                 )
+                .presentationDragIndicator(.visible)
             }
         }
     }

@@ -74,6 +74,7 @@ struct Han1meViewerApp: App {
                             commentFeature: sharedEnvironment.commentFeature()
                         )
                     }
+                    .presentationDragIndicator(.visible)
                 }
                 .modifier(
                     CloudflareChallengePresenter(

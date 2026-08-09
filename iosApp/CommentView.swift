@@ -62,6 +62,7 @@ struct CommentView: View {
                     submitReply(to: comment)
                 }
             )
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: $repliesTarget) { comment in
             CommentRepliesSheet(
@@ -413,6 +414,7 @@ private struct CommentRepliesSheet: View {
                 .navigationTitle("回复")
                 .navigationBarTitleDisplayMode(.inline)
         }
+        .environment(\.refresh, nil)
         .task {
             await load()
         }
@@ -430,6 +432,7 @@ private struct CommentRepliesSheet: View {
                     submitReply(to: comment)
                 }
             )
+            .presentationDragIndicator(.visible)
         }
         .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
             ForEach(viewModel.reportReasons) { reason in
