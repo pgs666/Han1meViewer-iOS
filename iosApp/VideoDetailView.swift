@@ -10,8 +10,8 @@ struct VideoDetailView: View {
     @StateObject private var commentViewModel: CommentViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @State private var commentDraft = ""
+    @State private var isCommentComposerEditing = false
     @State private var isCommentComposerHiddenByScroll = false
-    @State private var isKeyboardPresented = false
     @FocusState private var isCommentComposerFocused: Bool
     @State private var isPlayerFullscreen = false
     @State private var pushedSeriesVideoCode: String?
@@ -41,7 +41,7 @@ struct VideoDetailView: View {
     }
 
     var body: some View {
-        contentWithCommentComposer
+        content
             .logScreen("VideoDetail v=\(videoCode)")
             .navigationDestination(
                 isPresented: $isPushingSeriesVideo
@@ -120,18 +120,6 @@ struct VideoDetailView: View {
                     }
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-                isKeyboardPresented = true
-                isCommentComposerHiddenByScroll = false
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                isKeyboardPresented = false
-            }
-            .onValueChange(of: isCommentComposerFocused) { isFocused in
-                if isFocused {
-                    isCommentComposerHiddenByScroll = false
-                }
-            }
             .animation(.spring(response: 0.32, dampingFraction: 0.78), value: viewModel.actionMessage?.id)
             .onValueChange(of: isPlayerFullscreen) { newValue in
                 // The fullscreen toggle button wraps `isPlayerFullscreen.toggle()`
@@ -156,40 +144,6 @@ struct VideoDetailView: View {
                     }
                 }
             }
-    }
-
-    @ViewBuilder
-    private var contentWithCommentComposer: some View {
-        if #available(iOS 26.0, *) {
-            ZStack(alignment: .bottomLeading) {
-                content
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
-
-                GeometryReader { proxy in
-                    let isWide = horizontalSizeClass == .regular
-                        && proxy.size.width >= 900
-                        && proxy.size.width > proxy.size.height
-                    let leftWidth: CGFloat = isWide
-                        ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
-                        : proxy.size.width
-
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        if isCommentComposerVisible && !isPlayerFullscreen {
-                            liquidGlassCommentComposer
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                                .padding(.bottom, 16)
-                                .frame(width: leftWidth)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
-                }
-            }
-            .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isCommentComposerVisible)
-        } else {
-            content
-        }
     }
 
     /// Decides whether the player should rotate to landscape or stay in
@@ -254,40 +208,37 @@ struct VideoDetailView: View {
                     ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
                     : proxy.size.width
 
-                ZStack(alignment: .bottomLeading) {
-                    HStack(alignment: .top, spacing: 0) {
-                        VStack(spacing: 0) {
-                            playerArea(snapshot: snapshot)
-                                .frame(
-                                    width: leftWidth,
-                                    height: playerHeight(
-                                        panelWidth: leftWidth,
-                                        parentHeight: proxy.size.height
-                                    )
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(spacing: 0) {
+                        playerArea(snapshot: snapshot)
+                            .frame(
+                                width: leftWidth,
+                                height: playerHeight(
+                                    panelWidth: leftWidth,
+                                    parentHeight: proxy.size.height
                                 )
-
-                            if !isPlayerFullscreen {
-                                // showsRelated=false on iPad regular landscape because the
-                                // dedicated right sidebar already shows related videos —
-                                // duplicating them in the bottom scroll would be redundant.
-                                belowPlayerPager(snapshot: snapshot, showsRelated: !isWide)
-                                    .frame(maxHeight: .infinity)
-                            }
-                        }
-                        .frame(width: leftWidth)
-
-                        if isWide {
-                            Divider()
-                            TabletRelatedSidebar(
-                                videos: snapshot.relatedVideos,
-                                videoFeature: videoFeature,
-                                commentFeature: commentFeature
                             )
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(.systemBackground))
+
+                        if !isPlayerFullscreen {
+                            // showsRelated=false on iPad regular landscape because the
+                            // dedicated right sidebar already shows related videos —
+                            // duplicating them in the bottom scroll would be redundant.
+                            belowPlayerPager(snapshot: snapshot, showsRelated: !isWide)
+                                .frame(maxHeight: .infinity)
                         }
                     }
+                    .frame(width: leftWidth)
 
+                    if isWide {
+                        Divider()
+                        TabletRelatedSidebar(
+                            videos: snapshot.relatedVideos,
+                            videoFeature: videoFeature,
+                            commentFeature: commentFeature
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemBackground))
+                    }
                 }
             }
             .background(Color(.systemGroupedBackground))
@@ -336,7 +287,15 @@ struct VideoDetailView: View {
 
             if #available(iOS 26.0, *) {
                 detailPager(snapshot: snapshot, showsRelated: showsRelated)
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
+                    .overlay(alignment: .bottom) {
+                        if isCommentComposerVisible {
+                            liquidGlassCommentComposer
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                                .padding(.bottom, 16)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
             } else {
                 detailPager(snapshot: snapshot, showsRelated: showsRelated)
                     .overlay(alignment: .bottom) {
@@ -355,11 +314,11 @@ struct VideoDetailView: View {
             if tab == .comments {
                 isCommentComposerHiddenByScroll = false
             } else {
-                isCommentComposerFocused = false
+                endCommentEditing(clearDraft: false)
             }
         }
         .onDisappear {
-            isCommentComposerFocused = false
+            endCommentEditing(clearDraft: false)
         }
         .background(Color(.systemGroupedBackground))
     }
@@ -398,14 +357,12 @@ struct VideoDetailView: View {
                 viewModel: commentViewModel,
                 isActive: selectedTab == .comments,
                 onPresentAction: {
-                    isCommentComposerFocused = false
+                    endCommentEditing(clearDraft: false)
                 },
                 onScrollDirectionChange: { shouldShowComposer in
                     guard selectedTab == .comments else { return }
+                    guard !isCommentComposerEditing else { return }
                     let shouldHideComposer = !shouldShowComposer
-                    if shouldHideComposer && (isCommentComposerFocused || isKeyboardPresented) {
-                        return
-                    }
                     guard isCommentComposerHiddenByScroll != shouldHideComposer else { return }
                     withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
                         if shouldHideComposer {
@@ -423,7 +380,7 @@ struct VideoDetailView: View {
 
     private var isCommentComposerVisible: Bool {
         selectedTab == .comments
-            && !isCommentComposerHiddenByScroll
+            && (isCommentComposerEditing || !isCommentComposerHiddenByScroll)
     }
 
     private var canSubmitComment: Bool {
@@ -437,7 +394,37 @@ struct VideoDetailView: View {
     }
 
     @available(iOS 26.0, *)
+    @ViewBuilder
     private var liquidGlassCommentComposer: some View {
+        if isCommentComposerEditing {
+            liquidGlassCommentEditor
+        } else {
+            Button(action: beginCommentEditing) {
+                HStack(spacing: 8) {
+                    Text("发表评论")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "arrow.up")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, height: 40)
+                }
+                .padding(.leading, 14)
+                .padding(6)
+                .frame(minHeight: 52)
+                .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .glassEffect(
+                .regular.interactive(),
+                in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+            )
+            .accessibilityLabel("发表评论")
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private var liquidGlassCommentEditor: some View {
         HStack(alignment: .center, spacing: 8) {
             TextField("发表评论", text: $commentDraft, axis: .vertical)
                 .lineLimit(1...4)
@@ -451,6 +438,17 @@ struct VideoDetailView: View {
                 }
                 .padding(.leading, 8)
                 .padding(.vertical, 10)
+
+            Button {
+                endCommentEditing(clearDraft: true)
+            } label: {
+                Image(systemName: "xmark")
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 32, height: 40)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("取消评论")
 
             Button(action: submitComment) {
                 commentSubmitLabel
@@ -469,7 +467,36 @@ struct VideoDetailView: View {
         )
     }
 
+    @ViewBuilder
     private var legacyCommentComposer: some View {
+        if isCommentComposerEditing {
+            legacyCommentEditor
+        } else {
+            Button(action: beginCommentEditing) {
+                HStack {
+                    Text("发表评论")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "arrow.up")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity)
+            .background(Color(.systemBackground))
+            .accessibilityLabel("发表评论")
+        }
+    }
+
+    private var legacyCommentEditor: some View {
         HStack(alignment: .center, spacing: 10) {
             TextField("发表评论", text: $commentDraft, axis: .vertical)
                 .lineLimit(1...4)
@@ -481,6 +508,16 @@ struct VideoDetailView: View {
                         submitComment()
                     }
                 }
+
+            Button {
+                endCommentEditing(clearDraft: true)
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .frame(width: 32, height: 44)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("取消评论")
 
             Button(action: submitComment) {
                 commentSubmitLabel
@@ -511,6 +548,24 @@ struct VideoDetailView: View {
         .frame(width: 20, height: 20)
     }
 
+    private func beginCommentEditing() {
+        isCommentComposerHiddenByScroll = false
+        isCommentComposerEditing = true
+        Task { @MainActor in
+            await Task.yield()
+            guard isCommentComposerEditing else { return }
+            isCommentComposerFocused = true
+        }
+    }
+
+    private func endCommentEditing(clearDraft: Bool) {
+        isCommentComposerFocused = false
+        isCommentComposerEditing = false
+        if clearDraft {
+            commentDraft = ""
+        }
+    }
+
     private func submitComment() {
         guard canSubmitComment else { return }
         let submittedText = commentDraft
@@ -519,7 +574,7 @@ struct VideoDetailView: View {
         Task {
             let didPost = await commentViewModel.postComment(text: submittedText)
             if didPost && commentDraft == submittedText {
-                commentDraft = ""
+                endCommentEditing(clearDraft: true)
             }
         }
     }
