@@ -132,7 +132,7 @@ struct ArtistVideosView: View {
                                 commentFeature: commentFeature
                             )
                         } label: {
-                            SearchVideoCard(video: video)
+                            SearchVideoCard(video: video, coverLayout: coverLayout)
                         }
                         .buttonStyle(.plain)
                         .onAppear {
@@ -163,6 +163,14 @@ struct ArtistVideosView: View {
             await viewModel.refresh()
         }
     }
+
+    private var coverLayout: VideoCoverLayout {
+        guard case .homeSection(let request) = mode,
+              request.sectionKey == "ecchiAnime" else {
+            return .landscape
+        }
+        return .hanimePortrait
+    }
 }
 
 /// Grid-style card for `SearchVideoRow`. Matches the home-page card
@@ -173,12 +181,15 @@ struct ArtistVideosView: View {
 /// read as one family.
 struct SearchVideoCard: View {
     let video: SearchVideoRow
+    var coverLayout: VideoCoverLayout = .landscape
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
                 CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(coverLayout.aspectRatio, contentMode: .fill)
+                    .clipped()
 
                 LinearGradient(
                     colors: [
@@ -243,6 +254,7 @@ struct SearchVideoCard: View {
                 }
             }
         }
+        .videoCardSurface()
     }
 }
 

@@ -343,7 +343,10 @@ private struct HomeCategorySection: View {
                         NavigationLink {
                             VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                         } label: {
-                            HomeVideoCard(video: video)
+                            HomeVideoCard(
+                                video: video,
+                                coverLayout: section.key == "ecchiAnime" ? .hanimePortrait : .landscape
+                            )
                         }
                         .buttonStyle(.plain)
                     }
@@ -356,12 +359,13 @@ private struct HomeCategorySection: View {
 
 private struct HomeVideoCard: View {
     let video: HomeVideoRow
+    let coverLayout: VideoCoverLayout
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
                 CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 184)
-                    .frame(width: 184, height: 104)
+                    .frame(width: 184, height: 184 / coverLayout.aspectRatio)
                     .clipped()
 
                 LinearGradient(
@@ -416,9 +420,7 @@ private struct HomeVideoCard: View {
             }
         }
         .frame(width: 184, alignment: .leading)
-        .padding(8)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .videoCardSurface()
     }
 }
 

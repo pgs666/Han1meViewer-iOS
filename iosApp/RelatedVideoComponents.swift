@@ -220,6 +220,7 @@ struct RelatedVideoCard: View {
             }
         }
         .frame(width: 172, alignment: .leading)
+        .videoCardSurface()
     }
 }
 

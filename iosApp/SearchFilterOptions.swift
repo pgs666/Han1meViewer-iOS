@@ -158,6 +158,10 @@ struct SearchFilterState: Equatable {
         return count
     }
 
+    var isHanimeOnly: Bool {
+        genre?.searchKey == "\u{88CF}\u{756A}"
+    }
+
     var hasActiveFilters: Bool {
         activeCount > 0
     }
