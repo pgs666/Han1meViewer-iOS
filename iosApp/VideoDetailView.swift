@@ -447,7 +447,7 @@ struct VideoDetailView: View {
                 commentSubmitLabel
             }
             .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.circle)
+            .buttonBorderShape(.capsule)
             .frame(width: 44, height: 44)
             .disabled(!canSubmitComment)
             .accessibilityLabel("发送评论")
