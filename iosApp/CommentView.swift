@@ -1,5 +1,6 @@
 import SwiftUI
 import Han1meShared
+import UIKit
 
 struct CommentView: View {
     @ObservedObject var viewModel: CommentViewModel
@@ -11,26 +12,26 @@ struct CommentView: View {
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var previousScrollOffsetY: CGFloat?
     @State private var accumulatedScrollDelta: CGFloat = 0
     @State private var isComposerShownForScroll = true
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                CommentScrollOffsetReader()
                 header
                 content
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 24)
+            .background {
+                CommentScrollDirectionObserver { delta in
+                    guard isActive else { return }
+                    updateScrollDirection(delta: delta)
+                }
+            }
         }
-        .coordinateSpace(name: CommentScrollOffsetPreferenceKey.coordinateSpaceName)
         .scrollDismissesKeyboard(.interactively)
-        .onPreferenceChange(CommentScrollOffsetPreferenceKey.self) { offsetY in
-            updateScrollDirection(offsetY: offsetY)
-        }
         .refreshable {
             await viewModel.refresh()
         }
@@ -38,7 +39,6 @@ struct CommentView: View {
             viewModel.loadIfNeeded()
         }
         .onValueChange(of: isActive) { isActive in
-            previousScrollOffsetY = nil
             accumulatedScrollDelta = 0
             if isActive {
                 setComposerShownForScroll(true)
@@ -203,27 +203,6 @@ struct CommentView: View {
         )
     }
 
-    private func updateScrollDirection(offsetY: CGFloat) {
-        guard isActive else {
-            previousScrollOffsetY = nil
-            accumulatedScrollDelta = 0
-            return
-        }
-
-        guard let previousScrollOffsetY else {
-            self.previousScrollOffsetY = offsetY
-            return
-        }
-
-        self.previousScrollOffsetY = offsetY
-        let delta = offsetY - previousScrollOffsetY
-        guard abs(delta) < 80 else {
-            accumulatedScrollDelta = 0
-            return
-        }
-        updateScrollDirection(delta: delta)
-    }
-
     private func updateScrollDirection(delta: CGFloat) {
         guard delta != 0 else { return }
         guard case .loaded = viewModel.state, !viewModel.sortedComments.isEmpty else {
@@ -255,24 +234,102 @@ struct CommentView: View {
     }
 }
 
-private struct CommentScrollOffsetPreferenceKey: PreferenceKey {
-    static let coordinateSpaceName = "comment-scroll"
-    static var defaultValue: CGFloat = 0
+private struct CommentScrollDirectionObserver: UIViewRepresentable {
+    let onScrollDelta: (CGFloat) -> Void
 
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+    func makeUIView(context: Context) -> ObserverView {
+        let view = ObserverView()
+        view.isUserInteractionEnabled = false
+        view.onScrollDelta = onScrollDelta
+        return view
     }
-}
 
-private struct CommentScrollOffsetReader: View {
-    var body: some View {
-        GeometryReader { proxy in
-            Color.clear.preference(
-                key: CommentScrollOffsetPreferenceKey.self,
-                value: proxy.frame(in: .named(CommentScrollOffsetPreferenceKey.coordinateSpaceName)).minY
-            )
+    func updateUIView(_ uiView: ObserverView, context: Context) {
+        uiView.onScrollDelta = onScrollDelta
+        uiView.scheduleAttachment()
+    }
+
+    static func dismantleUIView(_ uiView: ObserverView, coordinator: ()) {
+        uiView.detach()
+    }
+
+    final class ObserverView: UIView {
+        var onScrollDelta: (CGFloat) -> Void = { _ in }
+
+        private weak var observedScrollView: UIScrollView?
+        private weak var observedPanGesture: UIPanGestureRecognizer?
+        private var previousContentOffsetY: CGFloat?
+        private var isAttachmentScheduled = false
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            scheduleAttachment()
         }
-        .frame(height: 0)
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil {
+                detach()
+            } else {
+                scheduleAttachment()
+            }
+        }
+
+        func scheduleAttachment() {
+            guard !isAttachmentScheduled else { return }
+            isAttachmentScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isAttachmentScheduled = false
+                self.attachToEnclosingScrollView()
+            }
+        }
+
+        func detach() {
+            observedPanGesture?.removeTarget(self, action: #selector(handlePan(_:)))
+            observedPanGesture = nil
+            observedScrollView = nil
+            previousContentOffsetY = nil
+        }
+
+        private func attachToEnclosingScrollView() {
+            var ancestor = superview
+            while let view = ancestor {
+                if let scrollView = view as? UIScrollView {
+                    guard observedScrollView !== scrollView else { return }
+                    detach()
+                    observedScrollView = scrollView
+                    observedPanGesture = scrollView.panGestureRecognizer
+                    scrollView.panGestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+                    return
+                }
+                ancestor = view.superview
+            }
+        }
+
+        @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            guard let scrollView = observedScrollView else { return }
+
+            switch recognizer.state {
+            case .began:
+                previousContentOffsetY = scrollView.contentOffset.y
+            case .changed:
+                let contentOffsetY = scrollView.contentOffset.y
+                guard let previousContentOffsetY else {
+                    self.previousContentOffsetY = contentOffsetY
+                    return
+                }
+                self.previousContentOffsetY = contentOffsetY
+
+                let delta = previousContentOffsetY - contentOffsetY
+                guard delta != 0, abs(delta) < 80 else { return }
+                onScrollDelta(delta)
+            case .ended, .cancelled, .failed:
+                previousContentOffsetY = nil
+            default:
+                break
+            }
+        }
     }
 }
 
