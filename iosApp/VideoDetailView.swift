@@ -293,7 +293,7 @@ struct VideoDetailView: View {
 
             if #available(iOS 26.0, *) {
                 detailPager(snapshot: snapshot, showsRelated: showsRelated)
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                    .overlay(alignment: .bottom) {
                         if isCommentComposerVisible {
                             liquidGlassCommentComposer
                                 .padding(.horizontal, 16)
@@ -304,7 +304,7 @@ struct VideoDetailView: View {
                     }
             } else {
                 detailPager(snapshot: snapshot, showsRelated: showsRelated)
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                    .overlay(alignment: .bottom) {
                         if isCommentComposerVisible {
                             VStack(spacing: 0) {
                                 Divider()
@@ -400,7 +400,7 @@ struct VideoDetailView: View {
 
     @available(iOS 26.0, *)
     private var liquidGlassCommentComposer: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             TextField("发表评论", text: $commentDraft, axis: .vertical)
                 .lineLimit(1...4)
                 .submitLabel(.send)
@@ -412,6 +412,7 @@ struct VideoDetailView: View {
                     }
                 }
                 .padding(.leading, 8)
+                .padding(.vertical, 10)
 
             Button(action: submitComment) {
                 commentSubmitLabel
@@ -431,7 +432,7 @@ struct VideoDetailView: View {
     }
 
     private var legacyCommentComposer: some View {
-        HStack(alignment: .bottom, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
             TextField("发表评论", text: $commentDraft, axis: .vertical)
                 .lineLimit(1...4)
                 .submitLabel(.send)
