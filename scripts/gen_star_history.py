@@ -29,7 +29,7 @@ def fetch_star_dates(repo: str, token: str) -> list[date]:
                 "Accept": "application/vnd.github.star+json",
                 "Authorization": f"Bearer {token}",
                 "User-Agent": "repository-star-history-action",
-                "X-GitHub-Api-Version": "2026-03-10",
+                "X-GitHub-Api-Version": "2022-11-28",
             },
         )
         try:
