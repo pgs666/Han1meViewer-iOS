@@ -11,13 +11,14 @@ struct CommentView: View {
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var previousDragTranslationY: CGFloat = 0
+    @State private var previousScrollOffsetY: CGFloat?
     @State private var accumulatedScrollDelta: CGFloat = 0
     @State private var isComposerShownForScroll = true
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                CommentScrollOffsetReader()
                 header
                 content
             }
@@ -25,8 +26,11 @@ struct CommentView: View {
             .padding(.top, 12)
             .padding(.bottom, 24)
         }
+        .coordinateSpace(name: CommentScrollOffsetPreferenceKey.coordinateSpaceName)
         .scrollDismissesKeyboard(.interactively)
-        .simultaneousGesture(commentScrollGesture)
+        .onPreferenceChange(CommentScrollOffsetPreferenceKey.self) { offsetY in
+            updateScrollDirection(offsetY: offsetY)
+        }
         .refreshable {
             await viewModel.refresh()
         }
@@ -34,7 +38,7 @@ struct CommentView: View {
             viewModel.loadIfNeeded()
         }
         .onValueChange(of: isActive) { isActive in
-            previousDragTranslationY = 0
+            previousScrollOffsetY = nil
             accumulatedScrollDelta = 0
             if isActive {
                 setComposerShownForScroll(true)
@@ -199,21 +203,25 @@ struct CommentView: View {
         )
     }
 
-    private var commentScrollGesture: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                let horizontalDistance = abs(value.translation.width)
-                let verticalDistance = abs(value.translation.height)
-                guard verticalDistance > horizontalDistance else { return }
+    private func updateScrollDirection(offsetY: CGFloat) {
+        guard isActive else {
+            previousScrollOffsetY = nil
+            accumulatedScrollDelta = 0
+            return
+        }
 
-                let delta = value.translation.height - previousDragTranslationY
-                previousDragTranslationY = value.translation.height
-                updateScrollDirection(delta: delta)
-            }
-            .onEnded { _ in
-                previousDragTranslationY = 0
-                accumulatedScrollDelta = 0
-            }
+        guard let previousScrollOffsetY else {
+            self.previousScrollOffsetY = offsetY
+            return
+        }
+
+        self.previousScrollOffsetY = offsetY
+        let delta = offsetY - previousScrollOffsetY
+        guard abs(delta) < 80 else {
+            accumulatedScrollDelta = 0
+            return
+        }
+        updateScrollDirection(delta: delta)
     }
 
     private func updateScrollDirection(delta: CGFloat) {
@@ -244,6 +252,27 @@ struct CommentView: View {
         guard isComposerShownForScroll != isShown else { return }
         isComposerShownForScroll = isShown
         onScrollDirectionChange(isShown)
+    }
+}
+
+private struct CommentScrollOffsetPreferenceKey: PreferenceKey {
+    static let coordinateSpaceName = "comment-scroll"
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct CommentScrollOffsetReader: View {
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: CommentScrollOffsetPreferenceKey.self,
+                value: proxy.frame(in: .named(CommentScrollOffsetPreferenceKey.coordinateSpaceName)).minY
+            )
+        }
+        .frame(height: 0)
     }
 }
 
