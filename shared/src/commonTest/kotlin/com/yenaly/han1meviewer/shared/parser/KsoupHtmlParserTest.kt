@@ -234,6 +234,64 @@ class KsoupHtmlParserTest {
     }
 
     @Test
+    fun parsesCurrentSeriesPlaylistLayout() {
+        val html = """
+            <html><body>
+              <h1 id="shareBtn-title">Current video</h1>
+              <video id="player"></video>
+              <div class="video-playlist-wrapper">
+                <div id="playlist-top-block"><h4><a>Series name</a></h4></div>
+                <div id="playlist-scroll">
+                  <div class="playlist-hover-wrap videos-scroll" data-href="/watch?v=9001">
+                    <div class="thumb-container">
+                      <img class="main-thumb" src="https://img.example/series-1.jpg">
+                      <span class="duration">12:34</span>
+                      <span class="stat-item">9</span><span class="stat-item">1.2K</span>
+                    </div>
+                    <h4 class="video-title"><a>Episode 1</a></h4>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val playlist = assertNotNull(parser.parseVideo(html, videoCode = "current").playlist)
+        assertEquals("Series name", playlist.name)
+        assertEquals(1, playlist.videos.size)
+        assertEquals("Episode 1", playlist.videos.single().title)
+        assertEquals("9001", playlist.videos.single().videoCode)
+        assertEquals("12:34", playlist.videos.single().duration)
+        assertEquals("1.2K", playlist.videos.single().views)
+        assertEquals(true, playlist.videos.single().isPlaying)
+    }
+
+    @Test
+    fun keepsParsingLegacySeriesPlaylistLayout() {
+        val html = """
+            <html><body>
+              <h1 id="shareBtn-title">Current video</h1>
+              <video id="player"></video>
+              <div id="video-playlist-wrapper">
+                <div><div><h4>Legacy series</h4></div></div>
+                <div id="playlist-scroll">
+                  <div><div><a href="/watch?v=8001"></a></div>
+                    <div class="card-mobile-panel-old">
+                      <img src="https://img.example/fallback.jpg">
+                      <img src="https://img.example/legacy-1.jpg" alt="Legacy episode">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val playlist = assertNotNull(parser.parseVideo(html, videoCode = "current").playlist)
+        assertEquals("Legacy series", playlist.name)
+        assertEquals("Legacy episode", playlist.videos.single().title)
+        assertEquals("8001", playlist.videos.single().videoCode)
+    }
+
+    @Test
     fun parsesCommentsJsonPayload() {
         val html = """
             <div>

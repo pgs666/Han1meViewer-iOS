@@ -39,15 +39,11 @@ final class PopEnablerViewController: UIViewController {
         guard let nav = navigationControllerInChain else { return }
         popDelegate.navigationController = nav
         nav.interactivePopGestureRecognizer?.isEnabled = true
-        // Install our own delegate (NOT nil). nil falls back to a policy
-        // where the edge-swipe refuses to recognise simultaneously with
-        // any other gesture — so the video player's
-        // DragGesture(minimumDistance: 0), which claims the touch the
-        // instant a finger lands, CANCELS the edge swipe. Our delegate
-        // returns true from shouldRecognizeSimultaneouslyWith so the
-        // edge-pop and the SwiftUI drag can both proceed; the player's
-        // left/right deadzone then makes the drag a no-op at the edge,
-        // leaving the pop to drive the back navigation.
+        // Install our own delegate (NOT nil). It allows the player's
+        // full-area SwiftUI gesture to coexist with edge-pop, but keeps
+        // UIScrollView pan gestures exclusive. The latter is important for
+        // page-style TabView, whose underlying paging scroll view would
+        // otherwise move at the same time as the navigation transition.
         nav.interactivePopGestureRecognizer?.delegate = popDelegate
     }
 
@@ -80,7 +76,114 @@ final class PopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
     ) -> Bool {
-        canPop
+        guard canPop else { return false }
+
+        // UIKit's default gesture-arbitration model is exclusive. Preserve
+        // that default for every UIScrollView pan gesture, including the
+        // private paging scroll view used by SwiftUI's page-style TabView.
+        // The interactive-pop recognizer can then own a left-edge drag
+        // instead of the pager responding alongside it.
+        if isScrollViewPan(otherGestureRecognizer) {
+            return false
+        }
+
+        // The custom player DragGesture still needs simultaneous recognition:
+        // it claims touches immediately, but deliberately does no work inside
+        // its edge dead zone so interactive pop can drive navigation.
+        return true
+    }
+
+    private func isScrollViewPan(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let scrollView = gestureRecognizer.view as? UIScrollView else {
+            return false
+        }
+        return gestureRecognizer === scrollView.panGestureRecognizer
+    }
+}
+
+/// Connects SwiftUI's page-style TabView paging recognizer to UIKit's
+/// interactive-pop recognizer with the correct failure direction:
+/// pager.pan requires edge-pop to fail.
+struct PagerEdgePopPriorityBridge: UIViewRepresentable {
+    func makeUIView(context: Context) -> CoordinatorView {
+        CoordinatorView()
+    }
+
+    func updateUIView(_ uiView: CoordinatorView, context: Context) {
+        uiView.scheduleConfiguration()
+    }
+
+    final class CoordinatorView: UIView {
+        private var isConfigurationScheduled = false
+        private var remainingRetries = 12
+        private var configuredPagingRecognizers = Set<ObjectIdentifier>()
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            remainingRetries = 12
+            scheduleConfiguration()
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            remainingRetries = 12
+            scheduleConfiguration()
+        }
+
+        func scheduleConfiguration() {
+            guard !isConfigurationScheduled else { return }
+            isConfigurationScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isConfigurationScheduled = false
+                if !self.configureFailureRequirement(), self.remainingRetries > 0 {
+                    self.remainingRetries -= 1
+                    self.scheduleConfiguration()
+                }
+            }
+        }
+
+        private func configureFailureRequirement() -> Bool {
+            guard let popGesture = enclosingNavigationController?
+                .interactivePopGestureRecognizer else {
+                return false
+            }
+
+            var configuredAny = false
+            var ancestor = superview
+            while let view = ancestor {
+                if let scrollView = view as? UIScrollView, scrollView.isPagingEnabled {
+                    let panGesture = scrollView.panGestureRecognizer
+                    let identifier = ObjectIdentifier(panGesture)
+                    if !configuredPagingRecognizers.contains(identifier) {
+                        // Apple-supported precedence API: the pager waits for
+                        // the system edge-pop recognizer to fail. This keeps
+                        // normal paging away from the edge while guaranteeing
+                        // that a valid back swipe wins at the left edge.
+                        panGesture.require(toFail: popGesture)
+                        configuredPagingRecognizers.insert(identifier)
+                    }
+                    configuredAny = true
+                }
+                ancestor = view.superview
+            }
+            return configuredAny
+        }
+
+        private var enclosingNavigationController: UINavigationController? {
+            var responder: UIResponder? = self
+            while let current = responder {
+                if let navigationController = current as? UINavigationController {
+                    return navigationController
+                }
+                if let viewController = current as? UIViewController,
+                   let navigationController = viewController.navigationController {
+                    return navigationController
+                }
+                responder = current.next
+            }
+            return nil
+        }
     }
 }
 

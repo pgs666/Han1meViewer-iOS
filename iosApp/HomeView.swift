@@ -359,47 +359,45 @@ private struct HomeVideoCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottom) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 184)
-                    .frame(width: 184, height: 104)
-                    .clipped()
-
-                LinearGradient(
-                    colors: [
-                        .clear,
-                        Color(.secondarySystemBackground).opacity(0.94)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 36)
-
-                HStack(spacing: 5) {
-                    if let views = video.views, !views.isEmpty {
-                        Label(views, systemImage: "play.circle")
-                            .labelStyle(.titleAndIcon)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if let duration = video.duration, !duration.isEmpty {
-                        Label(duration, systemImage: "clock")
-                            .labelStyle(.titleAndIcon)
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: 184,
+                layout: .landscape,
+                cornerRadius: 12
+            ) {
+                VStack(spacing: 0) {
+                    Spacer()
+                    LinearGradient(
+                        colors: [.clear, Color(.secondarySystemBackground).opacity(0.94)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 36)
+                    .overlay(alignment: .bottom) {
+                        HStack(spacing: 5) {
+                            if let views = video.views, !views.isEmpty {
+                                Label(views, systemImage: "play.circle")
+                            }
+                            Spacer(minLength: 8)
+                            if let duration = video.duration, !duration.isEmpty {
+                                Label(duration, systemImage: "clock")
+                            }
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 7)
+                        .padding(.bottom, 5)
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.horizontal, 7)
-                .padding(.bottom, 5)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: 184)
 
             Text(video.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
-                .frame(minHeight: 36, alignment: .topLeading)
+                .frame(height: 38, alignment: .topLeading)
 
             // Footer row: artist on the left (auto-scrolls if too long),
             // upload time on the right with fixed layout priority so it
@@ -414,11 +412,10 @@ private struct HomeVideoCard: View {
                         .layoutPriority(1)
                 }
             }
+            .frame(height: 17)
         }
         .frame(width: 184, alignment: .leading)
-        .padding(8)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .videoCardSurface()
     }
 }
 

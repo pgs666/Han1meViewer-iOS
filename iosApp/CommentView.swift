@@ -2,28 +2,24 @@ import SwiftUI
 import Han1meShared
 
 struct CommentView: View {
-    @StateObject private var viewModel: CommentViewModel
+    @ObservedObject var viewModel: CommentViewModel
+
     @State private var composeText = ""
+    @State private var isShowingComposer = false
     @State private var replyTarget: CommentRow?
     @State private var replyText = ""
     @State private var reportTarget: CommentRow?
     @State private var repliesTarget: CommentRow?
-    @State private var isShowingComposer = false
-
-    init(videoCode: String, commentFeature: CommentFeature) {
-        _viewModel = StateObject(
-            wrappedValue: CommentViewModel(feature: commentFeature, videoCode: videoCode)
-        )
-    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            content
-        }
-        .padding(.horizontal, 16)
-        .refreshable {
-            await viewModel.refresh()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                content
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
         .task {
             viewModel.loadIfNeeded()
@@ -46,11 +42,10 @@ struct CommentView: View {
                     composeText = ""
                 },
                 onSubmit: {
-                    viewModel.postComment(text: composeText)
-                    isShowingComposer = false
-                    composeText = ""
+                    submitComment()
                 }
             )
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: $replyTarget) { comment in
             CommentTextSheet(
@@ -63,20 +58,17 @@ struct CommentView: View {
                     replyText = ""
                 },
                 onSubmit: {
-                    viewModel.postReply(to: comment, text: replyText)
-                    replyTarget = nil
-                    replyText = ""
+                    submitReply(to: comment)
                 }
             )
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: $repliesTarget) { comment in
             CommentRepliesSheet(
                 comment: comment,
                 viewModel: viewModel
-            ) { reply in
-                    replyText = "@\(reply.username) "
-                    replyTarget = reply
-            }
+            )
+            .presentationDragIndicator(.visible)
         }
         .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
             ForEach(viewModel.reportReasons) { reason in
@@ -110,13 +102,24 @@ struct CommentView: View {
                 Label("评论", systemImage: "square.and.pencil")
             }
             .buttonStyle(.borderedProminent)
+        }
+    }
 
-            Button {
-                viewModel.load()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
+    private func submitComment() {
+        let text = composeText
+        Task { @MainActor in
+            guard await viewModel.postComment(text: text) else { return }
+            isShowingComposer = false
+            composeText = ""
+        }
+    }
+
+    private func submitReply(to comment: CommentRow) {
+        let text = replyText
+        Task { @MainActor in
+            guard await viewModel.postReply(to: comment, text: text) else { return }
+            replyTarget = nil
+            replyText = ""
         }
     }
 
@@ -206,6 +209,7 @@ struct CommentView: View {
             set: { if !$0 { reportTarget = nil } }
         )
     }
+
 }
 
 private struct CommentRowView: View {
@@ -273,19 +277,18 @@ private struct CommentRowView: View {
 
 private struct CommentRepliesSheet: View {
     @ObservedObject var viewModel: CommentViewModel
-    let onReply: (CommentRow) -> Void
 
     @State private var state: RepliesState = .loading
     @State private var displayedComment: CommentRow
     @State private var reportTarget: CommentRow?
+    @State private var replyTarget: CommentRow?
+    @State private var replyText = ""
 
     init(
         comment: CommentRow,
-        viewModel: CommentViewModel,
-        onReply: @escaping (CommentRow) -> Void
+        viewModel: CommentViewModel
     ) {
         self.viewModel = viewModel
-        self.onReply = onReply
         _displayedComment = State(initialValue: comment)
     }
 
@@ -297,6 +300,22 @@ private struct CommentRepliesSheet: View {
         }
         .task {
             await load()
+        }
+        .sheet(item: $replyTarget) { comment in
+            CommentTextSheet(
+                title: "回复 \(comment.username)",
+                text: $replyText,
+                placeholder: "输入回复",
+                submitTitle: "回复",
+                onCancel: {
+                    replyTarget = nil
+                    replyText = ""
+                },
+                onSubmit: {
+                    submitReply(to: comment)
+                }
+            )
+            .presentationDragIndicator(.visible)
         }
         .confirmationDialog("举报原因", isPresented: reportDialogBinding, titleVisibility: .visible) {
             ForEach(viewModel.reportReasons) { reason in
@@ -338,7 +357,7 @@ private struct CommentRepliesSheet: View {
                     CommentRowView(
                         comment: displayedComment,
                         isRunningLike: isRunningLike(displayedComment),
-                        onReply: { onReply(displayedComment) },
+                        onReply: { presentReply(to: displayedComment) },
                         onShowReplies: {},
                         onLike: { like(displayedComment, isPositive: true) },
                         onDislike: { like(displayedComment, isPositive: false) },
@@ -349,7 +368,7 @@ private struct CommentRepliesSheet: View {
                         CommentRowView(
                             comment: reply,
                             isRunningLike: isRunningLike(reply),
-                            onReply: { onReply(reply) },
+                            onReply: { presentReply(to: reply) },
                             onShowReplies: {},
                             onLike: { like(reply, isPositive: true) },
                             onDislike: { like(reply, isPositive: false) },
@@ -363,11 +382,32 @@ private struct CommentRepliesSheet: View {
     }
 
     private func load() async {
-        state = .loading
+        await load(showsLoadingState: true)
+    }
+
+    private func load(showsLoadingState: Bool) async {
+        if showsLoadingState {
+            state = .loading
+        }
         do {
             state = .loaded(try await viewModel.loadReplies(for: displayedComment))
         } catch {
             state = .failed(ErrorMessage.userFriendly(error))
+        }
+    }
+
+    private func presentReply(to comment: CommentRow) {
+        replyText = "@\(comment.username) "
+        replyTarget = comment
+    }
+
+    private func submitReply(to comment: CommentRow) {
+        let text = replyText
+        Task { @MainActor in
+            guard await viewModel.postReply(to: comment, text: text) else { return }
+            replyTarget = nil
+            replyText = ""
+            await load(showsLoadingState: false)
         }
     }
 

@@ -2,12 +2,17 @@ import SwiftUI
 
 struct SearchResultRow: View {
     let video: SearchVideoRow
+    var coverLayout: VideoCoverLayout = .landscape
 
     var body: some View {
         HStack(spacing: 12) {
-            CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 96)
-                .frame(width: 96, height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: 96,
+                layout: coverLayout,
+                cornerRadius: 6
+            )
+            .frame(width: 96)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(video.title)
@@ -20,6 +25,6 @@ struct SearchResultRow: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .videoCardSurface()
     }
 }

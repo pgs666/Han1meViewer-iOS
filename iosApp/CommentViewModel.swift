@@ -83,18 +83,28 @@ final class CommentViewModel: ObservableObject {
         await loadComments(generation: generation)
     }
 
-    func postComment(text: String) {
+    @discardableResult
+    func postComment(text: String) async -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             actionMessage = String(localized: "评论太短")
-            return
+            return false
         }
         guard let snapshot = currentSnapshot, let userId = snapshot.currentUserId else {
             actionMessage = String(localized: "请先登录")
-            return
+            return false
         }
 
-        runAction(id: "post-comment") {
+        let actionID = "post-comment"
+        guard !runningActionIDs.contains(actionID) else {
+            return false
+        }
+        runningActionIDs.insert(actionID)
+        defer {
+            runningActionIDs.remove(actionID)
+        }
+
+        do {
             try await self.feature.postVideoComment(
                 videoCode: self.videoCode,
                 currentUserId: userId,
@@ -103,32 +113,63 @@ final class CommentViewModel: ObservableObject {
             )
             self.actionMessage = String(localized: "评论已发送")
             self.load()
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+            actionMessage = ErrorMessage.userFriendly(error)
+            return false
         }
     }
 
-    func postReply(to comment: CommentRow, text: String) {
+    var canAttemptPostComment: Bool {
+        if case .loaded = state {
+            return true
+        }
+        return false
+    }
+
+    @discardableResult
+    func postReply(to comment: CommentRow, text: String) async -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             actionMessage = String(localized: "回复太短")
-            return
+            return false
         }
         guard currentSnapshot?.currentUserId != nil else {
             actionMessage = String(localized: "请先登录")
-            return
+            return false
         }
         guard let replyTargetId = comment.replyTargetId else {
             actionMessage = String(localized: "无法回复这条评论")
-            return
+            return false
         }
 
-        runAction(id: "reply-\(comment.id)") {
+        let actionID = "reply-\(comment.id)"
+        guard !runningActionIDs.contains(actionID) else {
+            return false
+        }
+        runningActionIDs.insert(actionID)
+        defer {
+            runningActionIDs.remove(actionID)
+        }
+
+        do {
             try await self.feature.postReply(
                 replyCommentId: replyTargetId,
                 csrfToken: self.currentSnapshot?.csrfToken,
                 text: trimmed
             )
             self.actionMessage = String(localized: "回复已发送")
-            self.load()
+            await self.refresh()
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+            actionMessage = ErrorMessage.userFriendly(error)
+            return false
         }
     }
 

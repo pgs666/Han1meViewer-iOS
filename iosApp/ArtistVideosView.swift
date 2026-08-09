@@ -132,7 +132,7 @@ struct ArtistVideosView: View {
                                 commentFeature: commentFeature
                             )
                         } label: {
-                            SearchVideoCard(video: video)
+                            SearchVideoCard(video: video, coverLayout: coverLayout)
                         }
                         .buttonStyle(.plain)
                         .onAppear {
@@ -163,6 +163,14 @@ struct ArtistVideosView: View {
             await viewModel.refresh()
         }
     }
+
+    private var coverLayout: VideoCoverLayout {
+        guard case .homeSection(let request) = mode,
+              request.sectionKey == "ecchiAnime" else {
+            return .landscape
+        }
+        return .hanimePortrait
+    }
 }
 
 /// Grid-style card for `SearchVideoRow`. Matches the home-page card
@@ -173,41 +181,41 @@ struct ArtistVideosView: View {
 /// read as one family.
 struct SearchVideoCard: View {
     let video: SearchVideoRow
+    var coverLayout: VideoCoverLayout = .landscape
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottom) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-
-                LinearGradient(
-                    colors: [
-                        .clear,
-                        Color(.secondarySystemBackground).opacity(0.94)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 36)
-
-                HStack(spacing: 5) {
-                    if let views = video.views, !views.isEmpty {
-                        Label(views, systemImage: "play.circle")
-                            .labelStyle(.titleAndIcon)
-                    }
-                    Spacer(minLength: 8)
-                    if let duration = video.duration, !duration.isEmpty {
-                        Label(duration, systemImage: "clock")
-                            .labelStyle(.titleAndIcon)
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: 172,
+                layout: coverLayout
+            ) {
+                VStack(spacing: 0) {
+                    Spacer()
+                    LinearGradient(
+                        colors: [.clear, Color(.secondarySystemBackground).opacity(0.94)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 36)
+                    .overlay(alignment: .bottom) {
+                        HStack(spacing: 5) {
+                            if let views = video.views, !views.isEmpty {
+                                Label(views, systemImage: "play.circle")
+                            }
+                            Spacer(minLength: 8)
+                            if let duration = video.duration, !duration.isEmpty {
+                                Label(duration, systemImage: "clock")
+                            }
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 7)
+                        .padding(.bottom, 5)
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.horizontal, 7)
-                .padding(.bottom, 5)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             // Reserve a fixed two-line slot for the title so cards with
             // a single-line title still occupy the same vertical space
@@ -229,11 +237,16 @@ struct SearchVideoCard: View {
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 38, alignment: .topLeading)
 
             // Footer row: artist on the left (auto-scrolls if too long),
             // upload time on the right.
             HStack(spacing: 6) {
-                MarqueeText(text: video.artistLabel)
+                if case .landscape = coverLayout {
+                    MarqueeText(text: video.artistLabel)
+                } else {
+                    Spacer(minLength: 0)
+                }
                 if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
                     Text(uploadTime)
                         .font(.caption)
@@ -242,7 +255,10 @@ struct SearchVideoCard: View {
                         .layoutPriority(1)
                 }
             }
+            .frame(height: 17)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .videoCardSurface()
     }
 }
 

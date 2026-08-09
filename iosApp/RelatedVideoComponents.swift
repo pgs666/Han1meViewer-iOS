@@ -8,6 +8,11 @@ struct HorizontalVideoSection: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let showPlaying: Bool
+    let onOpenVideo: (String) -> Void
+
+    @State private var isShowingAllVideos = false
+    @State private var pendingVideoCode: String?
+    @State private var isSelectionPending = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -22,18 +27,14 @@ struct HorizontalVideoSection: View {
                     }
                 }
                 Spacer()
-                NavigationLink {
-                    RelatedVideoListView(
-                        title: title,
-                        videos: videos,
-                        videoFeature: videoFeature,
-                        commentFeature: commentFeature,
-                        showPlaying: showPlaying
-                    )
+                Button {
+                    isShowingAllVideos = true
                 } label: {
                     Text("更多")
                         .font(.caption.weight(.semibold))
                 }
+                .accessibilityLabel(Text("查看全部\(title)"))
+                .accessibilityValue(Text("共 \(videos.count) 部影片"))
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -49,41 +50,70 @@ struct HorizontalVideoSection: View {
                 }
             }
         }
+        .sheet(isPresented: $isShowingAllVideos, onDismiss: openPendingVideo) {
+            SeriesVideosSheet(
+                title: title,
+                videos: videos,
+                showPlaying: showPlaying,
+                onSelectVideo: selectVideo
+            )
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func selectVideo(_ videoCode: String) {
+        guard !isSelectionPending else { return }
+        isSelectionPending = true
+
+        if showPlaying,
+           videos.first(where: { $0.videoCode == videoCode })?.isPlaying == true {
+            isShowingAllVideos = false
+            return
+        }
+
+        pendingVideoCode = videoCode
+        isShowingAllVideos = false
+    }
+
+    private func openPendingVideo() {
+        isSelectionPending = false
+        guard let videoCode = pendingVideoCode else { return }
+        pendingVideoCode = nil
+        onOpenVideo(videoCode)
     }
 }
 
-struct RelatedVideoListView: View {
+private struct SeriesVideosSheet: View {
     let title: String
     let videos: [VideoRelatedRow]
-    let videoFeature: VideoFeature
-    let commentFeature: CommentFeature
     let showPlaying: Bool
+    let onSelectVideo: (String) -> Void
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 160), spacing: 12)],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                ForEach(videos) { video in
-                    NavigationLink {
-                        VideoDetailView(
-                            videoCode: video.videoCode,
-                            videoFeature: videoFeature,
-                            commentFeature: commentFeature
-                        )
-                    } label: {
-                        RelatedVideoCard(video: video, showPlaying: showPlaying)
+        CompatibleNavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(videos) { video in
+                        Button {
+                            onSelectVideo(video.videoCode)
+                        } label: {
+                            TabletRelatedVideoRow(
+                                video: video,
+                                showPlaying: showPlaying
+                            )
+                            .accessibilityElement(children: .combine)
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider()
+                            .padding(.leading, 156)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.bottom, 24)
             }
-            .padding(16)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
-        .hidesTabBarOnAppear()
     }
 }
 
@@ -92,19 +122,29 @@ struct RelatedVideoGrid: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
 
+    private let columns = [
+        GridItem(.flexible(minimum: 0), spacing: 16),
+        GridItem(.flexible(minimum: 0), spacing: 16),
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("相关影片")
                 .font(.headline)
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(videos) { video in
                     NavigationLink {
                         VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                     } label: {
-                        RelatedVideoCard(video: video, showPlaying: false)
+                        RelatedVideoCard(
+                            video: video,
+                            showPlaying: false,
+                            expandsToFillWidth: true
+                        )
                     }
                     .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -143,25 +183,47 @@ struct TabletRelatedSidebar: View {
 
 struct TabletRelatedVideoRow: View {
     let video: VideoRelatedRow
+    let showPlaying: Bool
+
+    init(video: VideoRelatedRow, showPlaying: Bool = false) {
+        self.video = video
+        self.showPlaying = showPlaying
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 128)
-                .frame(width: 128, height: 72)
-                .clipped()
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: 128,
+                layout: .landscape,
+                cornerRadius: 8
+            ) {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 6) {
+                        if showPlaying && video.isPlaying {
+                            Text("正在播放")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.regularMaterial, in: Capsule())
+                        }
 
-                if let duration = video.duration, !duration.isEmpty {
-                    Text(duration)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.black.opacity(0.65), in: Capsule())
-                        .padding(5)
+                        Spacer()
+
+                        if let duration = video.duration, !duration.isEmpty {
+                            Text(duration)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.black.opacity(0.65), in: Capsule())
+                        }
+                    }
+                    .padding(5)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(width: 128)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(video.title)
@@ -188,38 +250,60 @@ struct TabletRelatedVideoRow: View {
 struct RelatedVideoCard: View {
     let video: VideoRelatedRow
     let showPlaying: Bool
+    var expandsToFillWidth = false
 
+    @ViewBuilder
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottomLeading) {
-                CachedRemoteImage(urlString: video.coverUrl, resizeWidth: 172)
-                .frame(height: 96)
-                .clipped()
+        if expandsToFillWidth {
+            cardContent
+                .videoCardSurface()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            cardContent
+                .frame(width: 172, alignment: .leading)
+                .videoCardSurface()
+        }
+    }
 
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VideoCardCover(
+                urlString: video.coverUrl,
+                resizeWidth: expandsToFillWidth ? 360 : 172,
+                layout: .landscape
+            ) {
                 if showPlaying && video.isPlaying {
-                    Text("正在播放")
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.regularMaterial, in: Capsule())
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text("正在播放")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.regularMaterial, in: Capsule())
+                            Spacer()
+                        }
                         .padding(6)
+                    }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Text(video.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
+                .frame(height: 38, alignment: .topLeading)
 
             if !video.metadata.isEmpty {
                 Text(video.metadata)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .frame(height: 34, alignment: .topLeading)
+            } else {
+                Color.clear.frame(height: 34)
             }
         }
-        .frame(width: 172, alignment: .leading)
     }
 }
 

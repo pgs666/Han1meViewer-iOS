@@ -181,33 +181,69 @@ class KsoupHtmlParser : HtmlParser {
             items = myListItems,
         )
 
-        val playlist = body.selectFirst("div#video-playlist-wrapper")?.let { wrapper ->
-            val playlistVideos = wrapper.select("#playlist-scroll > div").mapNotNull { item ->
-                val detailUrl = item.selectFirst("div > a")?.absUrl("href")
-                    ?.ifBlank { item.selectFirst("div > a")?.attr("href") }
+        val playlist = body.selectFirst("div.video-playlist-wrapper, div#video-playlist-wrapper")?.let { wrapper ->
+            val playlistItems = wrapper.selectFirst("#playlist-scroll")?.children().orEmpty()
+            val usesCurrentLayout = playlistItems.firstOrNull()?.hasClass("playlist-hover-wrap") == true
+            val playlistVideos = playlistItems.mapNotNull { item ->
+                if (item.tagName() == "a") return@mapNotNull null
+
+                val detailUrl = if (usesCurrentLayout) {
+                    item.absUrl("data-href").ifBlank { item.attr("data-href") }
+                } else {
+                    item.selectFirst("div > a")?.absUrl("href")
+                        ?.ifBlank { item.selectFirst("div > a")?.attr("href") }
+                }
                     ?: return@mapNotNull null
                 val playlistVideoCode = detailUrl.toVideoCode() ?: return@mapNotNull null
                 val panel = item.selectFirst("div[class^=card-mobile-panel]")
-                val coverElement = panel?.select("div > div > div > img")?.getOrNull(1)
-                    ?: panel?.selectFirst("img")
+                val coverElement = if (usesCurrentLayout) {
+                    item.selectFirst(".thumb-container img.main-thumb")
+                } else {
+                    panel?.select("div > div > div > img")?.getOrNull(1)
+                        ?: panel?.selectFirst("img")
+                }
                 val coverUrl = coverElement?.absUrl("src")?.ifBlank { coverElement.attr("src") }
-                val itemTitle = coverElement?.attr("alt")?.trim()
-                    ?: panel?.selectFirst("div.title, h4.video-title")?.text()?.trim()
+                val itemTitle = if (usesCurrentLayout) {
+                    item.selectFirst("h4.video-title a")?.text()?.trim()
+                } else {
+                    coverElement?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
+                        ?: panel?.selectFirst("div.title, h4.video-title")?.text()?.trim()
+                }
                     ?: return@mapNotNull null
-                val durationParts = panel?.select("div[class*=card-mobile-duration]")
+                val duration = if (usesCurrentLayout) {
+                    item.selectFirst(".thumb-container .duration")?.text()?.trim()?.ifBlank { null }
+                } else {
+                    panel?.select("div[class*=card-mobile-duration]")?.firstOrNull()
+                        ?.text()?.trim()?.ifBlank { null }
+                }
+                val views = if (usesCurrentLayout) {
+                    item.select(".thumb-container .stat-item").getOrNull(1)
+                        ?.text()?.trim()?.ifBlank { null }
+                } else {
+                    panel?.select("div[class*=card-mobile-duration]")?.getOrNull(2)
+                        ?.text()?.substringBefore("次")?.trim()?.ifBlank { null }
+                }
                 HanimeInfo(
                     title = itemTitle,
                     videoCode = playlistVideoCode,
                     coverUrl = coverUrl,
                     detailUrl = detailUrl,
-                    duration = durationParts?.firstOrNull()?.text()?.trim()?.ifBlank { null },
-                    views = durationParts?.getOrNull(2)?.text()?.substringBefore("次")?.trim()?.ifBlank { null },
-                    isPlaying = panel?.select("div > div > div > div")?.firstOrNull()?.text()?.contains("播放") == true,
+                    duration = duration,
+                    views = views,
+                    isPlaying = if (usesCurrentLayout) {
+                        item.hasClass("videos-scroll")
+                    } else {
+                        panel?.select("div > div > div > div")?.firstOrNull()?.text()?.contains("播放") == true
+                    },
                     itemType = HanimeItemType.Normal,
                 )
             }
             VideoPlaylist(
-                name = wrapper.selectFirst("div > div > h4")?.text()?.trim(),
+                name = if (usesCurrentLayout) {
+                    wrapper.selectFirst("#playlist-top-block h4 a")?.text()?.trim()
+                } else {
+                    wrapper.selectFirst("div > div > h4")?.text()?.trim()
+                },
                 videos = playlistVideos,
             )
         }

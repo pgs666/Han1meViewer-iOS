@@ -71,6 +71,7 @@ struct SearchView: View {
                         viewModel.resetFilters()
                     }
                 )
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -219,7 +220,10 @@ struct SearchView: View {
                                 commentFeature: commentFeature
                             )
                         } label: {
-                            SearchResultRow(video: video)
+                            SearchResultRow(
+                                video: video,
+                                coverLayout: viewModel.filters.isHanimeOnly ? .hanimePortrait : .landscape
+                            )
                         }
                         .onAppear {
                             viewModel.loadMoreIfNeeded(currentItemID: video.id)
