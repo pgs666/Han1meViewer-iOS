@@ -242,7 +242,11 @@ struct SearchVideoCard: View {
             // Footer row: artist on the left (auto-scrolls if too long),
             // upload time on the right.
             HStack(spacing: 6) {
-                MarqueeText(text: video.artistLabel)
+                if case .landscape = coverLayout {
+                    MarqueeText(text: video.artistLabel)
+                } else {
+                    Spacer(minLength: 0)
+                }
                 if let uploadTime = video.uploadTime, !uploadTime.isEmpty {
                     Text(uploadTime)
                         .font(.caption)
