@@ -130,29 +130,46 @@ final class CommentViewModel: ObservableObject {
         return false
     }
 
-    func postReply(to comment: CommentRow, text: String) {
+    @discardableResult
+    func postReply(to comment: CommentRow, text: String) async -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             actionMessage = String(localized: "回复太短")
-            return
+            return false
         }
         guard currentSnapshot?.currentUserId != nil else {
             actionMessage = String(localized: "请先登录")
-            return
+            return false
         }
         guard let replyTargetId = comment.replyTargetId else {
             actionMessage = String(localized: "无法回复这条评论")
-            return
+            return false
         }
 
-        runAction(id: "reply-\(comment.id)") {
+        let actionID = "reply-\(comment.id)"
+        guard !runningActionIDs.contains(actionID) else {
+            return false
+        }
+        runningActionIDs.insert(actionID)
+        defer {
+            runningActionIDs.remove(actionID)
+        }
+
+        do {
             try await self.feature.postReply(
                 replyCommentId: replyTargetId,
                 csrfToken: self.currentSnapshot?.csrfToken,
                 text: trimmed
             )
             self.actionMessage = String(localized: "回复已发送")
-            self.load()
+            await self.refresh()
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            CloudflareChallengeCenter.requestChallengeIfNeeded(for: error)
+            actionMessage = ErrorMessage.userFriendly(error)
+            return false
         }
     }
 
