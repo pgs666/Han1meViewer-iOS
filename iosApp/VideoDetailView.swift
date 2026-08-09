@@ -11,6 +11,7 @@ struct VideoDetailView: View {
     @State private var selectedTab = VideoPageTab.introduction
     @State private var commentDraft = ""
     @State private var isCommentComposerHiddenByScroll = false
+    @State private var isKeyboardPresented = false
     @FocusState private var isCommentComposerFocused: Bool
     @State private var isPlayerFullscreen = false
     @State private var pushedSeriesVideoCode: String?
@@ -119,6 +120,18 @@ struct VideoDetailView: View {
                     }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                isKeyboardPresented = true
+                isCommentComposerHiddenByScroll = false
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                isKeyboardPresented = false
+            }
+            .onValueChange(of: isCommentComposerFocused) { isFocused in
+                if isFocused {
+                    isCommentComposerHiddenByScroll = false
+                }
+            }
             .animation(.spring(response: 0.32, dampingFraction: 0.78), value: viewModel.actionMessage?.id)
             .onValueChange(of: isPlayerFullscreen) { newValue in
                 // The fullscreen toggle button wraps `isPlayerFullscreen.toggle()`
@@ -152,25 +165,25 @@ struct VideoDetailView: View {
                 content
                     .ignoresSafeArea(.keyboard, edges: .bottom)
 
-                if isCommentComposerVisible && !isPlayerFullscreen {
-                    GeometryReader { proxy in
-                        let isWide = horizontalSizeClass == .regular
-                            && proxy.size.width >= 900
-                            && proxy.size.width > proxy.size.height
-                        let leftWidth: CGFloat = isWide
-                            ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
-                            : proxy.size.width
+                GeometryReader { proxy in
+                    let isWide = horizontalSizeClass == .regular
+                        && proxy.size.width >= 900
+                        && proxy.size.width > proxy.size.height
+                    let leftWidth: CGFloat = isWide
+                        ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
+                        : proxy.size.width
 
-                        VStack(spacing: 0) {
-                            Spacer(minLength: 0)
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        if isCommentComposerVisible && !isPlayerFullscreen {
                             liquidGlassCommentComposer
                                 .padding(.horizontal, 16)
                                 .padding(.top, 8)
                                 .padding(.bottom, 16)
                                 .frame(width: leftWidth)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isCommentComposerVisible)
@@ -390,6 +403,9 @@ struct VideoDetailView: View {
                 onScrollDirectionChange: { shouldShowComposer in
                     guard selectedTab == .comments else { return }
                     let shouldHideComposer = !shouldShowComposer
+                    if shouldHideComposer && (isCommentComposerFocused || isKeyboardPresented) {
+                        return
+                    }
                     guard isCommentComposerHiddenByScroll != shouldHideComposer else { return }
                     withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
                         if shouldHideComposer {
