@@ -207,38 +207,50 @@ struct VideoDetailView: View {
                     ? min(max(proxy.size.width * 0.64, 620), proxy.size.width - 360)
                     : proxy.size.width
 
-                HStack(alignment: .top, spacing: 0) {
-                    VStack(spacing: 0) {
-                        playerArea(snapshot: snapshot)
-                            .frame(
-                                width: leftWidth,
-                                height: playerHeight(
-                                    panelWidth: leftWidth,
-                                    parentHeight: proxy.size.height
+                ZStack(alignment: .bottomLeading) {
+                    HStack(alignment: .top, spacing: 0) {
+                        VStack(spacing: 0) {
+                            playerArea(snapshot: snapshot)
+                                .frame(
+                                    width: leftWidth,
+                                    height: playerHeight(
+                                        panelWidth: leftWidth,
+                                        parentHeight: proxy.size.height
+                                    )
                                 )
-                            )
 
-                        if !isPlayerFullscreen {
-                            // showsRelated=false on iPad regular landscape because the
-                            // dedicated right sidebar already shows related videos —
-                            // duplicating them in the bottom scroll would be redundant.
-                            belowPlayerPager(snapshot: snapshot, showsRelated: !isWide)
-                                .frame(maxHeight: .infinity)
+                            if !isPlayerFullscreen {
+                                // showsRelated=false on iPad regular landscape because the
+                                // dedicated right sidebar already shows related videos —
+                                // duplicating them in the bottom scroll would be redundant.
+                                belowPlayerPager(snapshot: snapshot, showsRelated: !isWide)
+                                    .frame(maxHeight: .infinity)
+                            }
+                        }
+                        .frame(width: leftWidth)
+
+                        if isWide {
+                            Divider()
+                            TabletRelatedSidebar(
+                                videos: snapshot.relatedVideos,
+                                videoFeature: videoFeature,
+                                commentFeature: commentFeature
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color(.systemBackground))
                         }
                     }
-                    .frame(width: leftWidth)
 
-                    if isWide {
-                        Divider()
-                        TabletRelatedSidebar(
-                            videos: snapshot.relatedVideos,
-                            videoFeature: videoFeature,
-                            commentFeature: commentFeature
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemBackground))
+                    if #available(iOS 26.0, *), isCommentComposerVisible, !isPlayerFullscreen {
+                        liquidGlassCommentComposer
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .padding(.bottom, 16)
+                            .frame(width: leftWidth)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
+                .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isCommentComposerVisible)
             }
             .background(Color(.systemGroupedBackground))
             // The parent TabView still reports the home-indicator safe area
@@ -286,15 +298,7 @@ struct VideoDetailView: View {
 
             if #available(iOS 26.0, *) {
                 detailPager(snapshot: snapshot, showsRelated: showsRelated)
-                    .overlay(alignment: .bottom) {
-                        if isCommentComposerVisible {
-                            liquidGlassCommentComposer
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                                .padding(.bottom, 16)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
             } else {
                 detailPager(snapshot: snapshot, showsRelated: showsRelated)
                     .overlay(alignment: .bottom) {
