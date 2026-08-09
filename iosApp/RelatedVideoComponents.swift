@@ -121,19 +121,29 @@ struct RelatedVideoGrid: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
 
+    private let columns = [
+        GridItem(.flexible(minimum: 0), spacing: 16),
+        GridItem(.flexible(minimum: 0), spacing: 16),
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("相关影片")
                 .font(.headline)
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(videos) { video in
                     NavigationLink {
                         VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
                     } label: {
-                        RelatedVideoCard(video: video, showPlaying: false)
+                        RelatedVideoCard(
+                            video: video,
+                            showPlaying: false,
+                            expandsToFillWidth: true
+                        )
                     }
                     .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -239,12 +249,26 @@ struct TabletRelatedVideoRow: View {
 struct RelatedVideoCard: View {
     let video: VideoRelatedRow
     let showPlaying: Bool
+    var expandsToFillWidth = false
 
+    @ViewBuilder
     var body: some View {
+        if expandsToFillWidth {
+            cardContent
+                .videoCardSurface()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            cardContent
+                .frame(width: 172, alignment: .leading)
+                .videoCardSurface()
+        }
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             VideoCardCover(
                 urlString: video.coverUrl,
-                resizeWidth: 172,
+                resizeWidth: expandsToFillWidth ? 360 : 172,
                 layout: .landscape
             ) {
                 if showPlaying && video.isPlaying {
@@ -279,8 +303,6 @@ struct RelatedVideoCard: View {
                 Color.clear.frame(height: 34)
             }
         }
-        .frame(width: 172, alignment: .leading)
-        .videoCardSurface()
     }
 }
 
