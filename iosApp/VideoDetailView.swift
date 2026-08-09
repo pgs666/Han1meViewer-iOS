@@ -9,7 +9,6 @@ struct VideoDetailView: View {
     @StateObject private var viewModel: VideoDetailViewModel
     @State private var selectedTab = VideoPageTab.introduction
     @State private var isPlayerFullscreen = false
-    @State private var isPlayerCollapsed = false
     /// Natural size of the loaded video (reported by KSPlayer the first time
     /// the underlying player gets a non-zero presentation size). Used to
     /// decide whether fullscreen should lock the device to portrait or
@@ -239,11 +238,9 @@ struct VideoDetailView: View {
 
     /// Player 高度：
     /// - 全屏：撑满整个父容器
-    /// - 折叠：50pt 标题 strip
     /// - inline：左 panel 宽度的 16:9（不再依赖父容器 height）
     private func playerHeight(panelWidth: CGFloat, parentHeight: CGFloat) -> CGFloat {
         if isPlayerFullscreen { return parentHeight }
-        if isPlayerCollapsed { return 50 }
         return panelWidth * 9 / 16
     }
 
@@ -251,13 +248,9 @@ struct VideoDetailView: View {
         return KSPlayerView(
             snapshot: snapshot,
             isFullscreen: $isPlayerFullscreen,
-            isCollapsed: $isPlayerCollapsed,
             onProgress: { viewModel.recordPlaybackPosition(seconds: $0) },
             onPlaybackEnded: { viewModel.recordPlaybackPosition(seconds: 0) },
-            onPlayingChanged: { _ in },
             onBack: { dismiss() },
-            isShrunken: false,
-            onRequestExpand: {},
             onNaturalSize: { size in
                 videoNaturalSize = size
             }
