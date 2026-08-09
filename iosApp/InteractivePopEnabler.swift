@@ -39,15 +39,11 @@ final class PopEnablerViewController: UIViewController {
         guard let nav = navigationControllerInChain else { return }
         popDelegate.navigationController = nav
         nav.interactivePopGestureRecognizer?.isEnabled = true
-        // Install our own delegate (NOT nil). nil falls back to a policy
-        // where the edge-swipe refuses to recognise simultaneously with
-        // any other gesture — so the video player's
-        // DragGesture(minimumDistance: 0), which claims the touch the
-        // instant a finger lands, CANCELS the edge swipe. Our delegate
-        // returns true from shouldRecognizeSimultaneouslyWith so the
-        // edge-pop and the SwiftUI drag can both proceed; the player's
-        // left/right deadzone then makes the drag a no-op at the edge,
-        // leaving the pop to drive the back navigation.
+        // Install our own delegate (NOT nil). It allows the player's
+        // full-area SwiftUI gesture to coexist with edge-pop, but keeps
+        // UIScrollView pan gestures exclusive. The latter is important for
+        // page-style TabView, whose underlying paging scroll view would
+        // otherwise move at the same time as the navigation transition.
         nav.interactivePopGestureRecognizer?.delegate = popDelegate
     }
 
@@ -80,7 +76,22 @@ final class PopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
     ) -> Bool {
-        canPop
+        guard canPop else { return false }
+
+        // UIKit's default gesture-arbitration model is exclusive. Preserve
+        // that default for every UIScrollView pan gesture, including the
+        // private paging scroll view used by SwiftUI's page-style TabView.
+        // The interactive-pop recognizer can then own a left-edge drag
+        // instead of the pager responding alongside it.
+        if let scrollView = otherGestureRecognizer.view as? UIScrollView,
+           otherGestureRecognizer === scrollView.panGestureRecognizer {
+            return false
+        }
+
+        // The custom player DragGesture still needs simultaneous recognition:
+        // it claims touches immediately, but deliberately does no work inside
+        // its edge dead zone so interactive pop can drive navigation.
+        return true
     }
 }
 
