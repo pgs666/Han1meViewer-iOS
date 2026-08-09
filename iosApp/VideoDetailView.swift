@@ -290,7 +290,6 @@ struct VideoDetailView: View {
                         showsRelated: showsRelated
                     )
                     .padding(.top, 16)
-                    .padding(.bottom, 24)
                 }
                 .refreshable {
                     await viewModel.refresh(videoCode: videoCode)
@@ -300,7 +299,6 @@ struct VideoDetailView: View {
                 ScrollView {
                     CommentView(videoCode: videoCode, commentFeature: commentFeature)
                         .padding(.top, 12)
-                        .padding(.bottom, 24)
                 }
                 .tag(VideoPageTab.comments)
             }
