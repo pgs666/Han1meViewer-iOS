@@ -476,30 +476,11 @@ struct KSPlayerView: View {
     // MARK: - Loading / volume HUDs
 
     private var loadingHUD: some View {
-        VStack(spacing: 10) {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .tint(.white)
-                .scaleEffect(1.4)
-            Text(loadingHUDText)
-                .font(.subheadline.weight(.medium).monospacedDigit())
-                .foregroundStyle(.white)
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
-        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var loadingHUDText: String {
-        let label = String(localized: "加载中")
-        if let speed = currentSpeedText {
-            return "\(label) · \(speed)"
-        }
-        return label
+        KSPlayerLoadingHUD(speedText: currentSpeedText)
     }
 
     private var physicalVolumeHUD: some View {
-        hudBar(
+        KSPlayerValueHUD(
             systemImage: volumeObserver.outputVolume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill",
             label: "音量",
             value: volumeObserver.outputVolume
@@ -637,7 +618,7 @@ struct KSPlayerView: View {
             // bar entirely.
             // Fullscreen: tap exits fullscreen back to inline (does NOT
             // pop the detail page). Inline: tap pops the detail page.
-            iconButton(systemImage: "chevron.left", label: isFullscreen ? "退出全屏" : "返回") {
+            KSPlayerIconButton(systemImage: "chevron.left", label: isFullscreen ? "退出全屏" : "返回") {
                 if isFullscreen {
                     withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
                 } else {
@@ -659,14 +640,14 @@ struct KSPlayerView: View {
             }
             Spacer(minLength: 8)
             // 静音 toggle
-            iconButton(
+            KSPlayerIconButton(
                 systemImage: coordinator.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
                 label: coordinator.isMuted ? "取消静音" : "静音"
             ) {
                 coordinator.isMuted.toggle()
             }
             // 比例 fit/fill
-            iconButton(
+            KSPlayerIconButton(
                 systemImage: coordinator.isScaleAspectFill
                     ? "rectangle.arrowtriangle.2.inward"
                     : "rectangle.arrowtriangle.2.outward",
@@ -691,9 +672,9 @@ struct KSPlayerView: View {
         return HStack(spacing: 10) {
             // Play / pause moved here from the (now-removed) centre controls
             // — sits at the left of the progress strip, matching the user's
-            // requested layout. Uses iconButton so it inherits the 44pt
+            // requested layout. Uses KSPlayerIconButton so it inherits the 44pt
             // hit-target rule.
-            iconButton(
+            KSPlayerIconButton(
                 systemImage: isPlaying ? "pause.fill" : "play.fill",
                 label: isPlaying ? "暂停" : "播放"
             ) {
@@ -754,9 +735,9 @@ struct KSPlayerView: View {
             }
 
             // 全屏 toggle — placed immediately to the right of the playback
-            // rate menu per user request. Uses iconButton for the same 44pt
+            // rate menu per user request. Uses KSPlayerIconButton for the same 44pt
             // hit-target as the other chrome buttons.
-            iconButton(
+            KSPlayerIconButton(
                 systemImage: isFullscreen
                     ? "arrow.down.right.and.arrow.up.left"
                     : "arrow.up.left.and.arrow.down.right",
@@ -821,23 +802,7 @@ struct KSPlayerView: View {
     }
 
     private var boostHint: some View {
-        VStack {
-            // Top-centre so the badge sits above the player content but
-            // doesn't collide with the three top-right control buttons
-            // (mute / aspect / fullscreen).
-            HStack {
-                Spacer()
-                Label(KSPlayerDisplayFormatter.rate(effectiveBoostRate), systemImage: "forward.fill")
-                    .font(.caption.weight(.bold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(.black.opacity(0.55), in: Capsule())
-                    .foregroundStyle(.white)
-                Spacer()
-            }
-            .padding(.top, 12)
-            Spacer()
-        }
+        KSPlayerBoostHint(rate: effectiveBoostRate)
     }
 
     /// HUD displayed in the centre of the player while a swipe gesture is active.
@@ -849,90 +814,27 @@ struct KSPlayerView: View {
             case .seek:
                 let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
                 let delta = dragTargetProgressSeconds - dragStartProgressSeconds
-                let sign = delta >= 0 ? "+" : "−"
-                VStack(spacing: 6) {
-                    HStack(spacing: 4) {
-                        Image(systemName: delta >= 0 ? "forward.fill" : "backward.fill")
-                            .font(.title3)
-                        Text("\(sign)\(KSPlayerDisplayFormatter.time(abs(delta)))")
-                            .font(.title3.monospacedDigit().weight(.semibold))
-                    }
-                    Text("\(KSPlayerDisplayFormatter.time(dragTargetProgressSeconds)) / \(KSPlayerDisplayFormatter.time(total))")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 10))
+                KSPlayerSeekHUD(delta: delta, target: dragTargetProgressSeconds, total: total)
             case .brightness:
-                hudBar(systemImage: "sun.max.fill",
-                       label: "亮度",
-                       value: Float(dragCurrentBrightness))
+                KSPlayerValueHUD(
+                    systemImage: "sun.max.fill",
+                    label: "亮度",
+                    value: Float(dragCurrentBrightness)
+                )
             case .volume:
-                hudBar(systemImage: dragCurrentVolume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                       label: "音量",
-                       value: dragCurrentVolume)
+                KSPlayerValueHUD(
+                    systemImage: dragCurrentVolume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                    label: "音量",
+                    value: dragCurrentVolume
+                )
             case .none:
                 EmptyView()
             }
         }
     }
 
-    private func hudBar(systemImage: String, label: String, value: Float) -> some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: systemImage)
-                Text(label)
-                Spacer(minLength: 0)
-                Text("\(Int((value * 100).rounded()))%")
-                    .monospacedDigit()
-            }
-            .font(.subheadline.weight(.semibold))
-            .frame(width: 160)
-
-            ProgressView(value: Double(value), total: 1.0)
-                .progressViewStyle(.linear)
-                .tint(.white)
-                .frame(width: 160)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    private func iconButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.headline)
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(.black.opacity(0.45), in: Circle())
-                // Outer 44×44 frame is the actual hit-test area — meets
-                // Apple's HIG minimum touch-target size while keeping the
-                // 36×36 black circle as the visual chrome (the surrounding
-                // 4pt ring is transparent). contentShape ensures taps in
-                // the transparent ring still register on the button.
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-                .accessibilityLabel(label)
-        }
-        .buttonStyle(.plain)
-    }
-
     private var emptyPlaceholder: some View {
-        ZStack {
-            Color.black
-            VStack(spacing: 10) {
-                Image(systemName: "play.slash")
-                    .font(.title)
-                    .foregroundStyle(.white)
-                Text("未解析到可播放源")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-            }
-        }
+        KSPlayerEmptyPlaceholder()
     }
 
     // MARK: - Helpers
