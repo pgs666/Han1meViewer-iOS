@@ -127,14 +127,9 @@ struct KSPlayerView: View {
     /// fragile across navigation re-mounts (HUD stuck on after popping
     /// back from a tag/artist sub-page).
     @StateObject private var statusObserver = AVPlayerStatusObserver()
+    @StateObject private var networkSpeedSampler = KSPlayerNetworkSpeedSampler()
     @State private var currentSpeedText: String?
     @State private var speedSampleTask: Task<Void, Never>?
-    /// Previous loadedTimeRanges-end and wall-clock timestamp, used to
-    /// synthesise speed from buffer-fill rate × track bitrate when
-    /// AVPlayerItem.accessLog is nil (typical for progressive mp4 where
-    /// AVFoundation does not generate access-log events).
-    @State private var lastLoadedEnd: Double = 0
-    @State private var lastSampleAt: Date?
 
     /// Belt-and-braces enforcement of the autoPlayOnEnter preference,
     /// fired exactly once on the first transition into `.bufferFinished`.
@@ -287,7 +282,7 @@ struct KSPlayerView: View {
                         // any time KSPlayer's state ticks, so we always have
                         // the up-to-date AVPlayer reference (it can be
                         // recreated when the URL or codec changes).
-                        statusObserver.observe(Self.findAVPlayer(in: layer.player))
+                        statusObserver.observe(networkSpeedSampler.avPlayer(from: layer.player))
                         if !naturalSizeReported {
                             let size = layer.player.naturalSize
                             if size.width > 0 && size.height > 0 {
@@ -416,14 +411,13 @@ struct KSPlayerView: View {
             // need to seed it manually here.
             autoPlayApplied = false
             stateLogBudget = 8
-            lastLoadedEnd = 0
-            lastSampleAt = nil
+            networkSpeedSampler.reset()
             currentSpeedText = nil
             // Bind the status observer eagerly if a layer already exists
             // (re-appear after navigation pop); fresh mounts will pick
             // it up via the onStateChanged callback once the layer is
             // created.
-            statusObserver.observe(Self.findAVPlayer(in: coordinator.playerLayer?.player))
+            statusObserver.observe(networkSpeedSampler.avPlayer(from: coordinator.playerLayer?.player))
             AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
         }
         .onDisappear {
@@ -493,95 +487,12 @@ struct KSPlayerView: View {
         speedSampleTask?.cancel()
         speedSampleTask = Task { @MainActor in
             while !Task.isCancelled {
-                currentSpeedText = sampleNetworkSpeed()
+                currentSpeedText = networkSpeedSampler.sample(
+                    player: coordinator.playerLayer?.player
+                )
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
-    }
-
-    /// Reach the underlying AVPlayer through KSPlayer's MediaPlayerProtocol
-    /// (KSAVPlayer wraps an AVPlayer; KSMEPlayer/FFmpeg has none) and read
-    /// `observedBitrate` from the latest access-log event. Returns nil for
-    /// non-AVPlayer backends or when no events are available yet.
-    private func sampleNetworkSpeed() -> String? {
-        guard let player = coordinator.playerLayer?.player else { return nil }
-        guard let avPlayer = Self.findAVPlayer(in: player) else { return nil }
-        guard let item = avPlayer.currentItem else { return nil }
-
-        // Path 1: AVPlayerItem.accessLog (works for HLS / network streams
-        // AVFoundation chooses to log; usually empty for progressive mp4).
-        if let event = item.accessLog()?.events.last {
-            let bps = event.observedBitrate
-            if bps > 0 {
-                return Self.formatSpeed(bytesPerSec: bps / 8.0)
-            }
-            let bytes = event.numberOfBytesTransferred
-            let dur = event.transferDuration
-            if bytes > 0, dur > 0 {
-                return Self.formatSpeed(bytesPerSec: Double(bytes) / dur)
-            }
-        }
-
-        // Path 2: synthesise from buffer fill-rate × track bitrate, which
-        // works for progressive mp4 where accessLog stays nil.
-        return synthesiseSpeed(from: item)
-    }
-
-    private func synthesiseSpeed(from item: AVPlayerItem) -> String? {
-        let now = Date()
-        guard
-            let lastRange = item.loadedTimeRanges.last?.timeRangeValue,
-            lastRange.duration.isNumeric, lastRange.start.isNumeric
-        else { return nil }
-        let currentEnd = lastRange.start.seconds + lastRange.duration.seconds
-
-        // Capture previous sample, then update for next call. Defer ensures
-        // the update happens regardless of which return path we take.
-        let prevEnd = lastLoadedEnd
-        let prevTime = lastSampleAt
-        lastLoadedEnd = currentEnd
-        lastSampleAt = now
-
-        guard let prevTime else { return nil }   // first sample, no delta
-        let wallDelta = now.timeIntervalSince(prevTime)
-        guard wallDelta > 0.1 else { return nil }
-        let bufferDelta = currentEnd - prevEnd
-        guard bufferDelta > 0 else {
-            // No new buffer this tick — speed is effectively zero, but
-            // showing "0 B/s" is misleading for a transient stall.
-            return nil
-        }
-        let fillRate = bufferDelta / wallDelta
-
-        // estimatedDataRate is in bits/sec; comes from the asset metadata
-        // and is populated as soon as the track loads (typically before
-        // playback can start).
-        let bitrate: Float = item.tracks
-            .compactMap { $0.assetTrack }
-            .first { $0.mediaType == .video }?.estimatedDataRate ?? 0
-        guard bitrate > 0 else { return nil }
-        let bytesPerSec = Double(bitrate) / 8.0 * fillRate
-        return Self.formatSpeed(bytesPerSec: bytesPerSec)
-    }
-
-    private static func findAVPlayer(in any: Any, depth: Int = 0) -> AVPlayer? {
-        guard depth < 4 else { return nil }
-        if let p = any as? AVPlayer { return p }
-        let mirror = Mirror(reflecting: any)
-        for child in mirror.children {
-            if let p = findAVPlayer(in: child.value, depth: depth + 1) { return p }
-        }
-        return nil
-    }
-
-    private static func formatSpeed(bytesPerSec: Double) -> String {
-        if bytesPerSec >= 1_000_000 {
-            return String(format: "%.1f MB/s", bytesPerSec / 1_000_000)
-        }
-        if bytesPerSec >= 1_000 {
-            return String(format: "%.0f KB/s", bytesPerSec / 1_000)
-        }
-        return String(format: "%.0f B/s", bytesPerSec)
     }
 
     private var controlsOverlay: some View {
