@@ -5,8 +5,6 @@ struct HorizontalVideoSection: View {
     let title: String
     let subtitle: String?
     let videos: [VideoRelatedRow]
-    let videoFeature: VideoFeature
-    let commentFeature: CommentFeature
     let showPlaying: Bool
     let onOpenVideo: (String) -> Void
 
@@ -40,8 +38,8 @@ struct HorizontalVideoSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(videos) { video in
-                        NavigationLink {
-                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                        Button {
+                            openVideoIfNeeded(video)
                         } label: {
                             RelatedVideoCard(video: video, showPlaying: showPlaying)
                         }
@@ -59,6 +57,11 @@ struct HorizontalVideoSection: View {
             )
             .presentationDragIndicator(.visible)
         }
+    }
+
+    private func openVideoIfNeeded(_ video: VideoRelatedRow) {
+        guard !showPlaying || !video.isPlaying else { return }
+        onOpenVideo(video.videoCode)
     }
 
     private func selectVideo(_ videoCode: String) {

@@ -404,8 +404,6 @@ private struct AndroidStyleIntroduction: View {
                     title: "系列影片",
                     subtitle: snapshot.playlistName,
                     videos: snapshot.playlistVideos,
-                    videoFeature: videoFeature,
-                    commentFeature: commentFeature,
                     showPlaying: true,
                     onOpenVideo: onOpenSeriesVideo
                 )
