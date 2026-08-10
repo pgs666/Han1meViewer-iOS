@@ -2,6 +2,7 @@ package com.yenaly.han1meviewer.shared.parser
 
 import com.yenaly.han1meviewer.shared.model.SearchParams
 import kotlin.test.Test
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -32,6 +33,8 @@ class ParserRegressionTest {
         val html = loadParserFixtureOrNull("home.html") ?: return
         val home = parser.parseHome(html)
         assertTrue(home.sections.isNotEmpty(), "home fixture produced no sections")
+        assertNotNull(home.banner, "home fixture produced no banner")
+        assertTrue(home.sections.all { it.items.isNotEmpty() }, "home fixture produced an empty section")
     }
 
     @Test
@@ -39,13 +42,19 @@ class ParserRegressionTest {
         val html = loadParserFixtureOrNull("search.html") ?: return
         val result = parser.parseSearch(html, SearchParams(keyword = ""), page = 1)
         assertTrue(result.items.isNotEmpty(), "search fixture produced no items")
+        assertTrue(result.items.all { it.videoCode.isNotBlank() }, "search fixture produced a blank video code")
+        assertTrue(result.items.any { !it.coverUrl.isNullOrBlank() }, "search fixture produced no covers")
     }
 
     @Test
     fun videoFixtureParsesTitleAndSources() {
         val html = loadParserFixtureOrNull("video.html") ?: return
-        val video = parser.parseVideo(html, videoCode = "0")
+        val video = parser.parseVideo(html, videoCode = "407591")
         assertTrue(video.title.isNotBlank(), "video fixture produced blank title")
+        assertTrue(video.tags.isNotEmpty(), "video fixture produced no tags")
+        assertTrue(video.sources.isNotEmpty(), "video fixture produced no playback sources")
+        assertTrue(video.playlist?.videos?.isNotEmpty() == true, "video fixture produced no playlist")
+        assertTrue(video.relatedHanimes.isNotEmpty(), "video fixture produced no related videos")
     }
 
     @Test

@@ -21,6 +21,7 @@ data class DomainErrorDto(
 fun DomainError.toDto(): DomainErrorDto = when (this) {
     is DomainError.Auth -> DomainErrorDto("auth", message)
     is DomainError.CloudflareBlocked -> DomainErrorDto("cloudflare_blocked", message)
+    is DomainError.IpBlocked -> DomainErrorDto("ip_blocked", message)
     is DomainError.Network -> DomainErrorDto("network", message, statusCode)
     is DomainError.Parse -> DomainErrorDto("parse", message)
     is DomainError.Unknown -> DomainErrorDto("unknown", message)

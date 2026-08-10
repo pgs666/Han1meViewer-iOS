@@ -34,6 +34,10 @@ enum DomainErrorCode {
         return l.contains("cloudflare") || l.contains("cf-mitigated")
     }
 
+    static func isIPBlocked(_ error: Error) -> Bool {
+        code(of: error) == "ip_blocked"
+    }
+
     /// HTTP status code carried by a `network:<status>` token, if any.
     static func httpStatus(of error: Error) -> Int? {
         guard let code = code(of: error), code.hasPrefix("network:") else { return nil }

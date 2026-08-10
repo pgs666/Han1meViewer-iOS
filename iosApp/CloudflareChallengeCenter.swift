@@ -4,8 +4,6 @@ import Han1meShared
 enum CloudflareChallengeCenter {
     static let requestNotification = Notification.Name("Han1meViewerCloudflareChallengeRequested")
     static let urlKey = "url"
-    private static let defaultChallengeURLString = "https://hanime1.me"
-
     static func requestChallengeIfNeeded(for error: Error) {
         if DomainErrorCode.isCloudflare(error) {
             requestChallenge()
@@ -13,7 +11,7 @@ enum CloudflareChallengeCenter {
     }
 
     static func requestChallenge() {
-        guard let url = URL(string: defaultChallengeURLString) else {
+        guard let url = URL(string: AppDomain.currentBaseURL) else {
             return
         }
         requestChallenge(url: url)

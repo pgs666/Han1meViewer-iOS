@@ -15,6 +15,10 @@ class DomainExceptionTest {
             DomainException(DomainError.CloudflareBlocked("blocked")).message,
         )
         assertEquals(
+            "[ip_blocked] blocked",
+            DomainException(DomainError.IpBlocked("blocked")).message,
+        )
+        assertEquals(
             "[network:403] denied",
             DomainException(DomainError.Network("denied", statusCode = 403)).message,
         )

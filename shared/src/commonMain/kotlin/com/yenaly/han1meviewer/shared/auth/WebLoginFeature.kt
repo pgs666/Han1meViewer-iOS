@@ -140,6 +140,7 @@ class WebLoginFeature(
             is DomainError.Auth -> true
             is DomainError.Network -> domainError.statusCode == 401
             is DomainError.CloudflareBlocked,
+            is DomainError.IpBlocked,
             is DomainError.Parse,
             is DomainError.Unknown -> false
         }

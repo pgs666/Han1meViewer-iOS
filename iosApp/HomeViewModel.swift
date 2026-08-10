@@ -7,7 +7,7 @@ final class HomeViewModel: ObservableObject {
         case idle
         case loading
         case loaded(HomeScreenSnapshot)
-        case failed(String)
+        case failed(message: String, isIPBlocked: Bool)
     }
 
     @Published private(set) var state: State = .idle
@@ -61,7 +61,10 @@ final class HomeViewModel: ObservableObject {
             return
         } catch {
             guard !Task.isCancelled, generation == loadGeneration else { return }
-            state = .failed(ErrorMessage.userFriendly(error))
+            state = .failed(
+                message: ErrorMessage.userFriendly(error),
+                isIPBlocked: DomainErrorCode.isIPBlocked(error)
+            )
         }
     }
 }

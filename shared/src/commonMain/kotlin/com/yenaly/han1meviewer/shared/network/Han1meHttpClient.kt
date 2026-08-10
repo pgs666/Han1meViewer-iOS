@@ -54,7 +54,8 @@ internal fun createHan1meHttpClient(
             retryOnExceptionIf(maxRetries = HanimeNetworkDefaults.BACKUP_HOSTNAMES.size - 1) { request, cause ->
                 if (request.method !in setOf(HttpMethod.Get, HttpMethod.Head)) return@retryOnExceptionIf false
                 when (cause) {
-                    is DomainException -> cause.error is DomainError.CloudflareBlocked
+                    is DomainException -> cause.error is DomainError.CloudflareBlocked ||
+                        cause.error is DomainError.IpBlocked
                     else -> true // transient IO / connection failures
                 }
             }
@@ -73,6 +74,13 @@ internal fun createHan1meHttpClient(
         }
         HttpResponseValidator {
             validateResponse { response ->
+                if (response.isCloudflareIpBlock()) {
+                    throw DomainException(
+                        DomainError.IpBlocked(
+                            "Cloudflare has blocked this network address. Change networks or use another site domain."
+                        )
+                    )
+                }
                 if (response.isCloudflareChallenge()) {
                     throw DomainException(
                         DomainError.CloudflareBlocked(
@@ -123,6 +131,18 @@ private suspend fun io.ktor.client.statement.HttpResponse.isCloudflareChallenge(
     }
     val text = runCatching { bodyAsText() }.getOrDefault("")
     return text.hasCloudflareChallengeBody()
+}
+
+private suspend fun io.ktor.client.statement.HttpResponse.isCloudflareIpBlock(): Boolean {
+    if (status != HttpStatusCode.Forbidden) return false
+    return runCatching { bodyAsText() }.getOrDefault("").hasCloudflareIpBlockBody()
+}
+
+internal fun String.hasCloudflareIpBlockBody(): Boolean {
+    return contains("data-translate=\"block_headline\"", ignoreCase = true) ||
+        contains("Sorry, you have been blocked", ignoreCase = true) ||
+        (contains("Attention Required!", ignoreCase = true) &&
+            contains("Cloudflare Ray ID", ignoreCase = true))
 }
 
 internal fun String.hasCloudflareChallengeBody(): Boolean {

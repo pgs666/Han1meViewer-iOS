@@ -12,7 +12,7 @@ struct CloudflareChallengePresenter: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: CloudflareChallengeCenter.requestNotification)) { notification in
                 if let url = notification.userInfo?[CloudflareChallengeCenter.urlKey] as? URL {
                     challengeRequest = CloudflareChallengeRequest(url: url)
-                } else if let fallbackURL = URL(string: "https://hanime1.me") {
+                } else if let fallbackURL = URL(string: AppDomain.currentBaseURL) {
                     challengeRequest = CloudflareChallengeRequest(url: fallbackURL)
                 }
             }
@@ -119,6 +119,7 @@ private struct CloudflareWebView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             cloudflareFeature: cloudflareFeature,
+            challengeURL: url,
             status: $status,
             onResolved: onResolved
         )
@@ -150,6 +151,7 @@ private struct CloudflareWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         private let cloudflareFeature: CloudflareFeature
+        private let challengeHost: String
         private let status: Binding<ChallengeStatus>
         private let onResolved: () -> Void
         private weak var webView: WKWebView?
@@ -159,8 +161,9 @@ private struct CloudflareWebView: UIViewRepresentable {
         private let importStateQueue = DispatchQueue(label: "com.han1me.cf-import-state")
         private var pendingCookiesChangedWorkItem: DispatchWorkItem?
 
-        init(cloudflareFeature: CloudflareFeature, status: Binding<ChallengeStatus>, onResolved: @escaping () -> Void) {
+        init(cloudflareFeature: CloudflareFeature, challengeURL: URL, status: Binding<ChallengeStatus>, onResolved: @escaping () -> Void) {
             self.cloudflareFeature = cloudflareFeature
+            self.challengeHost = challengeURL.host?.lowercased() ?? ""
             self.status = status
             self.onResolved = onResolved
         }
@@ -235,16 +238,18 @@ private struct CloudflareWebView: UIViewRepresentable {
                     return
                 }
 
-                let hanimeCookies = cookies.filter { cookie in
-                    cookie.domain.contains("hanime1.me")
+                let challengeCookies = cookies.filter { cookie in
+                    let cookieDomain = cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+                    return !self.challengeHost.isEmpty &&
+                        (cookieDomain == self.challengeHost || self.challengeHost.hasSuffix(".\(cookieDomain)"))
                 }
 
-                guard hanimeCookies.contains(where: { $0.name == "cf_clearance" }) else {
+                guard challengeCookies.contains(where: { $0.name == "cf_clearance" }) else {
                     self.finishImport()
                     return
                 }
 
-                let cookieJson = Self.encodeCookiesForImport(hanimeCookies)
+                let cookieJson = Self.encodeCookiesForImport(challengeCookies)
 
                 guard let cookieJson, !cookieJson.isEmpty else {
                     self.finishImport()
@@ -256,7 +261,7 @@ private struct CloudflareWebView: UIViewRepresentable {
                     do {
                         let snapshot = try await self.cloudflareFeature.importChallengeCookiesJson(
                             cookieJson: cookieJson,
-                            fallbackDomain: "hanime1.me"
+                            fallbackDomain: self.challengeHost
                         )
                         self.finishImport()
                         if snapshot.hasClearance {

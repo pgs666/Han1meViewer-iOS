@@ -63,14 +63,14 @@ struct HomeView: View {
         case .idle, .loading:
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .failed(let message):
+        case .failed(let message, let isIPBlocked):
             GeometryReader { proxy in
                 ScrollView {
                 VStack(spacing: 12) {
-                    Image(systemName: "wifi.exclamationmark")
+                    Image(systemName: isIPBlocked ? "network.badge.shield.half.filled" : "wifi.exclamationmark")
                         .font(.largeTitle)
                         .foregroundStyle(.secondary)
-                    Text("首页加载失败")
+                    Text(isIPBlocked ? "当前网络已被站点封锁" : "首页加载失败")
                         .font(.headline)
                     Text(message)
                         .font(.subheadline)
@@ -80,7 +80,9 @@ struct HomeView: View {
                         viewModel.load()
                     }
                     .buttonStyle(.borderedProminent)
-                    CloudflareVerifyButton(errorMessage: message)
+                    if !isIPBlocked {
+                        CloudflareVerifyButton(errorMessage: message)
+                    }
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity)

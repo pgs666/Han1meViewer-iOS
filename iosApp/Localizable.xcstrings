@@ -2927,6 +2927,28 @@
         }
       }
     },
+    "error.ip_blocked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This network address has been blocked by the site. Browser verification cannot remove this block. Switch Wi-Fi or cellular networks, change your VPN exit, or select another site domain in Settings and restart the app."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前网络 IP 已被站点封锁，浏览器验证无法解除。请切换 Wi-Fi 或蜂窝网络、更换 VPN 节点，或在设置中改用其他站点域名并重启应用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前網路 IP 已被站點封鎖，瀏覽器驗證無法解除。請切換 Wi-Fi 或行動網路、更換 VPN 節點，或在設定中改用其他站點網域並重新啟動應用程式。"
+          }
+        }
+      }
+    },
     "error.network": {
       "localizations": {
         "en": {

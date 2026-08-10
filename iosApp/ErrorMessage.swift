@@ -13,6 +13,8 @@ enum ErrorMessage {
                 return base + "\n" + String(localized: "error.page_expired.relogin_hint")
             }
             switch code {
+            case "ip_blocked":
+                return String(localized: "error.ip_blocked")
             case "cloudflare", "network:403":
                 return String(localized: "error.cloudflare")
             case "auth":

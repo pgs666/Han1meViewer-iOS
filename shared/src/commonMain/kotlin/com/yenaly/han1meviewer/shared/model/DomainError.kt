@@ -25,6 +25,9 @@ sealed interface DomainError {
     data class CloudflareBlocked(override val message: String) : DomainError {
         override val code: String get() = "cloudflare"
     }
+    data class IpBlocked(override val message: String) : DomainError {
+        override val code: String get() = "ip_blocked"
+    }
     data class Unknown(override val message: String) : DomainError {
         override val code: String get() = "unknown"
     }

@@ -18,4 +18,14 @@ class Han1meHttpClientTest {
 
         assertTrue(body.hasCloudflareChallengeBody())
     }
+
+    @Test
+    fun cloudflareIpBlockPageIsDetected() {
+        val body = """<title>Attention Required! | Cloudflare</title>
+            <h1 data-translate="block_headline">Sorry, you have been blocked</h1>
+            <span>Cloudflare Ray ID: abc123</span>"""
+
+        assertTrue(body.hasCloudflareIpBlockBody())
+        assertFalse("<footer>Protected by Cloudflare</footer>".hasCloudflareIpBlockBody())
+    }
 }
