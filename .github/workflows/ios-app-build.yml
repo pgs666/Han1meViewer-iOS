@@ -17,6 +17,64 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Report runner configuration
+        shell: bash
+        run: |
+          RUNNER_MACOS="$(sw_vers -productName) $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
+          RUNNER_CPU="$(system_profiler SPHardwareDataType | awk -F': ' '/Chip|Processor Name/{print $2; exit}')"
+          RUNNER_MODEL="$(sysctl -n hw.model)"
+          RUNNER_CORES="$(sysctl -n hw.ncpu)"
+          RUNNER_MEMORY_BYTES="$(sysctl -n hw.memsize)"
+          RUNNER_MEMORY="$(awk -v bytes="$RUNNER_MEMORY_BYTES" 'BEGIN { printf "%.1f GiB", bytes / 1073741824 }')"
+          RUNNER_DISK="$(df -h / | awk 'NR == 2 { print $2 " total, " $4 " available" }')"
+          RUNNER_XCODE="$(xcodebuild -version | paste -sd ' ' -)"
+          RUNNER_SWIFT="$(swift --version | head -n 1)"
+          RUNNER_JAVA="$(java -version 2>&1 | head -n 1)"
+          RUNNER_GIT="$(git --version)"
+          RUNNER_PYTHON="$(python3 --version)"
+          RUNNER_HOMEBREW="$(brew --version | head -n 1)"
+
+          echo "Runner configuration"
+          echo "===================="
+          printf '%-18s %s\n' \
+            "Runner" "$RUNNER_NAME" \
+            "Environment" "$RUNNER_ENVIRONMENT" \
+            "OS / architecture" "$RUNNER_OS / $RUNNER_ARCH" \
+            "macOS" "$RUNNER_MACOS" \
+            "Hardware model" "$RUNNER_MODEL" \
+            "Processor" "$RUNNER_CPU" \
+            "Logical cores" "$RUNNER_CORES" \
+            "Memory" "$RUNNER_MEMORY" \
+            "Root disk" "$RUNNER_DISK" \
+            "Xcode" "$RUNNER_XCODE" \
+            "Swift" "$RUNNER_SWIFT" \
+            "Java (initial)" "$RUNNER_JAVA" \
+            "Git" "$RUNNER_GIT" \
+            "Python" "$RUNNER_PYTHON" \
+            "Homebrew" "$RUNNER_HOMEBREW"
+
+          {
+            echo "## Runner configuration"
+            echo
+            echo "| Category | Value |"
+            echo "| --- | --- |"
+            echo "| Runner | \`$RUNNER_NAME\` |"
+            echo "| Environment | \`$RUNNER_ENVIRONMENT\` |"
+            echo "| OS / architecture | \`$RUNNER_OS / $RUNNER_ARCH\` |"
+            echo "| macOS | $RUNNER_MACOS |"
+            echo "| Hardware model | \`$RUNNER_MODEL\` |"
+            echo "| Processor | $RUNNER_CPU |"
+            echo "| Logical cores | $RUNNER_CORES |"
+            echo "| Memory | $RUNNER_MEMORY |"
+            echo "| Root disk | $RUNNER_DISK |"
+            echo "| Xcode | $RUNNER_XCODE |"
+            echo "| Swift | $RUNNER_SWIFT |"
+            echo "| Java before setup-java | $RUNNER_JAVA |"
+            echo "| Git | $RUNNER_GIT |"
+            echo "| Python | $RUNNER_PYTHON |"
+            echo "| Homebrew | $RUNNER_HOMEBREW |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Select Xcode 26.2
         run: sudo xcode-select -s /Applications/Xcode_26.2.app
 

@@ -256,7 +256,8 @@ struct SettingsView: View {
                         .tag(option.url)
                 }
                 if !AppDomain.isPreset(selectedDomain) {
-                    Text("\(AppDomain.displayHost(for: selectedDomain))（自定义）")
+                    (Text(verbatim: AppDomain.displayHost(for: selectedDomain)) +
+                     Text(verbatim: " (") + Text("自定义") + Text(verbatim: ")"))
                         .tag(selectedDomain)
                 }
             }
@@ -277,9 +278,13 @@ struct SettingsView: View {
         } header: {
             Text("网络")
         } footer: {
-            Text(showDomainRestartHint
-                 ? "域名已切换，请完全退出并重新打开应用以生效。"
-                 : "可选择预设域名或填写自定义 HTTPS 镜像站。切换后需完全退出并重新打开应用。")
+            Group {
+                if showDomainRestartHint {
+                    Text("域名已切换，请完全退出并重新打开应用以生效。")
+                } else {
+                    Text("可选择预设域名或填写自定义 HTTPS 镜像站。切换后需完全退出并重新打开应用。")
+                }
+            }
             .foregroundStyle(showDomainRestartHint ? Color.orange : Color.secondary)
         }
     }
@@ -445,7 +450,7 @@ private struct CustomDomainView: View {
 
     private func save() {
         guard let normalized = AppDomain.normalizedBaseURL(from: draft) else {
-            validationMessage = "请输入有效的 HTTPS 站点根地址。"
+            validationMessage = String(localized: "请输入有效的 HTTPS 站点根地址。")
             return
         }
         AppDomain.setBaseURL(normalized)

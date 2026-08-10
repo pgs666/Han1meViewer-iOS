@@ -70,7 +70,13 @@ struct HomeView: View {
                     Image(systemName: isIPBlocked ? "network.badge.shield.half.filled" : "wifi.exclamationmark")
                         .font(.largeTitle)
                         .foregroundStyle(.secondary)
-                    Text(isIPBlocked ? "当前网络已被站点封锁" : "首页加载失败")
+                    Group {
+                        if isIPBlocked {
+                            Text("当前网络已被站点封锁")
+                        } else {
+                            Text("首页加载失败")
+                        }
+                    }
                         .font(.headline)
                     Text(message)
                         .font(.subheadline)
