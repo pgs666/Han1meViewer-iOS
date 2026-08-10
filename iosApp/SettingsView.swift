@@ -255,18 +255,31 @@ struct SettingsView: View {
                     (Text(verbatim: option.host) + Text(verbatim: " (") + Text(option.suffix) + Text(verbatim: ")"))
                         .tag(option.url)
                 }
+                if !AppDomain.isPreset(selectedDomain) {
+                    Text("\(AppDomain.displayHost(for: selectedDomain))（自定义）")
+                        .tag(selectedDomain)
+                }
             }
             .onValueChange(of: selectedDomain) { newValue in
                 guard newValue != AppDomain.currentBaseURL else { return }
                 AppDomain.setBaseURL(newValue)
                 showDomainRestartHint = true
             }
+
+            NavigationLink {
+                CustomDomainView(
+                    selectedDomain: $selectedDomain,
+                    showRestartHint: $showDomainRestartHint
+                )
+            } label: {
+                SettingsNavigationRow(title: "自定义镜像站", systemImage: "network")
+            }
         } header: {
             Text("网络")
         } footer: {
             Text(showDomainRestartHint
                  ? "域名已切换，请完全退出并重新打开应用以生效。"
-                 : "当某个域名无法访问时，可切换到备用域名。切换后需重启应用生效。")
+                 : "可选择预设域名或填写自定义 HTTPS 镜像站。切换后需完全退出并重新打开应用。")
             .foregroundStyle(showDomainRestartHint ? Color.orange : Color.secondary)
         }
     }
@@ -381,6 +394,64 @@ struct SettingsView: View {
 
     private func refreshCacheSize() async {
         cacheSizeText = await CacheStorage.formattedSizeAsync()
+    }
+}
+
+private struct CustomDomainView: View {
+    @Binding var selectedDomain: String
+    @Binding var showRestartHint: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String
+    @State private var validationMessage: String?
+
+    init(selectedDomain: Binding<String>, showRestartHint: Binding<Bool>) {
+        _selectedDomain = selectedDomain
+        _showRestartHint = showRestartHint
+        let current = selectedDomain.wrappedValue
+        _draft = State(initialValue: AppDomain.isPreset(current) ? "" : current)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("例如 mirror.example.com", text: $draft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .onSubmit(save)
+            } header: {
+                Text("镜像站地址")
+            } footer: {
+                Text("仅支持 HTTPS 站点根地址，可省略 https://；不要填写 /watch 等页面路径。")
+            }
+
+            if let validationMessage {
+                Section {
+                    Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Section {
+                Button("保存并在重启后使用", action: save)
+                    .frame(maxWidth: .infinity)
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .navigationTitle("自定义镜像站")
+        .navigationBarTitleDisplayMode(.inline)
+        .hidesTabBarOnAppear()
+    }
+
+    private func save() {
+        guard let normalized = AppDomain.normalizedBaseURL(from: draft) else {
+            validationMessage = "请输入有效的 HTTPS 站点根地址。"
+            return
+        }
+        AppDomain.setBaseURL(normalized)
+        selectedDomain = normalized
+        showRestartHint = true
+        dismiss()
     }
 }
 

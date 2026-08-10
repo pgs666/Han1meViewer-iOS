@@ -22,19 +22,50 @@ enum AppDomain {
 
     static let defaultBaseURL = "https://hanime1.me"
 
-    /// Reads the persisted domain, normalising any stored value (older
-    /// builds may have stored a trailing slash) and falling back to the
-    /// default if it's empty or not one of the known options.
+    /// Reads and normalises either a predefined domain or a custom HTTPS
+    /// origin. Invalid legacy values fall back to the default domain.
     static var currentBaseURL: String {
-        let stored = UserDefaults.standard.string(forKey: preferenceKey)?
-            .trimmingCharacters(in: .whitespaces)
-            .replacingOccurrences(of: "/", with: "", options: .anchored)
+        let stored = UserDefaults.standard.string(forKey: preferenceKey)
         guard let stored, !stored.isEmpty else { return defaultBaseURL }
-        let normalized = stored.hasSuffix("/") ? String(stored.dropLast()) : stored
-        return options.first { $0.url == normalized }?.url ?? defaultBaseURL
+        return normalizedBaseURL(from: stored) ?? defaultBaseURL
     }
 
     static func setBaseURL(_ url: String) {
-        UserDefaults.standard.set(url, forKey: preferenceKey)
+        guard let normalized = normalizedBaseURL(from: url) else { return }
+        UserDefaults.standard.set(normalized, forKey: preferenceKey)
+    }
+
+    static func isPreset(_ url: String) -> Bool {
+        options.contains { $0.url == url }
+    }
+
+    static func displayHost(for url: String) -> String {
+        URLComponents(string: url)?.host ?? url
+    }
+
+    /// Accept a HTTPS origin only. Repositories append their own paths to
+    /// this value, so a mirror base URL cannot contain a path, query, or
+    /// fragment. A missing scheme is treated as HTTPS for easier entry.
+    static func normalizedBaseURL(from rawValue: String) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let candidate = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
+        guard var components = URLComponents(string: candidate),
+              components.scheme?.lowercased() == "https",
+              let host = components.host,
+              !host.isEmpty,
+              components.user == nil,
+              components.password == nil,
+              components.query == nil,
+              components.fragment == nil,
+              components.path.isEmpty || components.path == "/" else {
+            return nil
+        }
+
+        components.scheme = "https"
+        components.host = host.lowercased()
+        components.path = ""
+        return components.url?.absoluteString
     }
 }
