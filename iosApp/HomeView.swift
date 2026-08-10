@@ -6,14 +6,6 @@ struct HomeView: View {
     private let videoFeature: VideoFeature
     private let commentFeature: CommentFeature
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    /// First-render measurement of the banner image's natural aspect ratio
-    /// (width / height). Once captured, HomeBannerView passes it through
-    /// to `aspectRatio(_:.fit)` so the banner's height tracks the actual
-    /// image proportions instead of a hard-coded 3.2 / 16:9. Without this,
-    /// images taller than the hard-coded ratio were getting cropped, and
-    /// images shorter left empty bands — both manifested as visual
-    /// "overlap" with adjacent rows.
-    @State private var measuredBannerAspect: CGFloat?
     /// User-customised home-section ordering. Stored as a comma-separated
     /// list of section keys in NSUserDefaults under `home_section_order`.
     /// Edited by HomeSectionOrderView (设置 → 首页栏目排序). Empty = use
@@ -124,14 +116,7 @@ struct HomeView: View {
                             banner: banner,
                             videoFeature: videoFeature,
                             commentFeature: commentFeature,
-                            usesCompactBanner: horizontalSizeClass == .regular,
-                            measuredAspect: measuredBannerAspect,
-                            onAspectMeasured: { aspect in
-                                guard aspect.isFinite, aspect > 0 else { return }
-                                if measuredBannerAspect == nil {
-                                    measuredBannerAspect = aspect
-                                }
-                            }
+                            usesCompactBanner: horizontalSizeClass == .regular
                         )
                         .padding(.horizontal, 16)
                         .padding(.bottom, horizontalSizeClass == .regular ? 10 : 0)
@@ -163,12 +148,6 @@ struct HomeView: View {
                     .allowsHitTesting(false)
             }
             .background(Color(.systemGroupedBackground))
-            .onValueChange(of: horizontalSizeClass) { _ in
-                // size class change can swap which banner shape is rendered
-                // (compact 3.2 vs full 16:9 fallback); re-measure once
-                // the new image actually loads.
-                measuredBannerAspect = nil
-            }
         }
     }
 
@@ -225,14 +204,6 @@ private struct HomeBannerView: View {
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
     let usesCompactBanner: Bool
-    /// Image's natural width / height. Once known, drives
-    /// `aspectRatio(_:.fit)` so the rendered banner matches the actual
-    /// proportions of the downloaded image — no cropping, no leftover
-    /// empty band.
-    let measuredAspect: CGFloat?
-    /// Called once the underlying remote image successfully decodes,
-    /// reporting (image.size.width / image.size.height).
-    let onAspectMeasured: (CGFloat) -> Void
 
     var body: some View {
         Group {
@@ -251,28 +222,20 @@ private struct HomeBannerView: View {
     }
 
     private var bannerContent: some View {
-        // Use the measured aspect ratio when we have it; fall back to the
-        // hard-coded values so the placeholder still has a sensible shape
-        // before the image lands.
-        let aspect = measuredAspect ?? (usesCompactBanner ? 3.2 : 16.0 / 9.0)
-        return bannerFrame
-            .aspectRatio(aspect, contentMode: .fit)
+        bannerFrame
+            // The website serves the home hero at a stable 16:9 ratio.
+            // Fixing the container to the same ratio keeps its height
+            // identical before and after the image finishes loading.
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
             .frame(maxWidth: usesCompactBanner ? 440 : .infinity, alignment: usesCompactBanner ? .leading : .center)
             .frame(maxWidth: .infinity, alignment: usesCompactBanner ? .leading : .center)
     }
 
     private var bannerFrame: some View {
         ZStack(alignment: .bottomLeading) {
-            CachedRemoteImage(
-                urlString: banner.imageUrl,
-                resizeWidth: 900,
-                onImageLoaded: { size in
-                    guard size.width > 0, size.height > 0 else { return }
-                    onAspectMeasured(size.width / size.height)
-                }
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
+            CachedRemoteImage(urlString: banner.imageUrl, resizeWidth: 900)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
 
             LinearGradient(
                 colors: [
