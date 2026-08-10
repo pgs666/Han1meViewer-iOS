@@ -53,26 +53,19 @@ Han1meViewer-iOS/
 │       ├── following/ userlist/ playlist/ history/ auth/
 │       └── ...
 ├── iosApp/                          # SwiftUI iOS 应用
-│   ├── Han1meViewerApp.swift        # 入口、Tab 栏（modern + legacy 双轨）
-│   ├── KSPlayerView.swift           # KSPlayer 自定义控件层（手势、HUD、清晰度等）
-│   ├── VideoDetailView.swift        # 视频详情主体（sticky-top + 跟手收缩 + 简介/评论）
-│   ├── LocalVideoPlayerView.swift   # 本地下载文件播放（复用 KSPlayerView）
-│   ├── DownloadManager.swift        # 前台 URLSession 下载引擎（限并发/断点续传/重取）
-│   ├── DownloadsView.swift          # 下载列表（进度/暂停继续/删除/点击播放）
-│   ├── HomeView.swift               # 首页（栏目排序应用层）
-│   ├── HomeSectionOrderView.swift   # 首页栏目排序设置子页
-│   ├── ArtistVideosView.swift       # 通用宫格搜索结果（标签/作者/首页栏目共用）
-│   ├── AppleStyleHUD.swift          # Apple Music 风格操作反馈 HUD
-│   ├── AppLogger.swift              # 脱敏操作诊断日志
-│   ├── CrashReporter.swift          # 未捕获异常摘要
-│   ├── *View.swift                  # 其他视图
-│   ├── *ViewModel.swift             # 视图模型
-│   ├── PopToRootOnSignal.swift      # 点击 tab 弹回 root
-│   ├── InteractivePopEnabler.swift  # 修复 .toolbar(.hidden, .navigationBar) 后的 swipe-back
-│   ├── SystemVolumeController.swift # ref-counted MPVolumeView，仅 player 期间挂载
-│   ├── TabBarHiddenModifier.swift   # 二级页 hide tab bar
-│   ├── SearchOptions/               # 搜索筛选 JSON 数据
-│   └── ...
+│   ├── App/                         # 应用入口、域名配置和导航基础设施
+│   ├── Core/                        # 跨功能的诊断、存储、系统及通用 UI
+│   ├── Features/                    # 按业务功能组织的 View、ViewModel 和模型
+│   │   ├── Auth/                    # 登录与 Cloudflare 验证
+│   │   ├── Downloads/               # 下载 UI、调度器、模型和 URLSession delegate
+│   │   ├── Home/ Search/            # 首页、搜索及搜索筛选 JSON
+│   │   ├── VideoDetail/ Comments/   # 视频详情和评论
+│   │   ├── Account/ Settings/       # 用户中心和设置
+│   │   └── ...
+│   ├── Player/                      # KSPlayer 桥接、本地播放和播放器观察器
+│   ├── Assets.xcassets/             # 图片和应用图标
+│   ├── Info.plist
+│   └── Han1meViewer.entitlements
 ├── project.yml                      # XcodeGen 工程配置
 ├── build.gradle.kts                 # Gradle 构建脚本
 └── gradle/libs.versions.toml        # 依赖版本目录
