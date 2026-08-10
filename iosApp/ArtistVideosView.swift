@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Han1meShared
 
 /// Generic grid-layout list of search results, used as the destination for
@@ -120,7 +121,7 @@ struct ArtistVideosView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 160), spacing: 12)],
+                    columns: gridColumns,
                     alignment: .leading,
                     spacing: 12
                 ) {
@@ -170,6 +171,17 @@ struct ArtistVideosView: View {
             return .landscape
         }
         return .hanimePortrait
+    }
+
+    private var gridColumns: [GridItem] {
+        if coverLayout == .hanimePortrait,
+           UIDevice.current.userInterfaceIdiom == .phone {
+            return Array(
+                repeating: GridItem(.flexible(minimum: 0), spacing: 10),
+                count: 3
+            )
+        }
+        return [GridItem(.adaptive(minimum: 160), spacing: 12)]
     }
 }
 
