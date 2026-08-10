@@ -133,20 +133,8 @@ jobs:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: Han1meViewer iOS ${{ steps.ver.outputs.version }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prerelease == 'true' }}
-          generate_release_notes: true
           fail_on_unmatched_files: true
-          body: |
-            ## 安装
-
-            下方 `Han1meViewer-${{ steps.ver.outputs.version }}-unsigned.ipa` 是未签名 IPA。
-            自行重签后安装到设备即可（推荐 Impactor / AltStore / Sideloadly 等任一自签工具）。
-            详细的下载、自签与安装步骤见 [README 的「安装」章节](https://github.com/pgs666/Han1meViewer-iOS/blob/${{ steps.ver.outputs.tag }}/README.md#-安装)。
-
-            ## 许可证（GPL-3.0）
-
-            本项目以 [GNU General Public License v3.0](https://github.com/pgs666/Han1meViewer-iOS/blob/${{ steps.ver.outputs.tag }}/LICENSE) 发布。
-
-            按 GPL-3.0 §6 要求，与本二进制对应的完整源码以下方 GitHub 自动生成的 **Source code (zip)** / **Source code (tar.gz)** 形式提供——它们与本 IPA 由同一 commit (`${{ steps.ver.outputs.tag }}`) 构建。`LICENSE.txt` 也作为单独文件附在下方便于查阅。
+          body_path: docs/release-notes/v${{ steps.ver.outputs.version }}.md
           files: |
             build/release/Han1meViewer-${{ steps.ver.outputs.version }}-unsigned.ipa
             build/release/LICENSE.txt
