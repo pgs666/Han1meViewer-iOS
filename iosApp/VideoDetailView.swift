@@ -230,7 +230,8 @@ struct VideoDetailView: View {
                         TabletRelatedSidebar(
                             videos: snapshot.relatedVideos,
                             videoFeature: videoFeature,
-                            commentFeature: commentFeature
+                            commentFeature: commentFeature,
+                            coverLayout: snapshot.relatedVideosUsePortraitCovers ? .hanimePortrait : .landscape
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color(.systemBackground))
@@ -413,7 +414,8 @@ private struct AndroidStyleIntroduction: View {
                 RelatedVideoGrid(
                     videos: snapshot.relatedVideos,
                     videoFeature: videoFeature,
-                    commentFeature: commentFeature
+                    commentFeature: commentFeature,
+                    coverLayout: snapshot.relatedVideosUsePortraitCovers ? .hanimePortrait : .landscape
                 )
             }
         }

@@ -1,6 +1,7 @@
 package com.yenaly.han1meviewer.shared.video
 
 import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
+import com.yenaly.han1meviewer.shared.model.HanimeItemType
 import com.yenaly.han1meviewer.shared.repository.VideoRepository
 import com.yenaly.han1meviewer.shared.util.currentEpochMillis
 import kotlinx.datetime.atStartOfDayIn
@@ -69,6 +70,8 @@ class VideoFeature(
             uploadDate = video.uploadTime?.toString(),
             tags = video.tags,
             playlistName = video.playlist?.name,
+            relatedVideosUsePortraitCovers = video.relatedHanimes.isNotEmpty() &&
+                video.relatedHanimes.count { it.itemType == HanimeItemType.Simplified } * 2 >= video.relatedHanimes.size,
             playlistVideos = video.playlist?.videos.orEmpty().map { item ->
                 VideoRelatedSnapshot(
                     videoCode = item.videoCode,
@@ -188,6 +191,7 @@ data class VideoDetailSnapshot(
     val uploadDate: String?,
     private val tags: List<String>,
     val playlistName: String?,
+    val relatedVideosUsePortraitCovers: Boolean,
     private val playlistVideos: List<VideoRelatedSnapshot>,
     private val myListItems: List<VideoMyListItemSnapshot>,
     private val relatedVideos: List<VideoRelatedSnapshot>,

@@ -292,6 +292,34 @@ class KsoupHtmlParserTest {
     }
 
     @Test
+    fun marksPortraitRelatedCardsAsSimplifiedItems() {
+        val html = """
+            <html><body>
+              <h1 id="shareBtn-title">Portrait related page</h1>
+              <video id="player"></video>
+              <div id="related-tabcontent">
+                <div class="row">
+                  <div class="related-video-width">
+                    <a href="/watch?v=114164">
+                      <div class="home-rows-videos-div">
+                        <div class="video-card-inner">
+                          <img src="https://img.example/image/cover/114164.jpg">
+                          <div class="home-rows-videos-title">Portrait video</div>
+                        </div>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val related = parser.parseVideo(html, videoCode = "407591").relatedHanimes.single()
+        assertEquals("114164", related.videoCode)
+        assertEquals(HanimeItemType.Simplified, related.itemType)
+    }
+
+    @Test
     fun parsesCommentsJsonPayload() {
         val html = """
             <div>

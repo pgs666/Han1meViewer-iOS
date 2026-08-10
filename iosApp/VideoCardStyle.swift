@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum VideoCoverLayout {
+enum VideoCoverLayout: Equatable {
     case landscape
     case hanimePortrait
 

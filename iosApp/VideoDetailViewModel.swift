@@ -284,6 +284,7 @@ struct VideoDetailScreenSnapshot {
     let tags: [String]
     let playbackSources: [VideoPlaybackSourceRow]
     let playlistName: String?
+    let relatedVideosUsePortraitCovers: Bool
     let playlistVideos: [VideoRelatedRow]
     let myListItems: [VideoMyListRow]
     let relatedVideos: [VideoRelatedRow]
@@ -341,6 +342,7 @@ struct VideoDetailScreenSnapshot {
 
         let playlistCount = Int(snapshot.playlistVideoCount())
         playlistName = snapshot.playlistName
+        relatedVideosUsePortraitCovers = snapshot.relatedVideosUsePortraitCovers
         playlistVideos = (0..<playlistCount).compactMap { index in
             guard let item = snapshot.playlistVideoAt(index: Int32(index)) else {
                 return nil
@@ -412,6 +414,7 @@ struct VideoDetailScreenSnapshot {
                 )
             ],
             playlistName: nil,
+            relatedVideosUsePortraitCovers: false,
             playlistVideos: [],
             myListItems: [],
             relatedVideos: []
@@ -441,6 +444,7 @@ struct VideoDetailScreenSnapshot {
         tags: [String],
         playbackSources: [VideoPlaybackSourceRow],
         playlistName: String?,
+        relatedVideosUsePortraitCovers: Bool,
         playlistVideos: [VideoRelatedRow],
         myListItems: [VideoMyListRow],
         relatedVideos: [VideoRelatedRow]
@@ -467,6 +471,7 @@ struct VideoDetailScreenSnapshot {
         self.tags = tags
         self.playbackSources = playbackSources
         self.playlistName = playlistName
+        self.relatedVideosUsePortraitCovers = relatedVideosUsePortraitCovers
         self.playlistVideos = playlistVideos
         self.myListItems = myListItems
         self.relatedVideos = relatedVideos
@@ -529,6 +534,7 @@ struct VideoDetailScreenSnapshot {
             tags: tags,
             playbackSources: playbackSources,
             playlistName: playlistName,
+            relatedVideosUsePortraitCovers: relatedVideosUsePortraitCovers,
             playlistVideos: playlistVideos,
             myListItems: myListItems ?? self.myListItems,
             relatedVideos: relatedVideos

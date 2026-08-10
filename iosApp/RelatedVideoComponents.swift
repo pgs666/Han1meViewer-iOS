@@ -124,11 +124,12 @@ struct RelatedVideoGrid: View {
     let videos: [VideoRelatedRow]
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
+    let coverLayout: VideoCoverLayout
 
-    private let columns = [
-        GridItem(.flexible(minimum: 0), spacing: 16),
-        GridItem(.flexible(minimum: 0), spacing: 16),
-    ]
+    private var columns: [GridItem] {
+        let count = coverLayout == .hanimePortrait ? 3 : 2
+        return Array(repeating: GridItem(.flexible(minimum: 0), spacing: 12), count: count)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -143,6 +144,7 @@ struct RelatedVideoGrid: View {
                         RelatedVideoCard(
                             video: video,
                             showPlaying: false,
+                            coverLayout: coverLayout,
                             expandsToFillWidth: true
                         )
                     }
@@ -158,29 +160,53 @@ struct TabletRelatedSidebar: View {
     let videos: [VideoRelatedRow]
     let videoFeature: VideoFeature
     let commentFeature: CommentFeature
+    let coverLayout: VideoCoverLayout
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                Text("相关影片")
-                    .font(.headline)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
+            Text("相关影片")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
 
-                ForEach(videos) { video in
-                    NavigationLink {
-                        VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
-                    } label: {
-                        TabletRelatedVideoRow(video: video)
+            if coverLayout == .hanimePortrait {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 12), count: 2),
+                    spacing: 12
+                ) {
+                    ForEach(videos) { video in
+                        NavigationLink {
+                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                        } label: {
+                            RelatedVideoCard(
+                                video: video,
+                                showPlaying: false,
+                                coverLayout: .hanimePortrait,
+                                expandsToFillWidth: true
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 12)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(videos) { video in
+                        NavigationLink {
+                            VideoDetailView(videoCode: video.videoCode, videoFeature: videoFeature, commentFeature: commentFeature)
+                        } label: {
+                            TabletRelatedVideoRow(video: video)
+                        }
+                        .buttonStyle(.plain)
 
-                    Divider()
-                        .padding(.leading, 156)
+                        Divider()
+                            .padding(.leading, 156)
+                    }
                 }
             }
-            .padding(.bottom, 24)
         }
+        .padding(.bottom, 24)
     }
 }
 
@@ -253,6 +279,7 @@ struct TabletRelatedVideoRow: View {
 struct RelatedVideoCard: View {
     let video: VideoRelatedRow
     let showPlaying: Bool
+    var coverLayout: VideoCoverLayout = .landscape
     var expandsToFillWidth = false
 
     @ViewBuilder
@@ -273,7 +300,7 @@ struct RelatedVideoCard: View {
             VideoCardCover(
                 urlString: video.coverUrl,
                 resizeWidth: expandsToFillWidth ? 360 : 172,
-                layout: .landscape
+                layout: coverLayout
             ) {
                 if showPlaying && video.isPlaying {
                     VStack {
@@ -297,14 +324,16 @@ struct RelatedVideoCard: View {
                 .lineLimit(2)
                 .frame(height: 38, alignment: .topLeading)
 
-            if !video.metadata.isEmpty {
-                Text(video.metadata)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .frame(height: 34, alignment: .topLeading)
-            } else {
-                Color.clear.frame(height: 34)
+            if coverLayout == .landscape {
+                if !video.metadata.isEmpty {
+                    Text(video.metadata)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .frame(height: 34, alignment: .topLeading)
+                } else {
+                    Color.clear.frame(height: 34)
+                }
             }
         }
     }
