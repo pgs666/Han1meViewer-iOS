@@ -90,7 +90,7 @@ struct KSPlayerView: View {
     @State private var isSliderEditing = false
 
     // MARK: - Swipe gesture state
-    @State private var dragState: DragKind = .none
+    @State private var dragState: KSPlayerDragKind = .none
     @State private var dragStartProgressSeconds: TimeInterval = 0
     @State private var dragTargetProgressSeconds: TimeInterval = 0
     @State private var dragStartBrightness: CGFloat = 0
@@ -149,16 +149,6 @@ struct KSPlayerView: View {
     /// the rest of AppLogger output.
     @State private var stateLogBudget: Int = 0
 
-    private enum DragKind: Equatable {
-        case none
-        /// 左右滑：调整播放进度（松手后 commit seek）
-        case seek
-        /// 左半屏上下滑：屏幕亮度
-        case brightness
-        /// 右半屏上下滑：播放器音量
-        case volume
-    }
-
     init(
         snapshot: VideoDetailScreenSnapshot,
         isFullscreen: Binding<Bool>,
@@ -196,7 +186,10 @@ struct KSPlayerView: View {
     @ViewBuilder
     private func playerWithControls(url: URL) -> some View {
         let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
-        let options = makeKSOptions(resumeSeconds: resumeSeconds)
+        let options = KSPlayerOptionsFactory.make(
+            resumeSeconds: resumeSeconds,
+            autoPlayOnEnter: autoPlayOnEnter
+        )
 
         // GeometryReader wraps KSVideoPlayer (alone, not the whole ZStack) so the
         // DragGesture handler can see the player's own size — needed to decide
@@ -708,7 +701,7 @@ struct KSPlayerView: View {
                 scheduleAutoHide()
             }
 
-            Text(Self.formatTime(sliderValue))
+            Text(KSPlayerDisplayFormatter.time(sliderValue))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.white)
 
@@ -744,7 +737,7 @@ struct KSPlayerView: View {
                 }
             }
 
-            Text(Self.formatTime(TimeInterval(coordinator.timemodel.totalTime)))
+            Text(KSPlayerDisplayFormatter.time(TimeInterval(coordinator.timemodel.totalTime)))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.white)
 
@@ -776,13 +769,13 @@ struct KSPlayerView: View {
 
     private var playbackRateMenu: some View {
         Menu {
-            ForEach(Self.playbackRates, id: \.self) { rate in
+            ForEach(KSPlayerDisplayFormatter.playbackRates, id: \.self) { rate in
                 Button {
                     coordinator.playbackRate = rate
                     savedPlaybackRate = rate
                 } label: {
                     HStack {
-                        Text(Self.formatRate(rate))
+                        Text(KSPlayerDisplayFormatter.rate(rate))
                         Spacer()
                         if abs(coordinator.playbackRate - rate) < 0.01 {
                             Image(systemName: "checkmark")
@@ -791,7 +784,7 @@ struct KSPlayerView: View {
                 }
             }
         } label: {
-            Text(Self.formatRate(coordinator.playbackRate))
+            Text(KSPlayerDisplayFormatter.rate(coordinator.playbackRate))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(minWidth: 38)
@@ -834,7 +827,7 @@ struct KSPlayerView: View {
             // (mute / aspect / fullscreen).
             HStack {
                 Spacer()
-                Label(Self.formatRate(effectiveBoostRate), systemImage: "forward.fill")
+                Label(KSPlayerDisplayFormatter.rate(effectiveBoostRate), systemImage: "forward.fill")
                     .font(.caption.weight(.bold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -861,10 +854,10 @@ struct KSPlayerView: View {
                     HStack(spacing: 4) {
                         Image(systemName: delta >= 0 ? "forward.fill" : "backward.fill")
                             .font(.title3)
-                        Text("\(sign)\(Self.formatTime(abs(delta)))")
+                        Text("\(sign)\(KSPlayerDisplayFormatter.time(abs(delta)))")
                             .font(.title3.monospacedDigit().weight(.semibold))
                     }
-                    Text("\(Self.formatTime(dragTargetProgressSeconds)) / \(Self.formatTime(total))")
+                    Text("\(KSPlayerDisplayFormatter.time(dragTargetProgressSeconds)) / \(KSPlayerDisplayFormatter.time(total))")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.white.opacity(0.8))
                 }
@@ -1155,45 +1148,6 @@ struct KSPlayerView: View {
             }
             onControlsVisibilityChanged(false)
         }
-    }
-
-    static func formatTime(_ seconds: TimeInterval) -> String {
-        guard seconds.isFinite, seconds >= 0 else { return "00:00" }
-        let total = Int(seconds)
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
-        return String(format: "%02d:%02d", m, s)
-    }
-
-    static func formatRate(_ rate: Float) -> String {
-        if abs(rate - rate.rounded()) < 0.01 {
-            return String(format: "%.0fx", rate)
-        }
-        return String(format: "%.2gx", rate)
-    }
-
-    private static let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
-
-    private func makeKSOptions(resumeSeconds: TimeInterval) -> KSOptions {
-        // KSOptions.isAutoPlay is a class-level static. Re-set it on every
-        // option build so the user's auto_play_on_enter preference takes
-        // effect for the very next video they open (without restarting
-        // the app). When OFF, the player loads the source but stays
-        // paused at frame 0 until the user taps the play/pause button.
-        KSOptions.isAutoPlay = autoPlayOnEnter
-        let options = KSOptions()
-        options.appendHeader([
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-            "Referer": "https://hanime1.me/",
-        ])
-        options.isSeekedAutoPlay = true
-        options.isAccurateSeek = true
-        if resumeSeconds > 1 {
-            options.startPlayTime = resumeSeconds
-        }
-        return options
     }
 
     /// KSPlayer 一次性全局配置：自动播放 + 后台音频会话（解决审计 P0-L1 的一半）。
