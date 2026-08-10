@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import Han1meShared
 
 /// Mirror of the shared DownloadStore's integer state mapping.
@@ -33,6 +34,10 @@ struct DownloadUIItem: Identifiable, Equatable {
     var isFinished: Bool { state == .finished }
 
     var localFileURL: URL { URL(fileURLWithPath: localPath) }
+
+    var localCoverURL: URL {
+        DownloadManager.localCoverURL(videoCode: videoCode, quality: quality)
+    }
 }
 
 /// Owns the actual byte transfer for downloads via a background
@@ -56,6 +61,11 @@ final class DownloadManager: NSObject, ObservableObject {
 
     /// videoCode|quality -> in-flight task.
     private var activeTasks: [String: URLSessionDownloadTask] = [:]
+
+    /// videoCode|quality -> persistent cover download task. Covers live next
+    /// to downloaded videos in Application Support, not in the purgeable
+    /// image/cache directories.
+    private var coverTasks: [String: Task<Void, Never>] = [:]
 
     /// videoCode|quality -> number of CDN-link-expiry refetch attempts so
     /// far. Capped at `maxRefetchAttempts` to avoid an infinite
@@ -106,6 +116,7 @@ final class DownloadManager: NSObject, ObservableObject {
         self.store = environment.downloadStore()
         self.videoFeature = environment.videoFeature()
         reloadItems()
+        restoreMissingCovers()
         reattachRunningTasks()
         // Anything left 'downloading' in the DB without a live task (app
         // was killed) is reset to queued so the scheduler picks it up.
@@ -134,6 +145,7 @@ final class DownloadManager: NSObject, ObservableObject {
             playbackPositionMillis: existing?.playbackPositionMillis ?? 0
         )
         store.upsert(item: item)
+        scheduleCoverDownload(for: item)
         AppLogger.log("download enqueue v=\(videoCode) q=\(quality)")
         reloadItems()
         startNextIfPossible()
@@ -178,8 +190,11 @@ final class DownloadManager: NSObject, ObservableObject {
             activeTasks[item.id] = nil
         }
         refetchCounts[item.id] = nil
+        coverTasks[item.id]?.cancel()
+        coverTasks[item.id] = nil
         try? FileManager.default.removeItem(at: item.localFileURL)
         try? FileManager.default.removeItem(at: Self.resumeDataURL(videoCode: item.videoCode, quality: item.quality))
+        try? FileManager.default.removeItem(at: item.localCoverURL)
         store?.delete(videoCode: item.videoCode, quality: item.quality)
         reloadItems()
         startNextIfPossible()
@@ -248,6 +263,56 @@ final class DownloadManager: NSObject, ObservableObject {
             }
         }
         reloadItems()
+    }
+
+    // MARK: - Persistent covers
+
+    private func restoreMissingCovers() {
+        guard let store else { return }
+        for item in store.all() where !FileManager.default.fileExists(
+            atPath: Self.localCoverURL(videoCode: item.videoCode, quality: item.quality).path
+        ) {
+            scheduleCoverDownload(for: item)
+        }
+    }
+
+    private func scheduleCoverDownload(for item: DownloadItem) {
+        let key = "\(item.videoCode)|\(item.quality)"
+        guard coverTasks[key] == nil,
+              let coverUrl = item.coverUrl,
+              let url = URL(string: coverUrl) else { return }
+
+        coverTasks[key] = Task { [weak self] in
+            guard let self else { return }
+            defer { self.coverTasks[key] = nil }
+
+            do {
+                var request = URLRequest(url: url)
+                request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+                request.setValue("https://hanime1.me/", forHTTPHeaderField: "Referer")
+                let (data, response) = try await URLSession.shared.data(for: request)
+                try Task.checkCancellation()
+
+                if let http = response as? HTTPURLResponse,
+                   !(200...299).contains(http.statusCode) {
+                    throw URLError(.badServerResponse)
+                }
+                guard !data.isEmpty,
+                      CGImageSourceCreateWithData(data as CFData, nil) != nil,
+                      self.store?.find(videoCode: item.videoCode, quality: item.quality) != nil else { return }
+
+                let destination = Self.localCoverURL(videoCode: item.videoCode, quality: item.quality)
+                try data.write(to: destination, options: .atomic)
+                AppLogger.log("download cover saved v=\(item.videoCode) q=\(item.quality)")
+                self.reloadItems()
+            } catch is CancellationError {
+                // Deleting a download cancels its cover request. No log needed.
+            } catch {
+                AppLogger.log(
+                    "download cover failed v=\(item.videoCode) q=\(item.quality): \(ErrorMessage.userFriendly(error))"
+                )
+            }
+        }
     }
 
     // MARK: - URL re-fetch (CDN link expiry fallback)
@@ -328,6 +393,10 @@ final class DownloadManager: NSObject, ObservableObject {
 
     nonisolated static func resumeDataURL(videoCode: String, quality: String) -> URL {
         downloadsRoot().appendingPathComponent("\(videoCode)_\(quality).resume")
+    }
+
+    nonisolated static func localCoverURL(videoCode: String, quality: String) -> URL {
+        downloadsRoot().appendingPathComponent("\(videoCode)_\(quality).cover")
     }
 
     nonisolated private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"

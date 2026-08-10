@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Han1meShared
 
 /// Download manager screen pushed from MineView. Lists every download
@@ -100,7 +101,7 @@ private struct DownloadRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CachedRemoteImage(urlString: item.coverUrl, resizeWidth: 96)
+            DownloadCoverImage(item: item)
                 .frame(width: 96, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 
@@ -146,6 +147,20 @@ private struct DownloadRow: View {
         case .paused:      return String(localized: "已暂停 \(pct)% · \(item.quality)")
         case .finished:    return String(localized: "已完成 · \(item.quality)")
         case .failed:      return String(localized: "下载失败，点击重试 · \(item.quality)")
+        }
+    }
+}
+
+private struct DownloadCoverImage: View {
+    let item: DownloadUIItem
+
+    var body: some View {
+        if let image = UIImage(contentsOfFile: item.localCoverURL.path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            CachedRemoteImage(urlString: item.coverUrl, resizeWidth: 96)
         }
     }
 }
