@@ -1,7 +1,6 @@
 import SwiftUI
 import KSPlayer
 import Han1meShared
-import SwiftUI
 import UIKit
 import AVFoundation
 
@@ -496,220 +495,22 @@ struct KSPlayerView: View {
     }
 
     private var controlsOverlay: some View {
-        ZStack {
-            LinearGradient(
-                colors: [.black.opacity(0.5), .clear, .black.opacity(0.55)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .allowsHitTesting(false)
-
-            VStack(spacing: 0) {
-                topBar
-                Spacer()
-                bottomBar
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .foregroundStyle(.white)
-        }
-        // Pin to the player ZStack's full extent. Without this, the
-        // controls overlay's intrinsic size is indeterminate (LinearGradient
-        // + Spacer-padded VStack), and SwiftUI's first layout pass when
-        // it appears can briefly inflate the parent ZStack — which the
-        // user perceives as "the whole video and controls grow on tap".
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var topBar: some View {
-        HStack(spacing: 8) {
-            // Back button — drawn inside the player overlay so it shows /
-            // hides together with the rest of the HUD without affecting
-            // any system layout. Parent (VideoDetailView) hides the nav
-            // bar entirely.
-            // Fullscreen: tap exits fullscreen back to inline (does NOT
-            // pop the detail page). Inline: tap pops the detail page.
-            KSPlayerIconButton(systemImage: "chevron.left", label: isFullscreen ? "退出全屏" : "返回") {
-                if isFullscreen {
-                    withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
-                } else {
-                    onBack()
-                }
-            }
-            // Fullscreen: surface video title where the navigation back-button
-            // sat. Never shown inline (nav bar still has the back-button +
-            // (after caller's change) no inline title).
-            if isFullscreen {
-                Text(snapshot.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    // Limit so a long title can't grow into the right-side
-                    // button cluster.
-                    .padding(.leading, 4)
-            }
-            Spacer(minLength: 8)
-            // 静音 toggle
-            KSPlayerIconButton(
-                systemImage: coordinator.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                label: coordinator.isMuted ? "取消静音" : "静音"
-            ) {
-                coordinator.isMuted.toggle()
-            }
-            // 比例 fit/fill
-            KSPlayerIconButton(
-                systemImage: coordinator.isScaleAspectFill
-                    ? "rectangle.arrowtriangle.2.inward"
-                    : "rectangle.arrowtriangle.2.outward",
-                label: coordinator.isScaleAspectFill ? "适配" : "填充"
-            ) {
-                coordinator.isScaleAspectFill.toggle()
-            }
-            // Fullscreen toggle has been moved into bottomBar (right of the
-            // playback-rate menu) — see `bottomBar`. Keeping the cluster
-            // {mute, aspect} on the right of topBar.
-        }
-    }
-
-    private var bottomBar: some View {
-        let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
-        // Slider value is now a PLAIN @State (not a closure-based binding) so
-        // SwiftUI's first drag delta correctly persists into binding source on
-        // the same render cycle. External player progress is reflected via
-        // .onReceive on coordinator.timemodel.$currentTime, but only when the
-        // user isn't actively dragging — otherwise the +1s/s update would
-        // immediately snap the thumb back from where the finger is.
-        return HStack(spacing: 10) {
-            // Play / pause moved here from the (now-removed) centre controls
-            // — sits at the left of the progress strip, matching the user's
-            // requested layout. Uses KSPlayerIconButton so it inherits the 44pt
-            // hit-target rule.
-            KSPlayerIconButton(
-                systemImage: isPlaying ? "pause.fill" : "play.fill",
-                label: isPlaying ? "暂停" : "播放"
-            ) {
-                togglePlayPause()
-                scheduleAutoHide()
-            }
-
-            Text(KSPlayerDisplayFormatter.time(sliderValue))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.white)
-
-            Slider(
-                value: $sliderValue,
-                in: 0...total,
-                onEditingChanged: { editing in
-                    if editing {
-                        isSliderEditing = true
-                        hideControlsTask?.cancel()
-                    } else {
-                        isSliderEditing = false
-                        coordinator.seek(time: sliderValue)
-                        scheduleAutoHide()
-                    }
-                }
-            )
-            .tint(.white)
-            .onAppear {
-                // Sync the slider to the player's current time as soon as
-                // bottomBar mounts, so when the user taps to reveal
-                // controls the thumb is already in the right place. Without
-                // this we'd wait up to 1s for the next timemodel publish.
-                if !isSliderEditing {
-                    sliderValue = TimeInterval(coordinator.timemodel.currentTime)
-                }
-            }
-            .onReceive(coordinator.timemodel.$currentTime) { newTime in
-                guard !isSliderEditing else { return }
-                let asTime = TimeInterval(newTime)
-                if abs(asTime - sliderValue) > 0.5 {
-                    sliderValue = asTime
-                }
-            }
-
-            Text(KSPlayerDisplayFormatter.time(TimeInterval(coordinator.timemodel.totalTime)))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.white)
-
-            // 倍速 menu
-            playbackRateMenu
-
-            // 画质 menu — only shown if the snapshot exposes more than one
-            // source (typical: the page only ships a single 'auto' source
-            // because the script extraction returns one URL). When more
-            // qualities exist they sit between the rate menu and the
-            // fullscreen toggle as the user requested.
-            if snapshot.playbackSources.count > 1 {
-                qualityMenu
-            }
-
-            // 全屏 toggle — placed immediately to the right of the playback
-            // rate menu per user request. Uses KSPlayerIconButton for the same 44pt
-            // hit-target as the other chrome buttons.
-            KSPlayerIconButton(
-                systemImage: isFullscreen
-                    ? "arrow.down.right.and.arrow.up.left"
-                    : "arrow.up.left.and.arrow.down.right",
-                label: isFullscreen ? "退出全屏" : "全屏"
-            ) {
-                withAnimation(.easeInOut(duration: 0.25)) { isFullscreen.toggle() }
-            }
-        }
-    }
-
-    private var playbackRateMenu: some View {
-        Menu {
-            ForEach(KSPlayerDisplayFormatter.playbackRates, id: \.self) { rate in
-                Button {
-                    coordinator.playbackRate = rate
-                    savedPlaybackRate = rate
-                } label: {
-                    HStack {
-                        Text(KSPlayerDisplayFormatter.rate(rate))
-                        Spacer()
-                        if abs(coordinator.playbackRate - rate) < 0.01 {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            Text(KSPlayerDisplayFormatter.rate(coordinator.playbackRate))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(minWidth: 38)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 4))
-        }
-    }
-
-    private var qualityMenu: some View {
-        Menu {
-            ForEach(snapshot.playbackSources) { source in
-                Button {
-                    selectedSourceID = source.id
-                } label: {
-                    HStack {
-                        Text(source.label)
-                        Spacer()
-                        if activeSource?.id == source.id {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            Text(activeSource?.label ?? "画质")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(minWidth: 38)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 4))
-        }
+        KSPlayerControlsOverlay(
+            title: snapshot.title,
+            playbackSources: snapshot.playbackSources,
+            activeSource: activeSource,
+            coordinator: coordinator,
+            isFullscreen: $isFullscreen,
+            isPlaying: isPlaying,
+            sliderValue: $sliderValue,
+            isSliderEditing: $isSliderEditing,
+            selectedSourceID: $selectedSourceID,
+            savedPlaybackRate: $savedPlaybackRate,
+            onBack: onBack,
+            onTogglePlayPause: togglePlayPause,
+            onCancelAutoHide: { hideControlsTask?.cancel() },
+            onScheduleAutoHide: scheduleAutoHide
+        )
     }
 
     private var boostHint: some View {
