@@ -17,6 +17,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
       - name: Report runner configuration
         shell: bash
         run: |
@@ -41,11 +44,11 @@ jobs:
           RUNNER_MEMORY="$(awk -v bytes="$RUNNER_MEMORY_BYTES" 'BEGIN { printf "%.1f GiB", bytes / 1073741824 }')"
           RUNNER_DISK="$(df -h / | awk 'NR == 2 { print $2 " total, " $4 " available" }')"
           RUNNER_XCODE="$(xcodebuild -version | paste -sd ' ' -)"
-          RUNNER_SWIFT="$(swift --version | head -n 1)"
-          RUNNER_JAVA="$(java -version 2>&1 | head -n 1)"
+          RUNNER_SWIFT="$(swift --version 2>&1 | sed -n '1p')"
+          RUNNER_JAVA="$(java -version 2>&1 | sed -n '1p')"
           RUNNER_GIT="$(git --version)"
           RUNNER_PYTHON="$(python3 --version)"
-          RUNNER_HOMEBREW="$(brew --version | head -n 1)"
+          RUNNER_HOMEBREW="$(brew --version 2>&1 | sed -n '1p')"
 
           echo "Runner configuration"
           echo "===================="
@@ -89,9 +92,6 @@ jobs:
             echo "| Python | $RUNNER_PYTHON |"
             echo "| Homebrew | $RUNNER_HOMEBREW |"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Select Xcode 26.2
-        run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
       - name: Set up JDK
         uses: actions/setup-java@v5
