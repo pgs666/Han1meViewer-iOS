@@ -24,6 +24,19 @@ jobs:
           RUNNER_CPU="$(system_profiler SPHardwareDataType | awk -F': ' '/Chip|Processor Name/{print $2; exit}')"
           RUNNER_MODEL="$(sysctl -n hw.model)"
           RUNNER_CORES="$(sysctl -n hw.ncpu)"
+          RUNNER_PERF_LEVELS="$(sysctl -n hw.nperflevels 2>/dev/null || true)"
+          RUNNER_CPU_TOPOLOGY=""
+          if [[ "$RUNNER_PERF_LEVELS" =~ ^[0-9]+$ ]] && (( RUNNER_PERF_LEVELS > 0 )); then
+            for ((level = 0; level < RUNNER_PERF_LEVELS; level++)); do
+              LEVEL_NAME="$(sysctl -n "hw.perflevel${level}.name" 2>/dev/null || echo "level $level")"
+              LEVEL_PHYSICAL="$(sysctl -n "hw.perflevel${level}.physicalcpu" 2>/dev/null || echo "?")"
+              LEVEL_LOGICAL="$(sysctl -n "hw.perflevel${level}.logicalcpu" 2>/dev/null || echo "?")"
+              [[ -n "$RUNNER_CPU_TOPOLOGY" ]] && RUNNER_CPU_TOPOLOGY+="; "
+              RUNNER_CPU_TOPOLOGY+="$LEVEL_NAME: $LEVEL_PHYSICAL physical / $LEVEL_LOGICAL logical"
+            done
+          else
+            RUNNER_CPU_TOPOLOGY="Not exposed by the virtual machine"
+          fi
           RUNNER_MEMORY_BYTES="$(sysctl -n hw.memsize)"
           RUNNER_MEMORY="$(awk -v bytes="$RUNNER_MEMORY_BYTES" 'BEGIN { printf "%.1f GiB", bytes / 1073741824 }')"
           RUNNER_DISK="$(df -h / | awk 'NR == 2 { print $2 " total, " $4 " available" }')"
@@ -44,6 +57,7 @@ jobs:
             "Hardware model" "$RUNNER_MODEL" \
             "Processor" "$RUNNER_CPU" \
             "Logical cores" "$RUNNER_CORES" \
+            "CPU topology" "$RUNNER_CPU_TOPOLOGY" \
             "Memory" "$RUNNER_MEMORY" \
             "Root disk" "$RUNNER_DISK" \
             "Xcode" "$RUNNER_XCODE" \
@@ -65,6 +79,7 @@ jobs:
             echo "| Hardware model | \`$RUNNER_MODEL\` |"
             echo "| Processor | $RUNNER_CPU |"
             echo "| Logical cores | $RUNNER_CORES |"
+            echo "| CPU performance levels | $RUNNER_CPU_TOPOLOGY |"
             echo "| Memory | $RUNNER_MEMORY |"
             echo "| Root disk | $RUNNER_DISK |"
             echo "| Xcode | $RUNNER_XCODE |"
