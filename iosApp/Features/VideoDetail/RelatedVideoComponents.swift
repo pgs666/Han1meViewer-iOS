@@ -345,12 +345,6 @@ extension VideoDetailScreenSnapshot {
     }
 }
 
-extension VideoArtistRow {
-    var avatarURL: URL? {
-        avatarUrl.flatMap(URL.init(string:))
-    }
-}
-
 extension VideoRelatedRow {
     var coverURL: URL? {
         coverUrl.flatMap(URL.init(string:))

@@ -139,11 +139,7 @@ private struct ArtistCard: View {
 
     private var artistInfoLabel: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: artist.avatarURL) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Circle().fill(Color.secondary.opacity(0.15))
-            }
+            CachedRemoteImage(urlString: artist.avatarUrl, resizeWidth: 52)
             .frame(width: 52, height: 52)
             .clipShape(Circle())
 
