@@ -30,6 +30,21 @@ enum AppDomain {
         return normalizedBaseURL(from: stored) ?? defaultBaseURL
     }
 
+    static var currentHost: String {
+        URLComponents(string: currentBaseURL)?.host?.lowercased() ?? "hanime1.me"
+    }
+
+    static func cookieDomain(_ cookieDomain: String, matches host: String) -> Bool {
+        let normalizedCookieDomain = cookieDomain
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let normalizedHost = host
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        return !normalizedCookieDomain.isEmpty &&
+            (normalizedHost == normalizedCookieDomain || normalizedHost.hasSuffix(".\(normalizedCookieDomain)"))
+    }
+
     static func setBaseURL(_ url: String) {
         guard let normalized = normalizedBaseURL(from: url) else { return }
         UserDefaults.standard.set(normalized, forKey: preferenceKey)

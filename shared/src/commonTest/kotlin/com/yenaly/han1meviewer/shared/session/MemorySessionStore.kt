@@ -24,7 +24,9 @@ class MemorySessionStore(
         cookies.clear()
     }
 
-    override suspend fun clearLoginCookies() {
-        cookies.removeAll { it.name != "cf_clearance" }
+    override suspend fun clearLoginCookies(domain: String) {
+        cookies.removeAll { cookie ->
+            cookie.name != "cf_clearance" && cookie.matchesDomain(domain)
+        }
     }
 }

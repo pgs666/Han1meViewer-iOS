@@ -63,11 +63,4 @@ class CookieHeaderProvider(
         return false
     }
 
-    private fun SessionCookie.matchesDomain(requestDomain: String): Boolean {
-        val normalizedRequestDomain = requestDomain.removePrefix(".")
-        val normalizedCookieDomain = domain.removePrefix(".")
-        return normalizedRequestDomain == normalizedCookieDomain ||
-            normalizedRequestDomain.endsWith(".$normalizedCookieDomain")
-    }
-
 }

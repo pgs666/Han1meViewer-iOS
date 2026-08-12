@@ -192,9 +192,10 @@ struct MineView: View {
     private func clearHanimeWebViewCookies(completion: @escaping () -> Void) {
         let dataStore = WKWebsiteDataStore.default()
         let cookieStore = dataStore.httpCookieStore
+        let currentHost = AppDomain.currentHost
         cookieStore.getAllCookies { cookies in
             let hanimeCookies = cookies.filter { cookie in
-                cookie.domain.contains("hanime1.me")
+                AppDomain.cookieDomain(cookie.domain, matches: currentHost)
             }
 
             guard !hanimeCookies.isEmpty else {

@@ -3,8 +3,6 @@ package com.yenaly.han1meviewer.shared.repository
 import com.yenaly.han1meviewer.shared.model.UserPlaylistPage
 import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
-import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
-import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.parser.HtmlParser
@@ -30,7 +28,7 @@ class KtorUserPlaylistRepository(
     private val videoLanguageProvider: () -> String = { "zht" },
 ) : UserPlaylistRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
-    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = cookieBridge::hasConfirmedLogin)
 
     override suspend fun getPlaylists(userId: String, page: Int): UserPlaylistPage {
         val response = client.get("$baseUrl/user/$userId/playlists") {

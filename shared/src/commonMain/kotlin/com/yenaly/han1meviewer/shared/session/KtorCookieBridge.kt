@@ -1,5 +1,6 @@
 package com.yenaly.han1meviewer.shared.session
 
+import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.model.SessionCookie
 import com.yenaly.han1meviewer.shared.network.setCookieHeaders
 import io.ktor.client.request.HttpRequestBuilder
@@ -20,6 +21,10 @@ internal class KtorCookieBridge(
 
     suspend fun storedCookieHeader(): String? {
         return cookieHeaderProvider.buildCookieHeader(domain, "/", isSecureTransport, videoLanguageProvider())
+    }
+
+    suspend fun hasConfirmedLogin(): Boolean {
+        return sessionStore.loadCookies().hasConfirmedLogin(domain)
     }
 
     suspend fun applyStoredCookies(builder: HttpRequestBuilder) {

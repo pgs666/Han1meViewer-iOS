@@ -157,6 +157,7 @@ private struct WebLoginView: UIViewRepresentable {
         private let importStateQueue = DispatchQueue(label: "app.han1me.login.cookie-import")
 
         private let webLoginFeature: WebLoginFeature
+        private let loginHost = AppDomain.currentHost
         private let onLoginSuccess: () -> Void
         private var didCompleteLogin = false
         private var isImportingLogin = false
@@ -175,12 +176,12 @@ private struct WebLoginView: UIViewRepresentable {
         func loadLoginPage(in webView: WKWebView) {
             didCompleteLogin = false
             isImportingLogin = false
-            guard let url = URL(string: "https://hanime1.me/login") else {
+            guard let baseURL = URL(string: AppDomain.currentBaseURL) else {
                 status = .failed(String(localized: "登录地址无效"))
                 return
             }
             status = .loading
-            webView.load(URLRequest(url: url))
+            webView.load(URLRequest(url: baseURL.appendingPathComponent("login")))
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -249,7 +250,8 @@ private struct WebLoginView: UIViewRepresentable {
         private func isPotentialLoginCompletionURL(_ url: URL?) -> Bool {
             guard let url,
                   let host = url.host,
-                  host.contains("hanime1.me") else {
+                  AppDomain.cookieDomain(loginHost, matches: host) ||
+                    AppDomain.cookieDomain(host, matches: loginHost) else {
                 return false
             }
             let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
@@ -272,7 +274,7 @@ private struct WebLoginView: UIViewRepresentable {
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
                 guard let self = self else { return }
                 let hanimeCookies = cookies.filter { cookie in
-                    cookie.domain.contains("hanime1.me")
+                    AppDomain.cookieDomain(cookie.domain, matches: self.loginHost)
                 }
 
                 let cookieJson = LoginView.encodeCookiesForImport(hanimeCookies)
@@ -292,7 +294,7 @@ private struct WebLoginView: UIViewRepresentable {
                     do {
                         let snapshot = try await self.webLoginFeature.importConfirmedLoginCookiesJson(
                             cookieJson: cookieJson,
-                            fallbackDomain: "hanime1.me"
+                            fallbackDomain: self.loginHost
                         )
                         if snapshot.isLoggedIn {
                             self.status = .imported

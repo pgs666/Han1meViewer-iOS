@@ -5,7 +5,6 @@ import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.parser.HtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
-import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -23,7 +22,7 @@ class KtorHomeRepository(
     private val videoLanguageProvider: () -> String = { "zht" },
 ) : HomeRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
-    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = cookieBridge::hasConfirmedLogin)
 
     override suspend fun getHomePage(): HomePage {
         val response = client.get(baseUrl) {
@@ -33,7 +32,7 @@ class KtorHomeRepository(
         }
         cookieBridge.saveResponseCookies(response)
 
-        val isAlreadyLogin = sessionStore.loadCookies().hasConfirmedLogin()
+        val isAlreadyLogin = cookieBridge.hasConfirmedLogin()
         val body = response.bodyAsText()
         return withContext(Dispatchers.Default) { parser.parseHome(body, isAlreadyLogin) }
     }

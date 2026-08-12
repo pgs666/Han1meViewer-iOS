@@ -147,6 +147,51 @@ class WebLoginFeatureTest {
         assertTrue(cookies.none { it.value == "old" || it.value == "old-token" })
     }
 
+    @Test
+    fun loginStateIsIsolatedByMirrorDomain() = runTest {
+        val store = MemorySessionStore(
+            listOf(
+                SessionCookie(name = "hanime1_session", value = "dot-com-session", domain = "hanime1.com"),
+                LoginSessionMarker.cookie("hanime1.com"),
+            )
+        )
+        val dotMeFeature = WebLoginFeature(
+            sessionStore = store,
+            homeRepository = FakeHomeRepository.loggedIn(),
+            siteDomain = "hanime1.me",
+        )
+
+        assertEquals(false, dotMeFeature.currentSessionSnapshot().isLoggedIn)
+    }
+
+    @Test
+    fun loginAndLogoutOnlyChangeCurrentMirrorCookies() = runTest {
+        val store = MemorySessionStore(
+            listOf(
+                SessionCookie(name = "hanime1_session", value = "dot-com-session", domain = "hanime1.com"),
+                LoginSessionMarker.cookie("hanime1.com"),
+                SessionCookie(name = "cf_clearance", value = "dot-com-clearance", domain = "hanime1.com"),
+            )
+        )
+        val dotMeFeature = WebLoginFeature(
+            sessionStore = store,
+            homeRepository = FakeHomeRepository.loggedIn(),
+            siteDomain = "hanime1.me",
+        )
+
+        dotMeFeature.importConfirmedLoginCookieHeader(
+            cookieHeader = "hanime1_session=dot-me-session",
+            domain = "hanime1.me",
+        )
+        dotMeFeature.logout()
+
+        val cookies = store.loadCookies()
+        assertTrue(cookies.any { it.value == "dot-com-session" })
+        assertTrue(cookies.any { it.value == "dot-com-clearance" })
+        assertTrue(cookies.any { it == LoginSessionMarker.cookie("hanime1.com") })
+        assertTrue(cookies.none { it.domain == "hanime1.me" && it.name != "cf_clearance" })
+    }
+
     private class FakeHomeRepository(
         var homePage: HomePage,
     ) : HomeRepository {

@@ -6,6 +6,7 @@ import com.yenaly.han1meviewer.shared.model.DomainException
 import com.yenaly.han1meviewer.shared.model.SessionCookie
 import com.yenaly.han1meviewer.shared.repository.HomeRepository
 import com.yenaly.han1meviewer.shared.session.SessionStore
+import com.yenaly.han1meviewer.shared.session.matchesDomain
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -14,6 +15,7 @@ class WebLoginFeature(
     private val sessionStore: SessionStore,
     private val homeRepository: HomeRepository,
     private val onSessionCleared: () -> Unit = {},
+    private val siteDomain: String = "hanime1.me",
 ) {
     @Throws(Exception::class)
     suspend fun importCookieHeader(cookieHeader: String, domain: String): AuthSnapshot {
@@ -46,8 +48,8 @@ class WebLoginFeature(
     }
 
     private suspend fun importConfirmedLoginCookies(cookies: List<SessionCookie>): AuthSnapshot {
-        sessionStore.clearLoginCookies()
-        sessionStore.saveCookies(cookies)
+        sessionStore.clearLoginCookies(siteDomain)
+        sessionStore.saveCookies(cookies.filter { it.matchesDomain(siteDomain) })
         val snapshot = try {
             verifyCurrentSession()
         } catch (error: Exception) {
@@ -62,7 +64,7 @@ class WebLoginFeature(
             return snapshot
         }
         sessionStore.saveCookies(
-            sessionStore.loadCookies() + LoginSessionMarker.cookie()
+            listOf(LoginSessionMarker.cookie(siteDomain))
         )
 
         return AuthSnapshot(
@@ -112,7 +114,7 @@ class WebLoginFeature(
     }
 
     private fun List<SessionCookie>.hasLoginSession(): Boolean {
-        return hasConfirmedLogin()
+        return hasConfirmedLogin(siteDomain)
     }
 
     private suspend fun verifyCurrentSession(): AuthSnapshot {
@@ -130,7 +132,7 @@ class WebLoginFeature(
     }
 
     private suspend fun clearSession() {
-        sessionStore.clearLoginCookies()
+        sessionStore.clearLoginCookies(siteDomain)
         onSessionCleared()
     }
 

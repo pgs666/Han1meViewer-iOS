@@ -35,8 +35,14 @@ class SqlDelightSessionStore(
         Unit
     }
 
-    override suspend fun clearLoginCookies() = withContext(Dispatchers.Default) {
-        database.sessionCookieQueries.deleteNonCloudflare()
+    override suspend fun clearLoginCookies(domain: String) = withContext(Dispatchers.Default) {
+        database.transaction {
+            database.sessionCookieQueries.selectAll(::mapCookie).executeAsList()
+                .filter { cookie -> cookie.name != "cf_clearance" && cookie.matchesDomain(domain) }
+                .forEach { cookie ->
+                    database.sessionCookieQueries.deleteByKey(cookie.name, cookie.domain, cookie.path)
+                }
+        }
         Unit
     }
 

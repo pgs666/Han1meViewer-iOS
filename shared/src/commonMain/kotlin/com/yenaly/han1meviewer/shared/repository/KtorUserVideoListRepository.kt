@@ -2,8 +2,6 @@ package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.UserVideoListPage
 import com.yenaly.han1meviewer.shared.model.UserVideoListType
-import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
-import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
 import com.yenaly.han1meviewer.shared.parser.HtmlParser
@@ -29,7 +27,7 @@ class KtorUserVideoListRepository(
     private val videoLanguageProvider: () -> String = { "zht" },
 ) : UserVideoListRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
-    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() })
+    private val client: HttpClient = client ?: createHan1meHttpClient(saveCookies = cookieBridge::saveResponseCookies, isAlreadyLogin = cookieBridge::hasConfirmedLogin)
 
     override suspend fun getUserVideoList(
         userId: String,

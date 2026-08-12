@@ -11,7 +11,6 @@ import com.yenaly.han1meviewer.shared.history.WatchHistoryStore
 import com.yenaly.han1meviewer.shared.history.OnlineWatchHistoryFeature
 import com.yenaly.han1meviewer.shared.download.DownloadStore
 import com.yenaly.han1meviewer.shared.home.HomeFeature
-import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
 import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.repository.HanimeNetworkDefaults
@@ -37,6 +36,7 @@ import com.yenaly.han1meviewer.shared.userlist.UserVideoListFeature
 import com.yenaly.han1meviewer.shared.video.VideoFeature
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.ktor.http.Url
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
@@ -46,6 +46,7 @@ class SharedAppEnvironment(
     preferencesStorage: PreferencesStorage,
     baseUrl: String = "https://hanime1.me",
 ) {
+    private val siteDomain = Url(baseUrl).host
     private val database = createDatabase(driverFactory)
     val preferencesStore = PreferencesStore(preferencesStorage)
     private val sessionStore: SessionStore = SqlDelightSessionStore(database)
@@ -56,7 +57,7 @@ class SharedAppEnvironment(
     private val sharedCookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)
     private val httpClient = createHan1meHttpClient(
         saveCookies = sharedCookieBridge::saveResponseCookies,
-        isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin() }
+        isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin(siteDomain) }
     )
     private val homeRepository = KtorHomeRepository(sessionStore, baseUrl = baseUrl, client = httpClient, videoLanguageProvider = videoLanguageProvider)
     private val followingRepository = KtorFollowingRepository(sessionStore, baseUrl = baseUrl, client = httpClient, videoLanguageProvider = videoLanguageProvider)
@@ -75,6 +76,7 @@ class SharedAppEnvironment(
             sessionStore = sessionStore,
             homeRepository = homeRepository,
             onSessionCleared = ::clearCachedCurrentUserId,
+            siteDomain = siteDomain,
         )
     }
 
@@ -87,6 +89,7 @@ class SharedAppEnvironment(
             repository = homeRepository,
             sessionStore = sessionStore,
             onSessionCleared = ::clearCachedCurrentUserId,
+            siteDomain = siteDomain,
         )
     }
 

@@ -11,15 +11,16 @@ class HomeFeature(
     private val repository: HomeRepository,
     private val sessionStore: SessionStore? = null,
     private val onSessionCleared: () -> Unit = {},
+    private val siteDomain: String = "hanime1.me",
 ) {
     @Throws(Exception::class)
     suspend fun loadHome(): HomeFeedSnapshot {
         val homePage = repository.getHomePage()
-        if (sessionStore?.loadCookies()?.hasConfirmedLogin() == true &&
+        if (sessionStore?.loadCookies()?.hasConfirmedLogin(siteDomain) == true &&
             homePage.userId.isNullOrBlank() &&
             homePage.username.isNullOrBlank()
         ) {
-            sessionStore.clearLoginCookies()
+            sessionStore.clearLoginCookies(siteDomain)
             onSessionCleared()
             throw DomainException(DomainError.Auth("Login session expired. Please sign in again."))
         }
