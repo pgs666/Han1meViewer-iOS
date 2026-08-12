@@ -114,7 +114,7 @@ struct HomeScreenSnapshot {
 
             return HomeSectionRow(
                 key: section.key,
-                title: HomeSectionRow.localizedTitle(for: section.key),
+                title: HomeSectionRow.localizedTitle(for: section.key, isAVSite: AppDomain.isAVSite),
                 videos: videos
             )
         }
@@ -139,7 +139,31 @@ struct HomeSectionRow: Identifiable {
 
     var id: String { key }
 
-    static func localizedTitle(for key: String) -> String {
+    static func localizedTitle(for key: String, isAVSite: Bool = AppDomain.isAVSite) -> String {
+        if isAVSite {
+            switch key {
+            case "ecchiAnime":
+                return String(localized: "home.section.av.latest_av")
+            case "shortEpisodeAnime":
+                return String(localized: "home.section.av.amateur")
+            case "motionAnime":
+                return String(localized: "home.section.av.uncensored")
+            case "threeDCG":
+                return String(localized: "home.section.av.ai_decensored")
+            case "twoPointFiveDAnime":
+                return String(localized: "home.section.av.chinese_av")
+            case "twoDAnime":
+                return String(localized: "home.section.av.chinese_amateur")
+            case "aiGenerated":
+                return String(localized: "home.section.av.chinese_subtitle")
+            case "mmd":
+                return String(localized: "home.section.av.today_ranking")
+            case "cosplay":
+                return String(localized: "home.section.av.monthly_ranking")
+            default:
+                break
+            }
+        }
         switch key {
         case "latestRelease":
             return String(localized: "home.section.latest_release")

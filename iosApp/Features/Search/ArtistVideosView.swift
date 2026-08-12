@@ -167,7 +167,8 @@ struct ArtistVideosView: View {
 
     private var coverLayout: VideoCoverLayout {
         guard case .homeSection(let request) = mode,
-              request.sectionKey == "ecchiAnime" else {
+              request.sectionKey == "ecchiAnime",
+              !AppDomain.isAVSite else {
             return .landscape
         }
         return .hanimePortrait

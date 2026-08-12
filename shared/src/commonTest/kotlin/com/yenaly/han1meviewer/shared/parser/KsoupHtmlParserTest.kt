@@ -134,12 +134,14 @@ class KsoupHtmlParserTest {
     }
 
     @Test
-    fun parsesAvTrailerFromAndroidIndex13() {
+    fun doesNotDuplicateAvWatchingNowAsAnimeTrailer() {
         val rowHtml = (0..13).joinToString(separator = "\n") { index ->
             if (index == 13) {
                 """
                 <div>
-                  <a href="/watch?v=8888"><img src="/av.jpg"><div class="home-rows-videos-title">AV trailer</div></a>
+                  <div class="horizontal-card">
+                    <a href="/watch?v=8888"></a><img src="/av.jpg"><div class="title">Watching now</div>
+                  </div>
                 </div>
                 """.trimIndent()
             } else {
@@ -154,10 +156,11 @@ class KsoupHtmlParserTest {
         """.trimIndent()
 
         val home = KsoupHtmlParser("https://javchu.com").parseHome(html)
-        val trailer = home.sections.single { it.key == "newAnimeTrailer" }
+        val watchingNow = home.sections.single { it.key == "watchingNow" }
 
-        assertEquals("8888", trailer.items.single().videoCode)
-        assertEquals("https://javchu.com/av.jpg", trailer.items.single().coverUrl)
+        assertEquals("8888", watchingNow.items.single().videoCode)
+        assertEquals("https://javchu.com/av.jpg", watchingNow.items.single().coverUrl)
+        assertTrue(home.sections.none { it.key == "newAnimeTrailer" })
     }
 
     @Test

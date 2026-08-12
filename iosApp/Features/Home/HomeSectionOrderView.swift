@@ -37,7 +37,7 @@ struct HomeSectionOrderView: View {
     /// Mirrors `KsoupHtmlParser.HOME_SECTION_MAPPINGS`. Keys present here
     /// but absent from saved state are treated as visible-by-default
     /// (except those listed in `defaultHiddenKeys`).
-    private static let allSectionKeys: [String] = [
+    private static let baseSectionKeys: [String] = [
         "latestRelease",
         "latestHanime",
         "ecchiAnime",
@@ -50,8 +50,16 @@ struct HomeSectionOrderView: View {
         "mmd",
         "cosplay",
         "watchingNow",
-        "newAnimeTrailer",
     ]
+
+    private var allSectionKeys: [String] {
+        if AppDomain.isAVSite {
+            return Self.baseSectionKeys
+        }
+        return Self.baseSectionKeys + [
+            "newAnimeTrailer",
+        ]
+    }
 
     /// Sections hidden by default on a fresh install (also the destination
     /// when the user taps "重置"). Mirrors the @AppStorage default of
@@ -158,7 +166,7 @@ struct HomeSectionOrderView: View {
         // Any key never seen — newly added to the parser since last save —
         // goes to visible by default (unless it's in the defaults-hidden
         // list).
-        for key in Self.allSectionKeys where !seen.contains(key) {
+        for key in allSectionKeys where !seen.contains(key) {
             if Self.defaultHiddenKeys.contains(key) {
                 hidden.append(SectionItem(key: key))
             } else {
@@ -172,7 +180,7 @@ struct HomeSectionOrderView: View {
 
     private func parse(_ raw: String) -> [String] {
         raw.split(separator: ",").map(String.init).filter {
-            Self.allSectionKeys.contains($0)
+            allSectionKeys.contains($0)
         }
     }
 
@@ -224,10 +232,10 @@ struct HomeSectionOrderView: View {
         .spring(response: 0.35, dampingFraction: 0.85)
 
     private func resetToDefaults() {
-        visibleItems = Self.allSectionKeys
+        visibleItems = allSectionKeys
             .filter { !Self.defaultHiddenKeys.contains($0) }
             .map { SectionItem(key: $0) }
-        hiddenItems = Self.allSectionKeys
+        hiddenItems = allSectionKeys
             .filter { Self.defaultHiddenKeys.contains($0) }
             .map { SectionItem(key: $0) }
         save()

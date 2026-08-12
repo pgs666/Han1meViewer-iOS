@@ -82,13 +82,17 @@ class KsoupHtmlParser(
             if (items.isEmpty()) null else HomeSection(key = key, title = key, items = items)
         }.toMutableList()
 
-        // Android uses row 12 on the normal site and row 13 on the AV site.
-        // Both layouts reuse a row that is also parsed as a regular section.
-        val trailerIndex = if (isAvSite) AV_NEW_ANIME_TRAILER_INDEX else NEW_ANIME_TRAILER_INDEX
-        val trailerItems = rows.getOrNull(trailerIndex)
-            ?.select("a")
-            ?.mapNotNull { it.toSimplifiedHanimeInfo() }
-            .orEmpty()
+        // Only the anime layout contains the trailer rail. On javchu row 13
+        // is "watching now"; treating it as a trailer duplicates that row
+        // under the misleading "new anime trailer" title.
+        val trailerItems = if (isAvSite) {
+            emptyList()
+        } else {
+            rows.getOrNull(NEW_ANIME_TRAILER_INDEX)
+                ?.select("a")
+                ?.mapNotNull { it.toSimplifiedHanimeInfo() }
+                .orEmpty()
+        }
         if (trailerItems.isNotEmpty()) {
             sections += HomeSection(
                 key = "newAnimeTrailer",
@@ -719,7 +723,6 @@ class KsoupHtmlParser(
         // Parser.homePageVer2 (Android). Kept separate from the generic
         // mappings because it parses as simplified units.
         const val NEW_ANIME_TRAILER_INDEX = 12
-        const val AV_NEW_ANIME_TRAILER_INDEX = 13
     }
 
     override fun extractCsrfToken(html: String): String? {

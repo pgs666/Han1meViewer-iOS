@@ -2465,6 +2465,69 @@
         }
       }
     },
+    "home.section.av.ai_decensored": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "AI Decensored" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "AI解码" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "AI解碼" } }
+      }
+    },
+    "home.section.av.amateur": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Amateur" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "素人业余" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "素人業餘" } }
+      }
+    },
+    "home.section.av.chinese_amateur": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Chinese Amateur" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "国产素人" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "國產素人" } }
+      }
+    },
+    "home.section.av.chinese_av": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Chinese AV" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "国产AV" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "國產AV" } }
+      }
+    },
+    "home.section.av.chinese_subtitle": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Chinese Subtitles" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中文字幕" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "中文字幕" } }
+      }
+    },
+    "home.section.av.latest_av": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Latest AV" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最新AV" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "最新AV" } }
+      }
+    },
+    "home.section.av.monthly_ranking": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Monthly Ranking" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "本月排行" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "本月排行" } }
+      }
+    },
+    "home.section.av.today_ranking": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Today's Ranking" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "本日排行" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "本日排行" } }
+      }
+    },
+    "home.section.av.uncensored": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "HD Uncensored" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "高清无码" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "高清無碼" } }
+      }
+    },
     "home.section.latest_release": {
       "localizations": {
         "en": {

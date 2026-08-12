@@ -39,7 +39,7 @@ struct SearchOptionCatalog: Sendable {
     }
 
     init(bundle: Bundle = .main) {
-        genres = SearchOptionCatalog.loadArray("genre", bundle: bundle)
+        genres = SearchOptionCatalog.loadArray(AppDomain.isAVSite ? "genre_av" : "genre", bundle: bundle)
         sortOptions = SearchOptionCatalog.loadArray("sort_option", bundle: bundle)
         durations = SearchOptionCatalog.loadArray("duration", bundle: bundle)
         releaseDates = SearchOptionCatalog.loadArray("release_date", bundle: bundle)
@@ -223,6 +223,43 @@ struct SearchFilterState: Equatable {
 extension SearchFilterState {
     static func homeSection(key: String, catalog: SearchOptionCatalog) -> SearchFilterState {
         var state = SearchFilterState()
+        if AppDomain.isAVSite {
+            switch key {
+            case "latestRelease":
+                state.sort = catalog.sortOptions.firstSearchKey("最新上市")
+            case "latestHanime":
+                state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+            case "watchingNow":
+                state.sort = catalog.sortOptions.firstSearchKey("他們在看")
+            case "ecchiAnime":
+                state.genre = catalog.genres.firstSearchKey("日本AV")
+            case "shortEpisodeAnime":
+                state.genre = catalog.genres.firstSearchKey("素人業餘")
+                state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+            case "motionAnime":
+                state.genre = catalog.genres.firstSearchKey("高清無碼")
+                state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+            case "threeDCG":
+                state.genre = catalog.genres.firstSearchKey("AI解碼")
+                state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+            case "twoPointFiveDAnime":
+                state.genre = catalog.genres.firstSearchKey("國產AV")
+                state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+            case "twoDAnime":
+                state.genre = catalog.genres.firstSearchKey("國產素人")
+                state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+            case "aiGenerated":
+                state.tags = Set(catalog.tagSections.flatMap { $0.options }.filter { $0.searchKey == "中文字幕" })
+                state.sort = catalog.sortOptions.firstSearchKey("最新上傳")
+            case "mmd":
+                state.sort = catalog.sortOptions.firstSearchKey("本日排行")
+            case "cosplay":
+                state.sort = catalog.sortOptions.firstSearchKey("本月排行")
+            default:
+                break
+            }
+            return state
+        }
         switch key {
         case "latestRelease":
             state.sort = catalog.sortOptions.firstSearchKey("最新上市")

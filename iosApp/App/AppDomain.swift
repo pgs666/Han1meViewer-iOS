@@ -34,6 +34,10 @@ enum AppDomain {
         URLComponents(string: currentBaseURL)?.host?.lowercased() ?? "hanime1.me"
     }
 
+    static var isAVSite: Bool {
+        currentHost == "javchu.com" || currentHost.hasSuffix(".javchu.com")
+    }
+
     static func cookieDomain(_ cookieDomain: String, matches host: String) -> Bool {
         let normalizedCookieDomain = cookieDomain
             .lowercased()
