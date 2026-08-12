@@ -228,8 +228,10 @@ private struct ActionButtonRow: View {
     }
 
     private func siteURL(path: String) -> URL? {
-        guard var components = URLComponents(string: AppDomain.currentBaseURL) else { return nil }
-        components.path = path
+        guard let url = AppDomain.appending(
+            path.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
+            to: AppDomain.currentBaseURL
+        ), var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
         components.queryItems = [URLQueryItem(name: "v", value: snapshot.videoCode)]
         return components.url
     }

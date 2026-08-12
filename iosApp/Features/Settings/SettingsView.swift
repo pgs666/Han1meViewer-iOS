@@ -11,8 +11,11 @@ struct SettingsView: View {
     @State private var crashReportSummary = CrashReporter.latestReportSummary()
     @AppStorage(AppLogger.enabledKey) private var diagnosticLoggingEnabled = true
     @State private var logSizeText = "—"
-    @State private var selectedDomain = AppDomain.currentBaseURL
-    @State private var pendingDomain: String?
+    @State private var selectedDomain = AppDomain.usesCustomMirror
+        ? "custom:\(AppDomain.currentHomeURL)"
+        : AppDomain.selectedPresetURL
+    @State private var pendingSiteChange: PendingSiteChange?
+    @State private var showCustomMirrorWarning = false
 
     // Preferences. Seeded with the REAL stored values in init() so the
     // controls render at their actual positions on first frame. Previously
@@ -77,12 +80,20 @@ struct SettingsView: View {
             Button("取消", role: .cancel, action: cancelDomainSwitch)
             Button("切换并退出", role: .destructive, action: confirmDomainSwitch)
         } message: {
-            if let pendingDomain {
+            if let pendingSiteChange {
                 Text("目标站点：") +
-                    Text(verbatim: AppDomain.displayHost(for: pendingDomain)) +
+                    Text(verbatim: pendingSiteChange.displayURL) +
                     Text(verbatim: "\n") +
                     Text("确认后应用将自动退出，请重新打开应用以使用新站点。")
             }
+        }
+        .alert("自定义镜像站警告", isPresented: $showCustomMirrorWarning) {
+            Button("取消", role: .cancel, action: cancelDomainSwitch)
+            Button("继续", role: .destructive) {
+                showCustomMirrorWarning = false
+            }
+        } message: {
+            Text("自定义镜像站不一定可用，也可能与主站存在差异。镜像站可读取登录凭据及 Cookie，请只使用可信地址。")
         }
         .alert("已完成", isPresented: resultBinding) {
             Button("好", role: .cancel) {
@@ -222,7 +233,7 @@ struct SettingsView: View {
                     SettingsNavigationRow(title: "项目仓库", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
             }
-            if let siteURL = URL(string: "https://hanime1.me") {
+            if let siteURL = URL(string: AppDomain.currentHomeURL) {
                 Link(destination: siteURL) {
                     SettingsNavigationRow(title: "打开网站", systemImage: "safari")
                 }
@@ -267,10 +278,10 @@ struct SettingsView: View {
                     (Text(verbatim: option.host) + Text(verbatim: " (") + Text(option.suffix) + Text(verbatim: ")"))
                         .tag(option.url)
                 }
-                if !AppDomain.isPreset(selectedDomain) {
-                    (Text(verbatim: AppDomain.displayHost(for: selectedDomain)) +
+                if AppDomain.usesCustomMirror {
+                    (Text(verbatim: AppDomain.displayHost(for: AppDomain.currentHomeURL)) +
                      Text(verbatim: " (") + Text("自定义") + Text(verbatim: ")"))
-                        .tag(selectedDomain)
+                        .tag("custom:\(AppDomain.currentHomeURL)")
                 }
             }
             .onValueChange(of: selectedDomain) { newValue in
@@ -278,12 +289,24 @@ struct SettingsView: View {
             }
 
             NavigationLink {
-                CustomDomainView(
-                    currentDomain: selectedDomain,
-                    pendingDomain: $pendingDomain
+                CustomMirrorView(
+                    initialConfiguration: CustomMirrorConfiguration(
+                        enabled: AppDomain.usesCustomMirror,
+                        homeURL: AppDomain.customMirrorSite,
+                        appendPath: AppDomain.appendsCustomMirrorPath
+                    ),
+                    onSave: requestCustomMirrorSwitch
                 )
             } label: {
-                SettingsNavigationRow(title: "自定义镜像站", systemImage: "network")
+                VStack(alignment: .leading, spacing: 3) {
+                    SettingsNavigationRow(title: "自定义镜像站", systemImage: "network")
+                    if AppDomain.usesCustomMirror {
+                        Text(verbatim: AppDomain.customMirrorSite)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
             }
         } header: {
             Text("网络")
@@ -293,20 +316,45 @@ struct SettingsView: View {
     }
 
     private func requestDomainSwitch(to newDomain: String) {
-        let currentDomain = AppDomain.currentBaseURL
-        guard newDomain != currentDomain else { return }
-        selectedDomain = currentDomain
-        pendingDomain = newDomain
+        let currentSelection = AppDomain.usesCustomMirror
+            ? "custom:\(AppDomain.currentHomeURL)"
+            : AppDomain.selectedPresetURL
+        guard newDomain != currentSelection else { return }
+        selectedDomain = currentSelection
+        pendingSiteChange = .preset(newDomain)
+    }
+
+    private func requestCustomMirrorSwitch(_ configuration: CustomMirrorConfiguration) {
+        let current = CustomMirrorConfiguration(
+            enabled: AppDomain.usesCustomMirror,
+            homeURL: AppDomain.customMirrorSite,
+            appendPath: AppDomain.appendsCustomMirrorPath
+        )
+        guard configuration != current else { return }
+        showCustomMirrorWarning = configuration.enabled
+        pendingSiteChange = .custom(configuration)
     }
 
     private func cancelDomainSwitch() {
-        selectedDomain = AppDomain.currentBaseURL
-        pendingDomain = nil
+        selectedDomain = AppDomain.usesCustomMirror
+            ? "custom:\(AppDomain.currentHomeURL)"
+            : AppDomain.selectedPresetURL
+        pendingSiteChange = nil
+        showCustomMirrorWarning = false
     }
 
     private func confirmDomainSwitch() {
-        guard let pendingDomain else { return }
-        AppDomain.setBaseURL(pendingDomain)
+        guard let pendingSiteChange else { return }
+        switch pendingSiteChange {
+        case .preset(let url):
+            AppDomain.applyPreset(url)
+        case .custom(let configuration):
+            AppDomain.applyCustomMirror(
+                url: configuration.homeURL,
+                appendPath: configuration.appendPath,
+                enabled: configuration.enabled
+            )
+        }
         UserDefaults.standard.synchronize()
         exit(EXIT_SUCCESS)
     }
@@ -402,7 +450,7 @@ struct SettingsView: View {
 
     private var domainSwitchBinding: Binding<Bool> {
         Binding(
-            get: { pendingDomain != nil },
+            get: { pendingSiteChange != nil && !showCustomMirrorWarning },
             set: { isPresented in
                 if !isPresented {
                     cancelDomainSwitch()
@@ -435,31 +483,53 @@ struct SettingsView: View {
     }
 }
 
-private struct CustomDomainView: View {
-    let currentDomain: String
-    @Binding var pendingDomain: String?
+private struct CustomMirrorView: View {
+    let onSave: (CustomMirrorConfiguration) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var enabled: Bool
     @State private var draft: String
+    @State private var appendPath: Bool
     @State private var validationMessage: String?
+    @State private var testResult: CustomMirrorTestResult?
+    @State private var isTesting = false
 
-    init(currentDomain: String, pendingDomain: Binding<String?>) {
-        self.currentDomain = currentDomain
-        _pendingDomain = pendingDomain
-        _draft = State(initialValue: AppDomain.isPreset(currentDomain) ? "" : currentDomain)
+    init(
+        initialConfiguration: CustomMirrorConfiguration,
+        onSave: @escaping (CustomMirrorConfiguration) -> Void
+    ) {
+        self.onSave = onSave
+        _enabled = State(initialValue: initialConfiguration.enabled)
+        _draft = State(initialValue: initialConfiguration.homeURL)
+        _appendPath = State(initialValue: initialConfiguration.appendPath)
     }
 
     var body: some View {
         Form {
             Section {
-                TextField("例如 mirror.example.com", text: $draft)
+                Toggle("启用自定义镜像站", isOn: $enabled)
+
+                TextField("例如 https://mirror.example.com/enter", text: $draft)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                    .onSubmit(save)
             } header: {
                 Text("镜像站地址")
             } footer: {
-                Text("仅支持 HTTPS 站点根地址，可省略 https://；不要填写 /watch 等页面路径。")
+                Text("请输入与主站结构相同、直达首页的 HTTPS 地址。支持根域名或 /enter 等首页路径；首页会按输入原样请求。")
+            }
+
+            Section("其他接口路径") {
+                Picker("接口路径", selection: $appendPath) {
+                    Text("跟随首页目录").tag(true)
+                    Text("使用根域名").tag(false)
+                }
+                .pickerStyle(.inline)
+
+                Text(appendPath
+                     ? "例如：https://example.com/enter/search"
+                     : "例如：https://example.com/search；首页仍按输入地址请求。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if let validationMessage {
@@ -470,9 +540,26 @@ private struct CustomDomainView: View {
             }
 
             Section {
+                Button {
+                    testConnection()
+                } label: {
+                    HStack {
+                        Text("测试连接")
+                        Spacer()
+                        if isTesting { ProgressView() }
+                    }
+                }
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTesting)
+
+                if let testResult {
+                    Text(testResult.message)
+                        .font(.caption)
+                        .foregroundStyle(testResult.succeeded ? Color.green : Color.orange)
+                }
+
                 Button("保存并切换", action: save)
                     .frame(maxWidth: .infinity)
-                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(enabled && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .navigationTitle("自定义镜像站")
@@ -481,16 +568,50 @@ private struct CustomDomainView: View {
     }
 
     private func save() {
-        guard let normalized = AppDomain.normalizedBaseURL(from: draft) else {
-            validationMessage = String(localized: "请输入有效的 HTTPS 站点根地址。")
+        let normalized = AppDomain.normalizedCustomMirrorURL(from: draft)
+        guard !enabled || normalized != nil else {
+            validationMessage = String(localized: "请输入有效且直达首页的 HTTPS 地址。")
             return
         }
-        guard normalized != currentDomain else {
-            dismiss()
-            return
-        }
-        pendingDomain = normalized
+        onSave(CustomMirrorConfiguration(
+            enabled: enabled,
+            homeURL: normalized ?? "",
+            appendPath: appendPath
+        ))
         dismiss()
+    }
+
+    private func testConnection() {
+        guard let normalized = AppDomain.normalizedCustomMirrorURL(from: draft) else {
+            validationMessage = String(localized: "请输入有效且直达首页的 HTTPS 地址。")
+            return
+        }
+        validationMessage = nil
+        testResult = nil
+        isTesting = true
+        Task {
+            testResult = await CustomMirrorTester.test(homeURL: normalized, appendPath: appendPath)
+            isTesting = false
+        }
+    }
+}
+
+private struct CustomMirrorConfiguration: Equatable {
+    let enabled: Bool
+    let homeURL: String
+    let appendPath: Bool
+}
+
+private enum PendingSiteChange {
+    case preset(String)
+    case custom(CustomMirrorConfiguration)
+
+    var displayURL: String {
+        switch self {
+        case .preset(let url): return url
+        case .custom(let configuration):
+            return configuration.enabled ? configuration.homeURL : AppDomain.selectedPresetURL
+        }
     }
 }
 

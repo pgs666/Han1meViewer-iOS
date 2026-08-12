@@ -194,12 +194,12 @@ private struct WebLoginView: UIViewRepresentable {
         func loadLoginPage(in webView: WKWebView) {
             didCompleteLogin = false
             isImportingLogin = false
-            guard let baseURL = URL(string: loginBaseURL) else {
+            guard let loginURL = AppDomain.appending("login", to: loginBaseURL) else {
                 status = .failed(String(localized: "登录地址无效"))
                 return
             }
             status = .loading
-            webView.load(URLRequest(url: baseURL.appendingPathComponent("login")))
+            webView.load(URLRequest(url: loginURL))
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

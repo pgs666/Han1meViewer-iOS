@@ -7,7 +7,7 @@ enum DownloadRequestHeaders {
 
     static func apply(to request: inout URLRequest) {
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("\(AppDomain.currentBaseURL)/", forHTTPHeaderField: "Referer")
+        request.setValue(AppDomain.currentHomeURL, forHTTPHeaderField: "Referer")
     }
 }
 

@@ -12,7 +12,7 @@ struct CloudflareChallengePresenter: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: CloudflareChallengeCenter.requestNotification)) { notification in
                 if let url = notification.userInfo?[CloudflareChallengeCenter.urlKey] as? URL {
                     challengeRequest = CloudflareChallengeRequest(url: url)
-                } else if let fallbackURL = URL(string: AppDomain.currentBaseURL) {
+                } else if let fallbackURL = URL(string: AppDomain.currentHomeURL) {
                     challengeRequest = CloudflareChallengeRequest(url: fallbackURL)
                 }
             }

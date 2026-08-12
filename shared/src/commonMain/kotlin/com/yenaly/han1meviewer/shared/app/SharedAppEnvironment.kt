@@ -45,6 +45,7 @@ class SharedAppEnvironment(
     driverFactory: DatabaseDriverFactory,
     preferencesStorage: PreferencesStorage,
     baseUrl: String = "https://hanime1.me",
+    homeUrl: String = baseUrl,
 ) {
     private val siteDomain = Url(baseUrl).host
     private val database = createDatabase(driverFactory)
@@ -59,7 +60,7 @@ class SharedAppEnvironment(
         saveCookies = sharedCookieBridge::saveResponseCookies,
         isAlreadyLogin = { sessionStore.loadCookies().hasConfirmedLogin(siteDomain) }
     )
-    private val homeRepository = KtorHomeRepository(sessionStore, baseUrl = baseUrl, client = httpClient, videoLanguageProvider = videoLanguageProvider)
+    private val homeRepository = KtorHomeRepository(sessionStore, baseUrl = homeUrl, client = httpClient, videoLanguageProvider = videoLanguageProvider)
     private val followingRepository = KtorFollowingRepository(sessionStore, baseUrl = baseUrl, client = httpClient, videoLanguageProvider = videoLanguageProvider)
     private val searchRepository = KtorSearchRepository(sessionStore, baseUrl = baseUrl, client = httpClient, videoLanguageProvider = videoLanguageProvider)
     private val videoRepository = KtorVideoRepository(sessionStore, baseUrl = baseUrl, client = httpClient, videoLanguageProvider = videoLanguageProvider)
