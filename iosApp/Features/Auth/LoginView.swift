@@ -5,6 +5,8 @@ import Han1meShared
 struct LoginView: View {
     let webLoginFeature: WebLoginFeature
     let onLoginSuccess: () -> Void
+    private let loginBaseURL = AppDomain.currentBaseURL
+    private let loginHost = AppDomain.currentHost
 
     @Environment(\.dismiss) private var dismiss
     @State private var status: LoginStatus = .idle
@@ -12,10 +14,12 @@ struct LoginView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            WebLoginStatusBar(status: status)
+            WebLoginStatusBar(status: status, host: loginHost)
 
             WebLoginView(
                 reloadToken: reloadToken,
+                loginBaseURL: loginBaseURL,
+                loginHost: loginHost,
                 webLoginFeature: webLoginFeature,
                 status: $status,
                 onLoginSuccess: {
@@ -83,22 +87,27 @@ private enum LoginStatus: Equatable {
 
 private struct WebLoginStatusBar: View {
     let status: LoginStatus
+    let host: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            switch status {
-            case .idle:
-                Label("请在网页中完成登录", systemImage: "globe")
-            case .loading:
-                ProgressView()
-                Text("正在载入登录页")
-            case .imported:
-                Label("已同步登录 Cookie", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            case .failed(let message):
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                switch status {
+                case .idle:
+                    Label("请在网页中完成登录", systemImage: "globe")
+                case .loading:
+                    ProgressView()
+                    Text("正在载入登录页")
+                case .imported:
+                    Label("已同步登录 Cookie", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                case .failed(let message):
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
             }
+            (Text("当前站点：") + Text(verbatim: host))
+                .foregroundStyle(.secondary)
         }
         .font(.footnote)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -111,12 +120,16 @@ private struct WebLoginStatusBar: View {
 
 private struct WebLoginView: UIViewRepresentable {
     let reloadToken: UUID
+    let loginBaseURL: String
+    let loginHost: String
     let webLoginFeature: WebLoginFeature
     @Binding var status: LoginStatus
     let onLoginSuccess: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
+            loginBaseURL: loginBaseURL,
+            loginHost: loginHost,
             webLoginFeature: webLoginFeature,
             status: $status,
             onLoginSuccess: onLoginSuccess
@@ -156,18 +169,23 @@ private struct WebLoginView: UIViewRepresentable {
         weak var webView: WKWebView?
         private let importStateQueue = DispatchQueue(label: "app.han1me.login.cookie-import")
 
+        private let loginBaseURL: String
+        private let loginHost: String
         private let webLoginFeature: WebLoginFeature
-        private let loginHost = AppDomain.currentHost
         private let onLoginSuccess: () -> Void
         private var didCompleteLogin = false
         private var isImportingLogin = false
         @Binding private var status: LoginStatus
 
         init(
+            loginBaseURL: String,
+            loginHost: String,
             webLoginFeature: WebLoginFeature,
             status: Binding<LoginStatus>,
             onLoginSuccess: @escaping () -> Void
         ) {
+            self.loginBaseURL = loginBaseURL
+            self.loginHost = loginHost
             self.webLoginFeature = webLoginFeature
             self.onLoginSuccess = onLoginSuccess
             _status = status
@@ -176,7 +194,7 @@ private struct WebLoginView: UIViewRepresentable {
         func loadLoginPage(in webView: WKWebView) {
             didCompleteLogin = false
             isImportingLogin = false
-            guard let baseURL = URL(string: AppDomain.currentBaseURL) else {
+            guard let baseURL = URL(string: loginBaseURL) else {
                 status = .failed(String(localized: "登录地址无效"))
                 return
             }
@@ -186,10 +204,32 @@ private struct WebLoginView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             status = .idle
+            correctJavchuLoginBranding(in: webView)
             if isPotentialLoginCompletionURL(webView.url) {
                 scheduleCookieImport(from: webView, reportErrors: false)
             }
             evaluateLoginSuccess(in: webView)
+        }
+
+        /// Javchu currently reuses Hanime's login template and leaves
+        /// "Hanime1.me" in its introductory copy. Keep the WebView tied to
+        /// javchu.com and correct only that misleading text node.
+        private func correctJavchuLoginBranding(in webView: WKWebView) {
+            guard loginHost == "javchu.com" || loginHost.hasSuffix(".javchu.com") else {
+                return
+            }
+            let script = """
+            (() => {
+              const root = document.querySelector('#loginModal');
+              if (!root) return;
+              const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+              let node;
+              while ((node = walker.nextNode())) {
+                node.nodeValue = node.nodeValue.replace(/Hanime1\\.me/gi, 'Javchu');
+              }
+            })();
+            """
+            webView.evaluateJavaScript(script)
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -273,11 +313,11 @@ private struct WebLoginView: UIViewRepresentable {
 
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
                 guard let self = self else { return }
-                let hanimeCookies = cookies.filter { cookie in
+                let siteCookies = cookies.filter { cookie in
                     AppDomain.cookieDomain(cookie.domain, matches: self.loginHost)
                 }
 
-                let cookieJson = LoginView.encodeCookiesForImport(hanimeCookies)
+                let cookieJson = LoginView.encodeCookiesForImport(siteCookies)
 
                 guard let cookieJson, !cookieJson.isEmpty else {
                     Task { @MainActor in

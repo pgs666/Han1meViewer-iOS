@@ -2968,6 +2968,28 @@
         }
       }
     },
+    "当前站点：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current site: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前站点："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前站點："
+          }
+        }
+      }
+    },
     "当前网络已被站点封锁": {
       "localizations": {
         "en": {
