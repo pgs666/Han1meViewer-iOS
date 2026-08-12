@@ -1,5 +1,6 @@
 import SwiftUI
 import Han1meShared
+import Darwin
 
 struct SettingsView: View {
     private let environment: SharedAppEnvironment
@@ -11,7 +12,7 @@ struct SettingsView: View {
     @AppStorage(AppLogger.enabledKey) private var diagnosticLoggingEnabled = true
     @State private var logSizeText = "—"
     @State private var selectedDomain = AppDomain.currentBaseURL
-    @State private var showDomainRestartHint = false
+    @State private var pendingDomain: String?
 
     // Preferences. Seeded with the REAL stored values in init() so the
     // controls render at their actual positions on first frame. Previously
@@ -70,6 +71,17 @@ struct SettingsView: View {
             }
             Button("取消", role: .cancel) {
                 activeConfirmation = nil
+            }
+        }
+        .alert("确认切换站点？", isPresented: domainSwitchBinding) {
+            Button("取消", role: .cancel, action: cancelDomainSwitch)
+            Button("切换并退出", role: .destructive, action: confirmDomainSwitch)
+        } message: {
+            if let pendingDomain {
+                Text("目标站点：") +
+                    Text(verbatim: AppDomain.displayHost(for: pendingDomain)) +
+                    Text(verbatim: "\n") +
+                    Text("确认后应用将自动退出，请重新打开应用以使用新站点。")
             }
         }
         .alert("已完成", isPresented: resultBinding) {
@@ -262,15 +274,13 @@ struct SettingsView: View {
                 }
             }
             .onValueChange(of: selectedDomain) { newValue in
-                guard newValue != AppDomain.currentBaseURL else { return }
-                AppDomain.setBaseURL(newValue)
-                showDomainRestartHint = true
+                requestDomainSwitch(to: newValue)
             }
 
             NavigationLink {
                 CustomDomainView(
-                    selectedDomain: $selectedDomain,
-                    showRestartHint: $showDomainRestartHint
+                    currentDomain: selectedDomain,
+                    pendingDomain: $pendingDomain
                 )
             } label: {
                 SettingsNavigationRow(title: "自定义镜像站", systemImage: "network")
@@ -278,15 +288,27 @@ struct SettingsView: View {
         } header: {
             Text("网络")
         } footer: {
-            Group {
-                if showDomainRestartHint {
-                    Text("域名已切换，请完全退出并重新打开应用以生效。")
-                } else {
-                    Text("可选择预设域名或填写自定义 HTTPS 镜像站。切换后需完全退出并重新打开应用。")
-                }
-            }
-            .foregroundStyle(showDomainRestartHint ? Color.orange : Color.secondary)
+            Text("选择新站点后会先请求确认；确认后应用将自动退出，重新打开即可生效。")
         }
+    }
+
+    private func requestDomainSwitch(to newDomain: String) {
+        let currentDomain = AppDomain.currentBaseURL
+        guard newDomain != currentDomain else { return }
+        selectedDomain = currentDomain
+        pendingDomain = newDomain
+    }
+
+    private func cancelDomainSwitch() {
+        selectedDomain = AppDomain.currentBaseURL
+        pendingDomain = nil
+    }
+
+    private func confirmDomainSwitch() {
+        guard let pendingDomain else { return }
+        AppDomain.setBaseURL(pendingDomain)
+        UserDefaults.standard.synchronize()
+        exit(EXIT_SUCCESS)
     }
 
     @ViewBuilder
@@ -378,6 +400,17 @@ struct SettingsView: View {
         )
     }
 
+    private var domainSwitchBinding: Binding<Bool> {
+        Binding(
+            get: { pendingDomain != nil },
+            set: { isPresented in
+                if !isPresented {
+                    cancelDomainSwitch()
+                }
+            }
+        )
+    }
+
     private func perform(_ confirmation: SettingsConfirmation) {
         switch confirmation {
         case .clearSearchHistory:
@@ -403,17 +436,16 @@ struct SettingsView: View {
 }
 
 private struct CustomDomainView: View {
-    @Binding var selectedDomain: String
-    @Binding var showRestartHint: Bool
+    let currentDomain: String
+    @Binding var pendingDomain: String?
     @Environment(\.dismiss) private var dismiss
     @State private var draft: String
     @State private var validationMessage: String?
 
-    init(selectedDomain: Binding<String>, showRestartHint: Binding<Bool>) {
-        _selectedDomain = selectedDomain
-        _showRestartHint = showRestartHint
-        let current = selectedDomain.wrappedValue
-        _draft = State(initialValue: AppDomain.isPreset(current) ? "" : current)
+    init(currentDomain: String, pendingDomain: Binding<String?>) {
+        self.currentDomain = currentDomain
+        _pendingDomain = pendingDomain
+        _draft = State(initialValue: AppDomain.isPreset(currentDomain) ? "" : currentDomain)
     }
 
     var body: some View {
@@ -438,7 +470,7 @@ private struct CustomDomainView: View {
             }
 
             Section {
-                Button("保存并在重启后使用", action: save)
+                Button("保存并切换", action: save)
                     .frame(maxWidth: .infinity)
                     .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -453,9 +485,11 @@ private struct CustomDomainView: View {
             validationMessage = String(localized: "请输入有效的 HTTPS 站点根地址。")
             return
         }
-        AppDomain.setBaseURL(normalized)
-        selectedDomain = normalized
-        showRestartHint = true
+        guard normalized != currentDomain else {
+            dismiss()
+            return
+        }
+        pendingDomain = normalized
         dismiss()
     }
 }

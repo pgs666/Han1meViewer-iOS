@@ -1893,6 +1893,28 @@
         }
       }
     },
+    "确认切换站点？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch Sites?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认切换站点？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認切換站點？"
+          }
+        }
+      }
+    },
     "确定要取消订阅吗？": {
       "localizations": {
         "en": {
@@ -2968,6 +2990,28 @@
         }
       }
     },
+    "切换并退出": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch and Quit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换并退出"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換並結束"
+          }
+        }
+      }
+    },
     "当前站点：": {
       "localizations": {
         "en": {
@@ -2986,6 +3030,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "目前站點："
+          }
+        }
+      }
+    },
+    "目标站点：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destination site: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标站点："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標站點："
           }
         }
       }
@@ -3012,24 +3078,24 @@
         }
       }
     },
-    "保存并在重启后使用": {
+    "保存并切换": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Save and Use After Restart"
+            "value": "Save and Switch"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "保存并在重启后使用"
+            "value": "保存并切换"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "儲存並在重新啟動後使用"
+            "value": "儲存並切換"
           }
         }
       }
@@ -3100,24 +3166,24 @@
         }
       }
     },
-    "可选择预设域名或填写自定义 HTTPS 镜像站。切换后需完全退出并重新打开应用。": {
+    "选择新站点后会先请求确认；确认后应用将自动退出，重新打开即可生效。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a preset domain or enter a custom HTTPS mirror. Fully quit and reopen the app after switching."
+            "value": "You will be asked to confirm a new site. After confirmation, the app will quit automatically; reopen it to apply the change."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "可选择预设域名或填写自定义 HTTPS 镜像站。切换后需完全退出并重新打开应用。"
+            "value": "选择新站点后会先请求确认；确认后应用将自动退出，重新打开即可生效。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "可選擇預設網域或填寫自訂 HTTPS 鏡像站。切換後需完全結束並重新開啟 App。"
+            "value": "選擇新站點後會先要求確認；確認後 App 將自動結束，重新開啟即可生效。"
           }
         }
       }
@@ -5476,24 +5542,24 @@
         }
       }
     },
-    "域名已切换，请完全退出并重新打开应用以生效。": {
+    "确认后应用将自动退出，请重新打开应用以使用新站点。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Domain switched. Fully quit and reopen the app to apply."
+            "value": "After confirmation, the app will quit automatically. Reopen it to use the new site."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "域名已切换，请完全退出并重新打开应用以生效。"
+            "value": "确认后应用将自动退出，请重新打开应用以使用新站点。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "網域已切換，請完全結束並重新開啟 App 以生效。"
+            "value": "確認後 App 將自動結束，請重新開啟 App 以使用新站點。"
           }
         }
       }
