@@ -41,31 +41,11 @@ struct KSPlayerView: View {
     let onNaturalSize: (CGSize) -> Void
 
     @StateObject private var coordinator = KSVideoPlayer.Coordinator()
+    @StateObject private var playbackState = KSPlayerPlaybackStateCoordinator()
     @State private var showsControls = true
     @State private var hideControlsTask: Task<Void, Never>?
-    @State private var isPlaying = false
     @State private var isBoosted = false
     @State private var savedPlaybackRate: Float = 1.0
-    /// Tracks whether KSPlayer has already applied `KSOptions.startPlayTime`
-    /// (i.e. the player's current time has reached the saved resume
-    /// position). Until that happens we MUST NOT forward onPlay current
-    /// values to onProgress, otherwise the early-stage 0–few-second ticks
-    /// (which fire BEFORE startPlayTime is applied) would overwrite the
-    /// saved value in the watch-history db with a small number — losing
-    /// resume on the next entry. Once the player jumps to ≥ savedSeconds
-    /// - 2s we flip this and resume normal persistence.
-    @State private var hasReachedStartPlayTime = false
-    /// Whether we've already manually seeked to the saved resume position
-    /// once the real video duration is known. KSPlayer's built-in
-    /// `KSOptions.startPlayTime` mechanism sometimes runs BEFORE the
-    /// player has the actual `totalTime` (it briefly defaults to 1s),
-    /// so the seek silently no-ops and the video starts from 0. We
-    /// retry the seek ourselves the first time onPlay reports a real
-    /// totalTime (> 1.5s), guaranteeing resume even if startPlayTime fails.
-    @State private var hasAppliedResumeSeek = false
-    /// Whether `onNaturalSize` has been fired already. We only want to
-    /// notify the parent once — the natural size won't change mid-playback.
-    @State private var naturalSizeReported = false
     /// User-picked playback source (quality). Nil = use the snapshot's
     /// default-marked source via primarySource(). Wired up from the
     /// quality menu in bottomBar; switching value re-evaluates `body` and
@@ -130,19 +110,6 @@ struct KSPlayerView: View {
     @State private var currentSpeedText: String?
     @State private var speedSampleTask: Task<Void, Never>?
 
-    /// Belt-and-braces enforcement of the autoPlayOnEnter preference,
-    /// fired exactly once on the first transition into `.bufferFinished`.
-    /// KSOptions.isAutoPlay is honoured inconsistently across KSPlayer
-    /// versions: in some configurations the layer reaches bufferFinished
-    /// but never starts playing, in others it would play even when off.
-    /// We intervene once with the user-intended action (play or pause)
-    /// and then leave manual control to the user.
-    @State private var autoPlayApplied = false
-    /// Caps onStateChanged log spam to the first few transitions per view
-    /// mount, so we can see what KSPlayer actually does without burying
-    /// the rest of AppLogger output.
-    @State private var stateLogBudget: Int = 0
-
     init(
         snapshot: VideoDetailScreenSnapshot,
         isFullscreen: Binding<Bool>,
@@ -195,100 +162,11 @@ struct KSPlayerView: View {
             GeometryReader { proxy in
                 KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                     .onPlay { current, total in
-                        guard current.isFinite, current >= 0 else { return }
-                        let savedSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
-
-                        // STEP 1: Manual resume-seek fallback. KSPlayer's
-                        // built-in KSOptions.startPlayTime can be applied
-                        // BEFORE the real video duration is known (totalTime
-                        // briefly defaults to 1s), causing the seek to
-                        // silently no-op. As soon as we see a real totalTime
-                        // here, retry the seek ourselves. Race-safe: gated
-                        // by hasAppliedResumeSeek so we only do this once.
-                        if savedSeconds > 1, !hasAppliedResumeSeek, total > 1.5 {
-                            coordinator.seek(time: savedSeconds)
-                            hasAppliedResumeSeek = true
-                            // Don't write progress this round — the seek is
-                            // in flight; current is still pre-seek.
-                            return
-                        }
-
-                        // STEP 2: Block onPlay writes until the seek has
-                        // actually landed (current near savedSeconds).
-                        // Prevents early-stage 0..few-second ticks from
-                        // clobbering the saved value in the watch-history db.
-                        if savedSeconds > 5, !hasReachedStartPlayTime {
-                            if current >= savedSeconds - 2 {
-                                hasReachedStartPlayTime = true
-                            } else {
-                                return
-                            }
-                        }
-
-                        // Forward every post-startup tick to onProgress —
-                        // including current=0 (user dragged the slider all
-                        // the way back). The earlier `current >= 2.0` guard
-                        // was there to silence KSPlayer's startup-phantom
-                        // zeros, but those are already filtered out upstream
-                        // by the hasAppliedResumeSeek / hasReachedStartPlayTime
-                        // gates above. With the guard in place a deliberate
-                        // user rewind to 0 (or below ~2s) silently failed to
-                        // persist, so the saved resume position kept its
-                        // previous value across re-entry.
-                        onProgress(current)
+                        handlePlaybackProgress(current: current, total: total)
                     }
                     .onFinish { _, _ in onPlaybackEnded() }
                     .onStateChanged { layer, state in
-                        // DIAGNOSTIC: the player previously swallowed every
-                        // state, so a failed open showed only a black screen
-                        // with no clue. Log the error state (and the URL /
-                        // whether it's a local file) so we can see WHY a
-                        // downloaded file won't play. Not a fix — pure signal.
-                        if state == .error {
-                            AppLogger.log("player error state url=\(url.absoluteString) isFile=\(url.isFileURL) state=\(state)")
-                        }
-                        if stateLogBudget > 0 {
-                            stateLogBudget -= 1
-                            AppLogger.log("player state=\(state) isPlaying=\(state.isPlaying)")
-                        }
-                        // Belt-and-braces enforcement of the autoplay
-                        // preference. Fire once on the first .bufferFinished
-                        // — by that point the player is fully ready and
-                        // honours play()/pause() reliably.
-                        //
-                        // CRITICAL: set the flag BEFORE calling play()/
-                        // pause(). KSPlayerLayer.play() ends with
-                        //   state = ... ? .bufferFinished : .buffering
-                        // whose willSet re-enters this very closure
-                        // synchronously through the delegate. If the flag
-                        // is set after, the recursive call sees it false
-                        // and calls play() again — unbounded recursion
-                        // until the stack guard kills the process.
-                        if !autoPlayApplied, state == .bufferFinished {
-                            autoPlayApplied = true
-                            AppLogger.log("autoplay enforced: \(autoPlayOnEnter ? "play" : "pause")")
-                            if autoPlayOnEnter {
-                                layer.play()
-                            } else {
-                                layer.pause()
-                            }
-                        }
-                        let nowPlaying = state.isPlaying
-                        if nowPlaying != isPlaying {
-                            isPlaying = nowPlaying
-                        }
-                        // Wire / re-wire the timeControlStatus observer
-                        // any time KSPlayer's state ticks, so we always have
-                        // the up-to-date AVPlayer reference (it can be
-                        // recreated when the URL or codec changes).
-                        statusObserver.observe(networkSpeedSampler.avPlayer(from: layer.player))
-                        if !naturalSizeReported {
-                            let size = layer.player.naturalSize
-                            if size.width > 0 && size.height > 0 {
-                                naturalSizeReported = true
-                                onNaturalSize(size)
-                            }
-                        }
+                        handlePlayerState(layer: layer, state: state, url: url)
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     // Attach gestures to the video layer, NOT to the outer ZStack.
@@ -301,76 +179,15 @@ struct KSPlayerView: View {
                     // areas fall through (gradient is allowsHitTesting(false), the
                     // VStack has natural pass-through in gaps) and reach the video
                     // layer's gestures below.
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
-                        // Safety: any tap should clear stuck boost (covers
-                        // the rare race where DragGesture's onEnded was
-                        // swallowed by MagnificationGesture and boost is
-                        // still on). Cheap, side-effect-free if not boosted.
-                        if isBoosted { endBoost() }
-                        togglePlayPause()
-                        scheduleAutoHide()
-                    }
-                    .onTapGesture(count: 1) {
-                        if isBoosted { endBoost() }
-                        withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
-                        AppLogger.log("gesture: tap controls=\(showsControls ? "show" : "hide")")
-                        onControlsVisibilityChanged(showsControls)
-                        if showsControls { scheduleAutoHide() }
-                    }
-                    .simultaneousGesture(
-                        MagnificationGesture()
-                            .onChanged { _ in
-                                // The user is pinching → cancel any pending
-                                // long-press timer and abort an active boost.
-                                // Without this the long-press timer would
-                                // still fire mid-pinch (DragGesture(0) had
-                                // already touched-down) and lock boost on,
-                                // because the corresponding DragGesture
-                                // .onEnded gets eaten by SwiftUI's multi-
-                                // touch arbitration with the pinch.
-                                isPinching = true
-                                longPressTask?.cancel()
-                                longPressTask = nil
-                                if isBoosted { endBoost() }
-                            }
-                            .onEnded { value in
-                                isPinching = false
-                                // Final defensive cleanup in case state slipped through.
-                                if isBoosted { endBoost() }
-                                if !isFullscreen, value > 1.15 {
-                                    AppLogger.log("gesture: pinch fullscreen=on")
-                                    withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
-                                } else if isFullscreen, value < 0.85 {
-                                    AppLogger.log("gesture: pinch fullscreen=off")
-                                    withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
-                                }
-                            }
-                    )
-                    // ONE DragGesture handles BOTH long-press boost and swipe
-                    // (brightness/volume/seek). minimumDistance: 0 means we get
-                    // an onChanged on every touch-down so we can start a 0.4s
-                    // long-press timer; if the finger then moves > 12pt we
-                    // cancel the timer and switch to swipe handling. onEnded
-                    // ALWAYS endBoosts — fixes the case where boost wasn't
-                    // releasing because .onLongPressGesture(pressing:) doesn't
-                    // reliably fire pressing(false) when composed with other
-                    // simultaneous gestures.
-                    //
-                    // Edge handling: the left/right deadzone lives inside
-                    // handlePressOrSwipe (touches starting in the outer 24pt are
-                    // ignored for seek). This gesture stays attached to the
-                    // video view itself — NOT a separate hittable overlay —
-                    // otherwise the overlay would sit above the video and steal
-                    // the tap / double-tap / pinch gestures.
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                handlePressOrSwipe(value, in: proxy.size)
-                            }
-                            .onEnded { _ in
-                                handlePressOrSwipeEnded()
-                            }
+                    .modifier(
+                        KSPlayerGestureModifier(
+                            onDoubleTap: handleDoubleTap,
+                            onSingleTap: handleSingleTap,
+                            onPinchChanged: handlePinchChanged,
+                            onPinchEnded: handlePinchEnded,
+                            onDragChanged: { handlePressOrSwipe($0, in: proxy.size) },
+                            onDragEnded: handlePressOrSwipeEnded
+                        )
                     )
             }
 
@@ -398,70 +215,119 @@ struct KSPlayerView: View {
                 physicalVolumeHUD.transition(.opacity)
             }
         }
-        .onAppear {
-            scheduleAutoHide()
-            // Mount the hidden MPVolumeView so swipe-volume can write the
-            // system output volume. Released on disappear so iOS's own
-            // volume HUD works everywhere else in the app.
-            SystemVolumeController.acquire()
-            volumeObserver.start()
-            // Reset per-mount autoplay/log-budget state. Loading state is
-            // now derived from AVPlayer.timeControlStatus so we don't
-            // need to seed it manually here.
-            autoPlayApplied = false
-            stateLogBudget = 8
-            networkSpeedSampler.reset()
-            currentSpeedText = nil
-            // Bind the status observer eagerly if a layer already exists
-            // (re-appear after navigation pop); fresh mounts will pick
-            // it up via the onStateChanged callback once the layer is
-            // created.
-            statusObserver.observe(networkSpeedSampler.avPlayer(from: coordinator.playerLayer?.player))
-            AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
+        .modifier(
+            KSPlayerLifecycleModifier(
+                volumeObserver: volumeObserver,
+                isWaitingForPlayback: statusObserver.isWaitingForPlayback,
+                onAppear: handlePlayerAppear,
+                onDisappear: handlePlayerDisappear,
+                onWaitingChanged: handleWaitingChanged,
+                onPhysicalVolumeChanged: handlePhysicalVolumeChanged
+            )
+        )
+    }
+
+    // MARK: - Playback coordination
+
+    private func handlePlaybackProgress(current: TimeInterval, total: TimeInterval) {
+        playbackState.handleProgress(
+            current: current,
+            total: total,
+            savedSeconds: TimeInterval(snapshot.playbackPositionMillis) / 1000,
+            player: coordinator,
+            onProgress: onProgress
+        )
+    }
+
+    private func handlePlayerState(layer: KSPlayerLayer, state: KSPlayerState, url: URL) {
+        playbackState.handleState(
+            layer: layer,
+            state: state,
+            url: url,
+            autoPlay: autoPlayOnEnter,
+            onNaturalSize: onNaturalSize
+        )
+        statusObserver.observe(networkSpeedSampler.avPlayer(from: layer.player))
+    }
+
+    // MARK: - Gesture coordination
+
+    private func handleDoubleTap() {
+        if isBoosted { endBoost() }
+        togglePlayPause()
+        scheduleAutoHide()
+    }
+
+    private func handleSingleTap() {
+        if isBoosted { endBoost() }
+        withAnimation(.easeInOut(duration: 0.18)) { showsControls.toggle() }
+        AppLogger.log("gesture: tap controls=\(showsControls ? "show" : "hide")")
+        onControlsVisibilityChanged(showsControls)
+        if showsControls { scheduleAutoHide() }
+    }
+
+    private func handlePinchChanged() {
+        isPinching = true
+        longPressTask?.cancel()
+        longPressTask = nil
+        if isBoosted { endBoost() }
+    }
+
+    private func handlePinchEnded(_ value: CGFloat) {
+        isPinching = false
+        if isBoosted { endBoost() }
+        if !isFullscreen, value > 1.15 {
+            AppLogger.log("gesture: pinch fullscreen=on")
+            withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
+        } else if isFullscreen, value < 0.85 {
+            AppLogger.log("gesture: pinch fullscreen=off")
+            withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
         }
-        .onDisappear {
-            hideControlsTask?.cancel()
-            SystemVolumeController.release()
-            volumeObserver.stop()
-            physicalVolumeHUDHideTask?.cancel()
-            physicalVolumeHUDHideTask = nil
+    }
+
+    // MARK: - Player lifecycle
+
+    private func handlePlayerAppear() {
+        scheduleAutoHide()
+        SystemVolumeController.acquire()
+        volumeObserver.start()
+        playbackState.resetForMount()
+        networkSpeedSampler.reset()
+        currentSpeedText = nil
+        statusObserver.observe(networkSpeedSampler.avPlayer(from: coordinator.playerLayer?.player))
+        AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
+    }
+
+    private func handlePlayerDisappear() {
+        hideControlsTask?.cancel()
+        SystemVolumeController.release()
+        volumeObserver.stop()
+        physicalVolumeHUDHideTask?.cancel()
+        physicalVolumeHUDHideTask = nil
+        speedSampleTask?.cancel()
+        speedSampleTask = nil
+        coordinator.playerLayer?.pause()
+    }
+
+    private func handleWaitingChanged(_ waiting: Bool) {
+        if waiting {
+            startSpeedSampling()
+        } else {
             speedSampleTask?.cancel()
             speedSampleTask = nil
-            // Pause the player when this view is no longer on-screen.
-            // Necessary because pushing another VideoDetailView (e.g. via a
-            // related-video tap) keeps the previous player alive in the
-            // navigation stack — without an explicit pause, BOTH videos
-            // would keep playing audio simultaneously.
-            coordinator.playerLayer?.pause()
+            currentSpeedText = nil
         }
-        .onValueChange(of: statusObserver.isWaitingForPlayback) { waiting in
-            // Speed sampler only runs while the player is genuinely waiting
-            // for data. Covers both initial asset-loading (currentItem
-            // status .unknown) AND mid-playback rebuffers (tcs ==
-            // .waitingToPlayAtSpecifiedRate). When playback settles into
-            // .playing or user-explicit .paused, the sampler stops.
-            if waiting {
-                startSpeedSampling()
-            } else {
-                speedSampleTask?.cancel()
-                speedSampleTask = nil
-                currentSpeedText = nil
-            }
-        }
-        .onReceive(volumeObserver.$changeTick) { _ in
-            // Skip if the change came from our swipe-volume gesture —
-            // swipeHUD is already visible for that case. Otherwise pop
-            // the physical-key HUD and auto-hide after 1.5s.
-            guard dragState != .volume else { return }
-            physicalVolumeHUDActive = true
-            physicalVolumeHUDHideTask?.cancel()
-            physicalVolumeHUDHideTask = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                if !Task.isCancelled {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        physicalVolumeHUDActive = false
-                    }
-                }
+    }
+
+    private func handlePhysicalVolumeChanged() {
+        guard dragState != .volume else { return }
+        physicalVolumeHUDActive = true
+        physicalVolumeHUDHideTask?.cancel()
+        physicalVolumeHUDHideTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                physicalVolumeHUDActive = false
             }
         }
     }
@@ -501,7 +367,7 @@ struct KSPlayerView: View {
             activeSource: activeSource,
             coordinator: coordinator,
             isFullscreen: $isFullscreen,
-            isPlaying: isPlaying,
+            isPlaying: playbackState.isPlaying,
             sliderValue: $sliderValue,
             isSliderEditing: $isSliderEditing,
             selectedSourceID: $selectedSourceID,
@@ -726,8 +592,8 @@ struct KSPlayerView: View {
 
     private func togglePlayPause() {
         guard let layer = coordinator.playerLayer else { return }
-        AppLogger.log("gesture: toggle play/pause was=\(isPlaying ? "playing" : "paused")")
-        if isPlaying { layer.pause() } else { layer.play() }
+        AppLogger.log("gesture: toggle play/pause was=\(playbackState.isPlaying ? "playing" : "paused")")
+        if playbackState.isPlaying { layer.pause() } else { layer.play() }
     }
 
     private func startBoost() {
