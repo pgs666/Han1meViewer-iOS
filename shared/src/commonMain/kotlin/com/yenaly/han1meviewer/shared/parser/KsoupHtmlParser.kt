@@ -43,6 +43,11 @@ class KsoupHtmlParser(
         .substringBefore(':')
         .equals(AV_SITE_HOST, ignoreCase = true)
 
+    /** Safe bridge used by the iOS custom-mirror connection test. */
+    fun validateHome(html: String): String? = runCatching {
+        parseHome(html, isAlreadyLogin = false)
+    }.exceptionOrNull()?.message
+
     override fun parseHome(html: String, isAlreadyLogin: Boolean): HomePage {
         val body = parseHtml(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")

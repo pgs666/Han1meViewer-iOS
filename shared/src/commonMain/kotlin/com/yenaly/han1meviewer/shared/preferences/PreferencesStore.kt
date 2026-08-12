@@ -38,6 +38,10 @@ class PreferencesStore(
 
     // Domain
     val domainName = stringPref("domain_name", "https://hanime1.me")
+    val selectedBaseUrl = stringPref("selectedBaseUrl", "https://hanime1.me")
+    val useCustomMirrorSite = booleanPref("use_custom_mirror_site", false)
+    val customMirrorSite = stringPref("custom_mirror_site", "")
+    val appendCustomMirrorPath = booleanPref("append_custom_mirror_path", true)
 
     // UI
     val showPlayedIndicator = booleanPref("show_played_indicator", true)

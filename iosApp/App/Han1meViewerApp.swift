@@ -5,7 +5,12 @@ import Han1meShared
 @main
 struct Han1meViewerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    private let sharedEnvironment = SharedAppEnvironment(driverFactory: DatabaseDriverFactory(), preferencesStorage: IosPreferencesStorage(), baseUrl: AppDomain.currentBaseURL)
+    private let sharedEnvironment = SharedAppEnvironment(
+        driverFactory: DatabaseDriverFactory(),
+        preferencesStorage: IosPreferencesStorage(),
+        baseUrl: AppDomain.currentBaseURL,
+        homeUrl: AppDomain.currentHomeURL
+    )
     @StateObject private var tabBarVisibility = TabBarVisibilityController()
     @State private var selectedTab: MainTab = .home
     @State private var searchLaunchRequest: SearchLaunchRequest?

@@ -1,18 +1,16 @@
 import Foundation
 import SwiftUI
 
-/// Available site domains, mirroring the Android client's domain switch
-/// (HanimeConstants.HANIME_URL). The selected domain is persisted under
-/// the shared `domain_name` preference key (same key the KMP
-/// PreferencesStore uses). Because every Ktor repository captures its
-/// baseUrl at construction time inside SharedAppEnvironment, switching
-/// the domain takes effect on the next app launch (the settings UI tells
-/// the user to restart) — matching the Android behaviour.
+/// Site selection compatible with Android's `Preferences.baseUrl/homeUrl`.
+/// Preset selection and custom-mirror configuration are stored separately so
+/// disabling a custom mirror returns to the previously selected preset.
 enum AppDomain {
     static let preferenceKey = "domain_name"
+    static let selectedBaseURLKey = "selectedBaseUrl"
+    static let useCustomMirrorKey = "use_custom_mirror_site"
+    static let customMirrorSiteKey = "custom_mirror_site"
+    static let appendCustomMirrorPathKey = "append_custom_mirror_path"
 
-    /// (host shown verbatim, base URL, localized suffix key). Base URLs
-    /// have NO trailing slash to match SharedAppEnvironment's expectation.
     static let options: [(host: String, url: String, suffix: LocalizedStringKey)] = [
         ("hanime1.me", "https://hanime1.me", "默认"),
         ("hanime1.com", "https://hanime1.com", "备用"),
@@ -22,16 +20,62 @@ enum AppDomain {
 
     static let defaultBaseURL = "https://hanime1.me"
 
-    /// Reads and normalises either a predefined domain or a custom HTTPS
-    /// origin. Invalid legacy values fall back to the default domain.
+    static var selectedPresetURL: String {
+        let defaults = UserDefaults.standard
+        let selected = defaults.string(forKey: selectedBaseURLKey)
+            ?? defaults.string(forKey: preferenceKey)
+        return normalizedPresetURL(selected) ?? defaultBaseURL
+    }
+
+    /// Migrates the previous iOS representation, where a custom mirror was
+    /// stored directly in `domain_name`, without changing user preferences.
+    static var customMirrorSite: String {
+        let defaults = UserDefaults.standard
+        if let stored = defaults.string(forKey: customMirrorSiteKey),
+           let normalized = normalizedCustomMirrorURL(from: stored) {
+            return normalized
+        }
+        guard let legacy = defaults.string(forKey: preferenceKey),
+              !isPreset(legacy) else {
+            return ""
+        }
+        return normalizedCustomMirrorURL(from: legacy) ?? ""
+    }
+
+    static var usesCustomMirror: Bool {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: useCustomMirrorKey) != nil {
+            return defaults.bool(forKey: useCustomMirrorKey) && !customMirrorSite.isEmpty
+        }
+        // Legacy iOS builds represented an active custom mirror by putting it
+        // directly in `domain_name`.
+        return !customMirrorSite.isEmpty
+    }
+
+    static var appendsCustomMirrorPath: Bool {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: appendCustomMirrorPathKey) != nil else {
+            return true
+        }
+        return defaults.bool(forKey: appendCustomMirrorPathKey)
+    }
+
+    /// Exact URL used to request the homepage.
+    static var currentHomeURL: String {
+        usesCustomMirror ? customMirrorSite : selectedPresetURL
+    }
+
+    /// Base used by `/search`, `/watch`, `/login`, comments, and user APIs.
     static var currentBaseURL: String {
-        let stored = UserDefaults.standard.string(forKey: preferenceKey)
-        guard let stored, !stored.isEmpty else { return defaultBaseURL }
-        return normalizedBaseURL(from: stored) ?? defaultBaseURL
+        guard usesCustomMirror else { return selectedPresetURL }
+        if appendsCustomMirrorPath {
+            return customMirrorSite
+        }
+        return rootURL(from: customMirrorSite) ?? selectedPresetURL
     }
 
     static var currentHost: String {
-        URLComponents(string: currentBaseURL)?.host?.lowercased() ?? "hanime1.me"
+        URLComponents(string: currentHomeURL)?.host?.lowercased() ?? "hanime1.me"
     }
 
     static var isAVSite: Bool {
@@ -49,42 +93,81 @@ enum AppDomain {
             (normalizedHost == normalizedCookieDomain || normalizedHost.hasSuffix(".\(normalizedCookieDomain)"))
     }
 
-    static func setBaseURL(_ url: String) {
-        guard let normalized = normalizedBaseURL(from: url) else { return }
-        UserDefaults.standard.set(normalized, forKey: preferenceKey)
+    static func applyPreset(_ url: String) {
+        guard let normalized = normalizedPresetURL(url) else { return }
+        let defaults = UserDefaults.standard
+        defaults.set(normalized, forKey: preferenceKey)
+        defaults.set(normalized, forKey: selectedBaseURLKey)
+        defaults.set(false, forKey: useCustomMirrorKey)
+    }
+
+    static func applyCustomMirror(url: String, appendPath: Bool, enabled: Bool) {
+        guard !enabled || normalizedCustomMirrorURL(from: url) != nil else { return }
+        let defaults = UserDefaults.standard
+        if let normalized = normalizedCustomMirrorURL(from: url) {
+            defaults.set(normalized, forKey: customMirrorSiteKey)
+        } else if !enabled {
+            defaults.set("", forKey: customMirrorSiteKey)
+        }
+        defaults.set(appendPath, forKey: appendCustomMirrorPathKey)
+        defaults.set(enabled, forKey: useCustomMirrorKey)
+        defaults.set(selectedPresetURL, forKey: preferenceKey)
+        defaults.set(selectedPresetURL, forKey: selectedBaseURLKey)
     }
 
     static func isPreset(_ url: String) -> Bool {
-        options.contains { $0.url == url }
+        normalizedPresetURL(url) != nil
     }
 
     static func displayHost(for url: String) -> String {
         URLComponents(string: url)?.host ?? url
     }
 
-    /// Accept a HTTPS origin only. Repositories append their own paths to
-    /// this value, so a mirror base URL cannot contain a path, query, or
-    /// fragment. A missing scheme is treated as HTTPS for easier entry.
-    static func normalizedBaseURL(from rawValue: String) -> String? {
+    static func normalizedCustomMirrorURL(from rawValue: String) -> String? {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let candidate = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
-        guard var components = URLComponents(string: candidate),
+        guard !trimmed.isEmpty,
+              var components = URLComponents(string: trimmed),
               components.scheme?.lowercased() == "https",
               let host = components.host,
               !host.isEmpty,
               components.user == nil,
               components.password == nil,
               components.query == nil,
-              components.fragment == nil,
-              components.path.isEmpty || components.path == "/" else {
+              components.fragment == nil else {
             return nil
         }
-
         components.scheme = "https"
         components.host = host.lowercased()
+        if components.path.count > 1 {
+            components.path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            components.path = "/\(components.path)"
+        } else {
+            components.path = ""
+        }
+        return components.url?.absoluteString
+    }
+
+    static func apiBaseURL(homeURL: String, appendPath: Bool) -> String? {
+        guard let normalized = normalizedCustomMirrorURL(from: homeURL) else { return nil }
+        return appendPath ? normalized : rootURL(from: normalized)
+    }
+
+    static func appending(_ path: String, to baseURL: String) -> URL? {
+        guard let base = URL(string: baseURL) else { return nil }
+        return base.appendingPathComponent(path)
+    }
+
+    private static func normalizedPresetURL(_ rawValue: String?) -> String? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return options.first { $0.url == trimmed }?.url
+    }
+
+    private static func rootURL(from url: String) -> String? {
+        guard var components = URLComponents(string: url), components.host != nil else { return nil }
         components.path = ""
+        components.query = nil
+        components.fragment = nil
         return components.url?.absoluteString
     }
 }

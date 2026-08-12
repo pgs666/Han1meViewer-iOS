@@ -11,7 +11,7 @@ enum CloudflareChallengeCenter {
     }
 
     static func requestChallenge() {
-        guard let url = URL(string: AppDomain.currentBaseURL) else {
+        guard let url = URL(string: AppDomain.currentHomeURL) else {
             return
         }
         requestChallenge(url: url)
