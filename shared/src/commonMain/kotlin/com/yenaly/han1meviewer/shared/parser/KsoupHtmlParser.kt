@@ -33,7 +33,16 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class KsoupHtmlParser : HtmlParser {
+class KsoupHtmlParser(
+    baseUrl: String = DEFAULT_BASE_URI,
+) : HtmlParser {
+    private val baseUri = baseUrl.trim().trimEnd('/').ifBlank { DEFAULT_BASE_URI }
+    private val isAvSite = baseUri
+        .substringAfter("://", baseUri)
+        .substringBefore('/')
+        .substringBefore(':')
+        .equals(AV_SITE_HOST, ignoreCase = true)
+
     override fun parseHome(html: String, isAlreadyLogin: Boolean): HomePage {
         val body = parseHtml(html).body()
         val csrfToken = body.selectFirst("input[name=_token]")?.attr("value")
@@ -73,12 +82,10 @@ class KsoupHtmlParser : HtmlParser {
             if (items.isEmpty()) null else HomeSection(key = key, title = key, items = items)
         }.toMutableList()
 
-        // New-anime trailer (預告). Mirrors Android Parser.homePageVer2 for the
-        // non-AV site: read row index 12 — which the upstream layout reuses
-        // for BOTH cosplay AND the trailer rail (TODO: upstream quirk, the
-        // two share an index) — and parse it as simplified units via
-        // `a` + `home-rows-videos-title`, not the generic horizontal-card.
-        val trailerItems = rows.getOrNull(NEW_ANIME_TRAILER_INDEX)
+        // Android uses row 12 on the normal site and row 13 on the AV site.
+        // Both layouts reuse a row that is also parsed as a regular section.
+        val trailerIndex = if (isAvSite) AV_NEW_ANIME_TRAILER_INDEX else NEW_ANIME_TRAILER_INDEX
+        val trailerItems = rows.getOrNull(trailerIndex)
             ?.select("a")
             ?.mapNotNull { it.toSimplifiedHanimeInfo() }
             .orEmpty()
@@ -131,153 +138,6 @@ class KsoupHtmlParser : HtmlParser {
         val uploadTime = uploadGroups?.get(2)?.value?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         val views = uploadGroups?.get(1)?.value?.trim()
 
-        val sources = body.selectFirst("video#player")?.let { video ->
-            video.children().mapNotNull { source ->
-                val url = source.absUrl("src").ifBlank { source.attr("src") }
-                if (url.isBlank()) return@mapNotNull null
-                PlaybackSource(
-                    label = source.attr("size").ifBlank { "auto" }.let { if (it.endsWith("P")) it else "${it}P" },
-                    url = url,
-                    contentType = source.attr("type").ifBlank { null },
-                    isDefault = source.hasAttr("selected")
-                )
-            }
-        }.orEmpty().sortedBy { source ->
-            source.label.removeSuffix("P").toIntOrNull()?.let { -it } ?: Int.MAX_VALUE
-        }.ifEmpty {
-            body.selectFirst("div#player-div-wrapper")
-                ?.select("script")
-                ?.firstNotNullOfOrNull { script ->
-                    VIDEO_SOURCE_REGEX.find(script.data())?.groupValues?.getOrNull(1)
-                }
-                ?.let { listOf(PlaybackSource(label = "auto", url = it, isDefault = true)) }
-                .orEmpty()
-        }
-
-        // Mirror Android Parser.hanimeVideoVer2: iterate each
-        // `.single-video-tag` container and take its FIRST child element
-        // only when that child carries an `href` (the real tag anchor).
-        // The site's quick-action "add"/"remove" buttons aren't first-child
-        // hrefs, so this drops them structurally — no locale-fragile text
-        // blacklist needed.
-        val tags = body.select(".single-video-tag")
-            .mapNotNull { tag -> tag.children().firstOrNull()?.takeIf { it.hasAttr("href") }?.text() }
-            .map { it.substringBefore(" (").removePrefix("#").trim() }
-            .filter { it.isNotEmpty() }
-
-        val myListItems = body.select("div[class~=playlist-checkbox-wrapper]").mapNotNull { wrapper ->
-            val input = wrapper.selectFirst("input") ?: return@mapNotNull null
-            val code = input.attr("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val listTitle = wrapper.selectFirst("span")?.ownText()?.trim()?.takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-            VideoMyListItem(
-                code = code,
-                title = listTitle,
-                isSelected = input.hasAttr("checked"),
-            )
-        }
-        val myList = VideoMyList(
-            isWatchLater = body.selectFirst("#playlist-save-checkbox input")?.hasAttr("checked") == true,
-            items = myListItems,
-        )
-
-        val playlist = body.selectFirst("div.video-playlist-wrapper, div#video-playlist-wrapper")?.let { wrapper ->
-            val playlistItems = wrapper.selectFirst("#playlist-scroll")?.children().orEmpty()
-            val usesCurrentLayout = playlistItems.firstOrNull()?.hasClass("playlist-hover-wrap") == true
-            val playlistVideos = playlistItems.mapNotNull { item ->
-                if (item.tagName() == "a") return@mapNotNull null
-
-                val detailUrl = if (usesCurrentLayout) {
-                    item.absUrl("data-href").ifBlank { item.attr("data-href") }
-                } else {
-                    item.selectFirst("div > a")?.absUrl("href")
-                        ?.ifBlank { item.selectFirst("div > a")?.attr("href") }
-                }
-                    ?: return@mapNotNull null
-                val playlistVideoCode = detailUrl.toVideoCode() ?: return@mapNotNull null
-                val panel = item.selectFirst("div[class^=card-mobile-panel]")
-                val coverElement = if (usesCurrentLayout) {
-                    item.selectFirst(".thumb-container img.main-thumb")
-                } else {
-                    panel?.select("div > div > div > img")?.getOrNull(1)
-                        ?: panel?.selectFirst("img")
-                }
-                val coverUrl = coverElement?.absUrl("src")?.ifBlank { coverElement.attr("src") }
-                val itemTitle = if (usesCurrentLayout) {
-                    item.selectFirst("h4.video-title a")?.text()?.trim()
-                } else {
-                    coverElement?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
-                        ?: panel?.selectFirst("div.title, h4.video-title")?.text()?.trim()
-                }
-                    ?: return@mapNotNull null
-                val duration = if (usesCurrentLayout) {
-                    item.selectFirst(".thumb-container .duration")?.text()?.trim()?.ifBlank { null }
-                } else {
-                    panel?.select("div[class*=card-mobile-duration]")?.firstOrNull()
-                        ?.text()?.trim()?.ifBlank { null }
-                }
-                val views = if (usesCurrentLayout) {
-                    item.select(".thumb-container .stat-item").getOrNull(1)
-                        ?.text()?.trim()?.ifBlank { null }
-                } else {
-                    panel?.select("div[class*=card-mobile-duration]")?.getOrNull(2)
-                        ?.text()?.substringBefore("次")?.trim()?.ifBlank { null }
-                }
-                HanimeInfo(
-                    title = itemTitle,
-                    videoCode = playlistVideoCode,
-                    coverUrl = coverUrl,
-                    detailUrl = detailUrl,
-                    duration = duration,
-                    views = views,
-                    isPlaying = if (usesCurrentLayout) {
-                        item.hasClass("videos-scroll")
-                    } else {
-                        panel?.select("div > div > div > div")?.firstOrNull()?.text()?.contains("播放") == true
-                    },
-                    itemType = HanimeItemType.Normal,
-                )
-            }
-            VideoPlaylist(
-                name = if (usesCurrentLayout) {
-                    wrapper.selectFirst("#playlist-top-block h4 a")?.text()?.trim()
-                } else {
-                    wrapper.selectFirst("div > div > h4")?.text()?.trim()
-                },
-                videos = playlistVideos,
-            )
-        }
-
-        val related = body.selectFirst("#related-tabcontent").toRelatedHanimeInfoList()
-        val artist = body.selectFirst("#video-artist-name")?.let { nameElement ->
-            val artistName = nameElement.text().trim().takeIf { it.isNotBlank() } ?: return@let null
-            val artistGenre = nameElement.nextElementSibling()?.text()?.trim()?.takeIf { it.isNotBlank() }
-                ?: return@let null
-            val subscribeForm = body.selectFirst("#video-subscribe-form")
-            val subscription = subscribeForm?.let { form ->
-                val userId = form.selectFirst("input[name=subscribe-user-id]")?.attr("value")
-                val artistId = form.selectFirst("input[name=subscribe-artist-id]")?.attr("value")
-                val status = form.selectFirst("input[name=subscribe-status]")?.attr("value")
-                if (userId != null && artistId != null && status != null) {
-                    ArtistSubscription(
-                        userId = userId,
-                        artistId = artistId,
-                        isSubscribed = status == "1",
-                    )
-                } else {
-                    null
-                }
-            }
-            Artist(
-                name = artistName,
-                avatarUrl = body
-                    .select("div.video-details-wrapper > div > a > div > img[style*='position: absolute'][style*='border-radius: 50%']")
-                    .attr("src"),
-                genre = artistGenre,
-                subscription = subscription,
-            )
-        }
-
         return HanimeVideo(
             videoCode = videoCode,
             title = title,
@@ -286,12 +146,12 @@ class KsoupHtmlParser : HtmlParser {
             description = caption?.ownText(),
             uploadTime = uploadTime,
             views = views,
-            tags = tags,
-            sources = sources,
-            myList = myList,
-            playlist = playlist,
-            relatedHanimes = related,
-            artist = artist,
+            tags = parseVideoTags(body),
+            sources = parsePlaybackSources(body),
+            myList = parseVideoMyList(body),
+            playlist = parseSeriesPlaylist(body),
+            relatedHanimes = parseRelatedVideos(body),
+            artist = parseArtist(body),
             favTimes = body.selectFirst("input[name=likes-count]")?.attr("value")?.toIntOrNull(),
             isFav = body.selectFirst("input[name=like-status]")?.attr("value") == "1",
             csrfToken = body.selectFirst("input[name=_token]")?.attr("value"),
@@ -457,6 +317,181 @@ class KsoupHtmlParser : HtmlParser {
         return VideoComments(comments = comments)
     }
 
+    private fun parsePlaybackSources(body: Element): List<PlaybackSource> {
+        val declaredSources = body.selectFirst("video#player")
+            ?.children()
+            ?.mapNotNull { source ->
+                val url = source.absUrl("src").ifBlank { source.attr("src") }
+                if (url.isBlank()) return@mapNotNull null
+                PlaybackSource(
+                    label = source.attr("size")
+                        .ifBlank { "auto" }
+                        .let { label -> if (label.endsWith("P")) label else "${label}P" },
+                    url = url,
+                    contentType = source.attr("type").ifBlank { null },
+                    isDefault = source.hasAttr("selected"),
+                )
+            }
+            .orEmpty()
+            .sortedBy { source ->
+                source.label.removeSuffix("P").toIntOrNull()?.let { -it } ?: Int.MAX_VALUE
+            }
+        if (declaredSources.isNotEmpty()) return declaredSources
+
+        val fallbackUrl = body.selectFirst("div#player-div-wrapper")
+            ?.select("script")
+            ?.firstNotNullOfOrNull { script ->
+                VIDEO_SOURCE_REGEX.find(script.data())?.groupValues?.getOrNull(1)
+            }
+        return fallbackUrl
+            ?.let { listOf(PlaybackSource(label = "auto", url = it, isDefault = true)) }
+            .orEmpty()
+    }
+
+    private fun parseVideoTags(body: Element): List<String> {
+        // Only the first child href is the real tag. Quick-action add/remove
+        // controls use a different structure, so no locale-specific blacklist
+        // is needed.
+        return body.select(".single-video-tag")
+            .mapNotNull { tag -> tag.children().firstOrNull()?.takeIf { it.hasAttr("href") }?.text() }
+            .map { tag -> tag.substringBefore(" (").removePrefix("#").trim() }
+            .filter { it.isNotEmpty() }
+    }
+
+    private fun parseVideoMyList(body: Element): VideoMyList {
+        val items = body.select("div[class~=playlist-checkbox-wrapper]").mapNotNull { wrapper ->
+            val input = wrapper.selectFirst("input") ?: return@mapNotNull null
+            val code = input.attr("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val title = wrapper.selectFirst("span")?.ownText()?.trim()?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            VideoMyListItem(
+                code = code,
+                title = title,
+                isSelected = input.hasAttr("checked"),
+            )
+        }
+        return VideoMyList(
+            isWatchLater = body.selectFirst("#playlist-save-checkbox input")?.hasAttr("checked") == true,
+            items = items,
+        )
+    }
+
+    private fun parseSeriesPlaylist(body: Element): VideoPlaylist? {
+        val wrapper = body.selectFirst("div.video-playlist-wrapper, div#video-playlist-wrapper")
+            ?: return null
+        val items = wrapper.selectFirst("#playlist-scroll")?.children().orEmpty()
+        val usesCurrentLayout = items.firstOrNull()?.hasClass("playlist-hover-wrap") == true
+        val videos = items.mapNotNull { item -> parseSeriesVideo(item, usesCurrentLayout) }
+        val name = if (usesCurrentLayout) {
+            wrapper.selectFirst("#playlist-top-block h4 a")?.text()?.trim()
+        } else {
+            wrapper.selectFirst("div > div > h4")?.text()?.trim()
+        }
+        return VideoPlaylist(name = name, videos = videos)
+    }
+
+    private fun parseSeriesVideo(item: Element, usesCurrentLayout: Boolean): HanimeInfo? {
+        if (item.tagName() == "a") return null
+
+        val link = item.selectFirst("div > a")
+        val detailUrl = if (usesCurrentLayout) {
+            item.absUrl("data-href").ifBlank { item.attr("data-href") }
+        } else {
+            link?.absUrl("href")?.ifBlank { link.attr("href") }
+        } ?: return null
+        val videoCode = detailUrl.toVideoCode() ?: return null
+        val panel = item.selectFirst("div[class^=card-mobile-panel]")
+        val coverElement = if (usesCurrentLayout) {
+            item.selectFirst(".thumb-container img.main-thumb")
+        } else {
+            panel?.select("div > div > div > img")?.getOrNull(1) ?: panel?.selectFirst("img")
+        }
+        val coverUrl = coverElement?.absUrl("src")?.ifBlank { coverElement.attr("src") }
+        val title = if (usesCurrentLayout) {
+            item.selectFirst("h4.video-title a")?.text()?.trim()
+        } else {
+            coverElement?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
+                ?: panel?.selectFirst("div.title, h4.video-title")?.text()?.trim()
+        } ?: return null
+
+        val duration: String?
+        val views: String?
+        val reviews: String?
+        val artist: String?
+        val genre: String?
+        val uploadTime: String?
+        if (usesCurrentLayout) {
+            val stats = item.select(".thumb-container .stat-item")
+            duration = item.selectFirst(".thumb-container .duration")?.text()?.trim()?.ifBlank { null }
+            reviews = stats.firstOrNull()?.ownText()?.trim()?.ifBlank { null }
+            views = stats.getOrNull(1)?.text()?.trim()?.ifBlank { null }
+            artist = item.selectFirst(".meta-author a")?.text()?.trim()?.ifBlank { null }
+            genre = item.selectFirst(".meta-stats a")?.text()?.trim()?.ifBlank { null }
+            uploadTime = item.selectFirst(".meta-stats span")?.text()?.trim()?.ifBlank { null }
+        } else {
+            val metadata = panel?.select("div[class*=card-mobile-duration]")
+            duration = metadata?.firstOrNull()?.text()?.trim()?.ifBlank { null }
+            views = metadata?.getOrNull(2)?.text()?.substringBefore("次")?.trim()?.ifBlank { null }
+            reviews = panel?.select("div.card-mobile-duration.card-playlist-large")
+                ?.firstOrNull()?.ownText()?.trim()?.ifBlank { null }
+            artist = panel?.selectFirst("a.card-mobile-user")?.text()?.trim()?.ifBlank { null }
+            genre = null
+            uploadTime = null
+        }
+
+        return HanimeInfo(
+            title = title,
+            videoCode = videoCode,
+            coverUrl = coverUrl,
+            detailUrl = detailUrl,
+            duration = duration,
+            views = views,
+            uploadTime = uploadTime,
+            genre = genre,
+            reviews = reviews,
+            currentArtist = artist,
+            isPlaying = if (usesCurrentLayout) {
+                item.hasClass("videos-scroll")
+            } else {
+                panel?.select("div > div > div > div")?.firstOrNull()?.text()?.contains("播放") == true
+            },
+            itemType = HanimeItemType.Normal,
+        )
+    }
+
+    private fun parseRelatedVideos(body: Element): List<HanimeInfo> {
+        return body.selectFirst("#related-tabcontent").toRelatedHanimeInfoList()
+    }
+
+    private fun parseArtist(body: Element): Artist? {
+        val nameElement = body.selectFirst("#video-artist-name") ?: return null
+        val name = nameElement.text().trim().takeIf { it.isNotBlank() } ?: return null
+        val genre = nameElement.nextElementSibling()?.text()?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val subscription = body.selectFirst("#video-subscribe-form")?.let { form ->
+            val userId = form.selectFirst("input[name=subscribe-user-id]")?.attr("value")
+            val artistId = form.selectFirst("input[name=subscribe-artist-id]")?.attr("value")
+            val status = form.selectFirst("input[name=subscribe-status]")?.attr("value")
+            if (userId != null && artistId != null && status != null) {
+                ArtistSubscription(
+                    userId = userId,
+                    artistId = artistId,
+                    isSubscribed = status == "1",
+                )
+            } else {
+                null
+            }
+        }
+        return Artist(
+            name = name,
+            avatarUrl = body
+                .select("div.video-details-wrapper > div > a > div > img[style*='position: absolute'][style*='border-radius: 50%']")
+                .attr("src"),
+            genre = genre,
+            subscription = subscription,
+        )
+    }
+
     private fun Element?.toHanimeInfoList(
         selector: String = "div[class^=horizontal-card]",
     ): List<HanimeInfo> = this?.select(selector)?.mapNotNull { it.toNormalHanimeInfo() }.orEmpty()
@@ -544,7 +579,7 @@ class KsoupHtmlParser : HtmlParser {
         return Element("div").appendChildren(this)
     }
 
-    private fun parseHtml(html: String) = Ksoup.parse(html, BASE_URI)
+    private fun parseHtml(html: String) = Ksoup.parse(html, baseUri)
 
     private fun String.htmlField(fieldName: String): String {
         return runCatching {
@@ -661,7 +696,8 @@ class KsoupHtmlParser : HtmlParser {
         val ISO_DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
         val USER_ID_REGEX = Regex("""/user/(\d+)""")
         val VIDEO_SOURCE_REGEX = Regex("""const source = ["'`](.+?)["'`]""")
-        const val BASE_URI = "https://hanime1.me"
+        const val DEFAULT_BASE_URI = "https://hanime1.me"
+        const val AV_SITE_HOST = "javchu.com"
         val VIEW_AND_UPLOAD_TIME_REGEX = Regex("""(?:觀看次數|观看次数|Views?)[:：]\s*(.+?)(?:次|views?)?\s+(\d{4}-\d{2}-\d{2})""", RegexOption.IGNORE_CASE)
         val COMMENT_COUNT_REGEX = Regex("""\d+""")
         val HOME_SECTION_MAPPINGS = listOf(
@@ -683,6 +719,7 @@ class KsoupHtmlParser : HtmlParser {
         // Parser.homePageVer2 (Android). Kept separate from the generic
         // mappings because it parses as simplified units.
         const val NEW_ANIME_TRAILER_INDEX = 12
+        const val AV_NEW_ANIME_TRAILER_INDEX = 13
     }
 
     override fun extractCsrfToken(html: String): String? {

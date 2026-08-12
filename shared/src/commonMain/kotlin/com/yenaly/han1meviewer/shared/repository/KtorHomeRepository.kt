@@ -3,6 +3,7 @@ package com.yenaly.han1meviewer.shared.repository
 import com.yenaly.han1meviewer.shared.model.HomePage
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
+import com.yenaly.han1meviewer.shared.parser.HtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
 import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.session.SessionStore
@@ -18,7 +19,7 @@ class KtorHomeRepository(
     private val sessionStore: SessionStore,
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     client: HttpClient? = null,
-    private val parser: KsoupHtmlParser = KsoupHtmlParser(),
+    private val parser: HtmlParser = KsoupHtmlParser(baseUrl),
     private val videoLanguageProvider: () -> String = { "zht" },
 ) : HomeRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)

@@ -7,6 +7,7 @@ import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker
 import com.yenaly.han1meviewer.shared.auth.LoginSessionMarker.hasConfirmedLogin
 import com.yenaly.han1meviewer.shared.network.createHan1meHttpClient
 import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
+import com.yenaly.han1meviewer.shared.parser.HtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
 import com.yenaly.han1meviewer.shared.session.SessionStore
 import io.ktor.client.HttpClient
@@ -22,7 +23,7 @@ class KtorSearchRepository(
     private val sessionStore: SessionStore,
     private val baseUrl: String = HanimeNetworkDefaults.DEFAULT_BASE_URL,
     client: HttpClient? = null,
-    private val parser: KsoupHtmlParser = KsoupHtmlParser(),
+    private val parser: HtmlParser = KsoupHtmlParser(baseUrl),
     private val videoLanguageProvider: () -> String = { "zht" },
 ) : SearchRepository {
     private val cookieBridge = KtorCookieBridge(sessionStore, baseUrl, videoLanguageProvider)

@@ -2,7 +2,7 @@ package com.yenaly.han1meviewer.shared.repository
 
 import com.yenaly.han1meviewer.shared.model.DomainError
 import com.yenaly.han1meviewer.shared.model.DomainException
-import com.yenaly.han1meviewer.shared.parser.KsoupHtmlParser
+import com.yenaly.han1meviewer.shared.parser.HtmlParser
 import com.yenaly.han1meviewer.shared.session.KtorCookieBridge
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -24,7 +24,7 @@ import kotlinx.coroutines.CancellationException
 internal suspend fun fetchFreshCsrfTokenAt(
     client: HttpClient,
     cookieBridge: KtorCookieBridge,
-    parser: KsoupHtmlParser,
+    parser: HtmlParser,
     pageUrl: String,
 ): String? {
     return try {

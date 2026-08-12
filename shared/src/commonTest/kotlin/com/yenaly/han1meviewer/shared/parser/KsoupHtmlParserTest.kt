@@ -113,6 +113,54 @@ class KsoupHtmlParserTest {
     }
 
     @Test
+    fun parsesRelativeUrlsAgainstConfiguredBaseUrl() {
+        val mirrorParser = KsoupHtmlParser("https://mirror.example")
+        val html = """
+            <html><body>
+              <div class="content-padding-new">
+                <div class="horizontal-card">
+                  <a href="/watch?v=12345"></a>
+                  <img src="/covers/12345.jpg">
+                  <div class="title">Mirror video</div>
+                </div>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val item = mirrorParser.parseSearch(html, SearchParams(keyword = ""), page = 1).items.single()
+
+        assertEquals("https://mirror.example/watch?v=12345", item.detailUrl)
+        assertEquals("https://mirror.example/covers/12345.jpg", item.coverUrl)
+    }
+
+    @Test
+    fun parsesAvTrailerFromAndroidIndex13() {
+        val rowHtml = (0..13).joinToString(separator = "\n") { index ->
+            if (index == 13) {
+                """
+                <div>
+                  <a href="/watch?v=8888"><img src="/av.jpg"><div class="home-rows-videos-title">AV trailer</div></a>
+                </div>
+                """.trimIndent()
+            } else {
+                "<div></div>"
+            }
+        }
+        val html = """
+            <html><body>
+              <a id="user-modal-trigger" href="/user/42"></a>
+              <div id="home-rows-wrapper">$rowHtml</div>
+            </body></html>
+        """.trimIndent()
+
+        val home = KsoupHtmlParser("https://javchu.com").parseHome(html)
+        val trailer = home.sections.single { it.key == "newAnimeTrailer" }
+
+        assertEquals("8888", trailer.items.single().videoCode)
+        assertEquals("https://javchu.com/av.jpg", trailer.items.single().coverUrl)
+    }
+
+    @Test
     fun parsesNormalSearchCards() {
         val html = """
             <html>
@@ -249,6 +297,8 @@ class KsoupHtmlParserTest {
                       <span class="stat-item">9</span><span class="stat-item">1.2K</span>
                     </div>
                     <h4 class="video-title"><a>Episode 1</a></h4>
+                    <div class="meta-author"><a>Series artist</a></div>
+                    <div class="meta-stats"><a>Anime</a><span>2026-05-02</span></div>
                   </div>
                 </div>
               </div>
@@ -262,6 +312,10 @@ class KsoupHtmlParserTest {
         assertEquals("9001", playlist.videos.single().videoCode)
         assertEquals("12:34", playlist.videos.single().duration)
         assertEquals("1.2K", playlist.videos.single().views)
+        assertEquals("9", playlist.videos.single().reviews)
+        assertEquals("Series artist", playlist.videos.single().currentArtist)
+        assertEquals("Anime", playlist.videos.single().genre)
+        assertEquals("2026-05-02", playlist.videos.single().uploadTime)
         assertEquals(true, playlist.videos.single().isPlaying)
     }
 
