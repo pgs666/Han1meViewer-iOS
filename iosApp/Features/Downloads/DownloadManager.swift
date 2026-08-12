@@ -1,10 +1,9 @@
 import Foundation
-import ImageIO
 import Han1meShared
 
-/// Owns the actual byte transfer for downloads via a background
-/// URLSession, persists metadata to the KMP-shared DownloadStore, limits
-/// concurrency, and exposes an observable list for the UI.
+/// Coordinates foreground URLSession transfers, persistence, and the
+/// observable download list. File paths, cover loading, queue selection,
+/// and expired-URL resolution live in dedicated collaborators.
 ///
 /// Security note: downloads hit the site's public CDN URLs over HTTPS
 /// using the same UA as the player; no auth tokens are transmitted to any
@@ -19,15 +18,11 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private var environment: SharedAppEnvironment?
     private var store: DownloadStore?
-    private var videoFeature: VideoFeature?
+    private let coverLoader = DownloadCoverLoader()
+    private let urlRefresher = DownloadURLRefresher()
 
     /// videoCode|quality -> in-flight task.
     private var activeTasks: [String: URLSessionDownloadTask] = [:]
-
-    /// videoCode|quality -> persistent cover download task. Covers live next
-    /// to downloaded videos in Application Support, not in the purgeable
-    /// image/cache directories.
-    private var coverTasks: [String: Task<Void, Never>] = [:]
 
     /// videoCode|quality -> number of CDN-link-expiry refetch attempts so
     /// far. Capped at `maxRefetchAttempts` to avoid an infinite
@@ -69,14 +64,13 @@ final class DownloadManager: NSObject, ObservableObject {
         super.init()
     }
 
-    /// Wire up the shared environment. Called once at app launch. Also
-    /// reattaches to any tasks the background session is still running
-    /// from a previous launch.
+    /// Wire up the shared environment. Foreground session tasks only live for
+    /// the current process; persisted orphan rows are re-queued below.
     func configure(environment: SharedAppEnvironment) {
         guard self.environment == nil else { return }
         self.environment = environment
         self.store = environment.downloadStore()
-        self.videoFeature = environment.videoFeature()
+        urlRefresher.configure(videoFeature: environment.videoFeature())
         reloadItems()
         restoreMissingCovers()
         reattachRunningTasks()
@@ -90,7 +84,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
     func enqueue(videoCode: String, quality: String, title: String, coverUrl: String?, remoteUrl: String) {
         guard let store else { return }
-        let localPath = Self.localFileURL(videoCode: videoCode, quality: quality).path
+        let localPath = DownloadFileStore.videoURL(videoCode: videoCode, quality: quality).path
         // Already present? Re-queue it (e.g. retry a failed one).
         let existing = store.find(videoCode: videoCode, quality: quality)
         let item = DownloadItem(
@@ -131,7 +125,7 @@ final class DownloadManager: NSObject, ObservableObject {
         task.cancel(byProducingResumeData: { [weak self] data in
             guard let self else { return }
             if let data {
-                try? data.write(to: Self.resumeDataURL(videoCode: item.videoCode, quality: item.quality))
+                DownloadFileStore.saveResumeData(data, videoCode: item.videoCode, quality: item.quality)
             }
             Task { @MainActor in
                 self.activeTasks[item.id] = nil
@@ -152,11 +146,8 @@ final class DownloadManager: NSObject, ObservableObject {
             activeTasks[item.id] = nil
         }
         refetchCounts[item.id] = nil
-        coverTasks[item.id]?.cancel()
-        coverTasks[item.id] = nil
-        try? FileManager.default.removeItem(at: item.localFileURL)
-        try? FileManager.default.removeItem(at: Self.resumeDataURL(videoCode: item.videoCode, quality: item.quality))
-        try? FileManager.default.removeItem(at: item.localCoverURL)
+        coverLoader.cancel(key: item.id)
+        DownloadFileStore.removeFiles(videoCode: item.videoCode, quality: item.quality)
         store?.delete(videoCode: item.videoCode, quality: item.quality)
         reloadItems()
         startNextIfPossible()
@@ -168,10 +159,10 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let store else { return }
         while activeTasks.count < maxConcurrent {
             // Pick the oldest queued row that isn't already active.
-            let queued = store.all()
-                .filter { $0.state == Int32(DownloadState.queued.rawValue) && activeTasks["\($0.videoCode)|\($0.quality)"] == nil }
-                .sorted { $0.addedAtEpochMillis < $1.addedAtEpochMillis }
-            guard let next = queued.first else { return }
+            guard let next = DownloadScheduler.nextQueuedItem(
+                from: store.all(),
+                excluding: Set(activeTasks.keys)
+            ) else { return }
             start(next)
         }
     }
@@ -179,10 +170,8 @@ final class DownloadManager: NSObject, ObservableObject {
     private func start(_ item: DownloadItem) {
         let key = "\(item.videoCode)|\(item.quality)"
         let task: URLSessionDownloadTask
-        let resumeURL = Self.resumeDataURL(videoCode: item.videoCode, quality: item.quality)
-        if let resumeData = try? Data(contentsOf: resumeURL) {
+        if let resumeData = DownloadFileStore.consumeResumeData(videoCode: item.videoCode, quality: item.quality) {
             task = session.downloadTask(withResumeData: resumeData)
-            try? FileManager.default.removeItem(at: resumeURL)
         } else {
             guard let url = URL(string: item.remoteUrl) else {
                 store?.updateState(videoCode: item.videoCode, quality: item.quality, state: Int32(DownloadState.failed.rawValue))
@@ -190,8 +179,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 return
             }
             var request = URLRequest(url: url)
-            request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-            request.setValue("https://hanime1.me/", forHTTPHeaderField: "Referer")
+            DownloadRequestHeaders.apply(to: &request)
             task = session.downloadTask(with: request)
         }
         task.taskDescription = key
@@ -201,8 +189,7 @@ final class DownloadManager: NSObject, ObservableObject {
         task.resume()
     }
 
-    /// On a finished/cancelled background task the system may have already
-    /// recreated tasks; rebind them to our activeTasks map by taskDescription.
+    /// Rebind any tasks already created by this foreground session instance.
     private func reattachRunningTasks() {
         session.getAllTasks { [weak self] tasks in
             Task { @MainActor in
@@ -232,49 +219,20 @@ final class DownloadManager: NSObject, ObservableObject {
     private func restoreMissingCovers() {
         guard let store else { return }
         for item in store.all() where !FileManager.default.fileExists(
-            atPath: Self.localCoverURL(videoCode: item.videoCode, quality: item.quality).path
+            atPath: DownloadFileStore.coverURL(videoCode: item.videoCode, quality: item.quality).path
         ) {
             scheduleCoverDownload(for: item)
         }
     }
 
     private func scheduleCoverDownload(for item: DownloadItem) {
-        let key = "\(item.videoCode)|\(item.quality)"
-        guard coverTasks[key] == nil,
-              let coverUrl = item.coverUrl,
-              let url = URL(string: coverUrl) else { return }
-
-        coverTasks[key] = Task { [weak self] in
-            guard let self else { return }
-            defer { self.coverTasks[key] = nil }
-
-            do {
-                var request = URLRequest(url: url)
-                request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-                request.setValue("https://hanime1.me/", forHTTPHeaderField: "Referer")
-                let (data, response) = try await URLSession.shared.data(for: request)
-                try Task.checkCancellation()
-
-                if let http = response as? HTTPURLResponse,
-                   !(200...299).contains(http.statusCode) {
-                    throw URLError(.badServerResponse)
-                }
-                guard !data.isEmpty,
-                      CGImageSourceCreateWithData(data as CFData, nil) != nil,
-                      self.store?.find(videoCode: item.videoCode, quality: item.quality) != nil else { return }
-
-                let destination = Self.localCoverURL(videoCode: item.videoCode, quality: item.quality)
-                try data.write(to: destination, options: .atomic)
-                AppLogger.log("download cover saved v=\(item.videoCode) q=\(item.quality)")
-                self.reloadItems()
-            } catch is CancellationError {
-                // Deleting a download cancels its cover request. No log needed.
-            } catch {
-                AppLogger.log(
-                    "download cover failed v=\(item.videoCode) q=\(item.quality): \(ErrorMessage.userFriendly(error))"
-                )
-            }
-        }
+        coverLoader.schedule(
+            item: item,
+            isStillPresent: { [weak self] in
+                self?.store?.find(videoCode: item.videoCode, quality: item.quality) != nil
+            },
+            onSaved: { [weak self] in self?.reloadItems() }
+        )
     }
 
     // MARK: - URL re-fetch (CDN link expiry fallback)
@@ -284,28 +242,21 @@ final class DownloadManager: NSObject, ObservableObject {
     /// download fails (e.g. the cached URL's token expired during a long
     /// pause).
     private func refetchAndRequeue(_ key: String) {
-        guard let store, let videoFeature else { return }
+        guard let store else { return }
         let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return }
         let (videoCode, quality) = (parts[0], parts[1])
         Task {
             do {
-                let snapshot = try await videoFeature.loadVideo(videoCode: videoCode)
-                let count = Int(snapshot.playbackSourceCount())
-                var match: VideoPlaybackSourceSnapshot?
-                for i in 0..<count {
-                    if let s = snapshot.playbackSourceAt(index: Int32(i)), s.label == quality {
-                        match = s
-                        break
-                    }
-                }
-                if match == nil { match = snapshot.playbackSourceAt(index: 0) }
-                guard let fresh = match else {
+                guard let freshURL = try await urlRefresher.freshURL(
+                    videoCode: videoCode,
+                    quality: quality
+                ) else {
                     store.updateState(videoCode: videoCode, quality: quality, state: Int32(DownloadState.failed.rawValue))
                     reloadItems()
                     return
                 }
-                store.updateRemoteUrl(videoCode: videoCode, quality: quality, remoteUrl: fresh.url)
+                store.updateRemoteUrl(videoCode: videoCode, quality: quality, remoteUrl: freshURL)
                 store.updateState(videoCode: videoCode, quality: quality, state: Int32(DownloadState.queued.rawValue))
                 reloadItems()
                 startNextIfPossible()
@@ -340,51 +291,9 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Paths
-
-    nonisolated static func downloadsRoot() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = base.appendingPathComponent("Downloads", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
-    nonisolated static func localFileURL(videoCode: String, quality: String) -> URL {
-        downloadsRoot().appendingPathComponent("\(videoCode)_\(quality).mp4")
-    }
-
-    nonisolated static func resumeDataURL(videoCode: String, quality: String) -> URL {
-        downloadsRoot().appendingPathComponent("\(videoCode)_\(quality).resume")
-    }
-
-    nonisolated static func localCoverURL(videoCode: String, quality: String) -> URL {
-        downloadsRoot().appendingPathComponent("\(videoCode)_\(quality).cover")
-    }
-
-    nonisolated private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-
-    /// Whether a completion error looks like an expired/stale CDN link
-    /// (worth re-resolving the video page for a fresh URL) versus a generic
-    /// transport failure (no point re-fetching). HTTP 403/404/410 are the
-    /// classic signed-URL-expiry responses; the listed NSURL error codes
-    /// cover a dropped/dead resource. Everything else fails fast.
-    nonisolated static func isLinkExpiry(status: Int?, error: NSError) -> Bool {
-        if let status, status == 403 || status == 404 || status == 410 {
-            return true
-        }
-        switch error.code {
-        case NSURLErrorResourceUnavailable,
-             NSURLErrorFileDoesNotExist,
-             NSURLErrorBadServerResponse,
-             NSURLErrorTimedOut:
-            return true
-        default:
-            return false
-        }
-    }
 }
 
-// MARK: - MainActor handlers (called by the background delegate)
+// MARK: - MainActor handlers (called from the URLSession delegate queue)
 
 extension DownloadManager {
     /// Progress tick. MainActor-only; touches the store + published list.
@@ -417,7 +326,7 @@ extension DownloadManager {
             // the video page. Other failures (no network, etc.) just fail
             // so we don't loop. Cap refetches per item.
             let count = refetchCounts[key] ?? 0
-            if Self.isLinkExpiry(status: httpStatus, error: error) && count < maxRefetchAttempts {
+            if DownloadURLRefresher.isLinkExpiry(status: httpStatus, error: error) && count < maxRefetchAttempts {
                 refetchCounts[key] = count + 1
                 AppLogger.log("download link-expiry v=\(parts[0]) q=\(parts[1]) status=\(httpStatus ?? -1) attempt=\(count + 1); refetching")
                 refetchAndRequeue(key)

@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.map
 
 /**
  * Download metadata persistence. The actual byte transfer happens on the
- * iOS side via a background URLSession; this store only mirrors the
+ * iOS side via a foreground URLSession; this store only mirrors the
  * task list / progress / state so the UI can render it and survive
  * restarts. Mirrors the WatchHistoryStore shape so the iOS bridge and
  * the jvmTest harness can use it the same way.

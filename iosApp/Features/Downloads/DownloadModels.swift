@@ -34,6 +34,6 @@ struct DownloadUIItem: Identifiable, Equatable {
     var localFileURL: URL { URL(fileURLWithPath: localPath) }
 
     var localCoverURL: URL {
-        DownloadManager.localCoverURL(videoCode: videoCode, quality: quality)
+        DownloadFileStore.coverURL(videoCode: videoCode, quality: quality)
     }
 }

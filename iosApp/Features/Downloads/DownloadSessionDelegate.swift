@@ -34,7 +34,7 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate {
         guard let key = downloadTask.taskDescription else { return }
         let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return }
-        let dest = DownloadManager.localFileURL(videoCode: parts[0], quality: parts[1])
+        let dest = DownloadFileStore.videoURL(videoCode: parts[0], quality: parts[1])
         let fm = FileManager.default
         let parent = dest.deletingLastPathComponent()
         let srcExists = fm.fileExists(atPath: location.path)

@@ -120,7 +120,7 @@ class SharedAppEnvironment(
     }
 
     /// Direct access to the download metadata store. The iOS layer owns
-    /// the actual byte transfer (background URLSession) and uses this
+    /// the actual byte transfer (foreground URLSession) and uses this
     /// store only to persist the task list / progress / state.
     fun downloadStore(): DownloadStore = downloadStore
 
