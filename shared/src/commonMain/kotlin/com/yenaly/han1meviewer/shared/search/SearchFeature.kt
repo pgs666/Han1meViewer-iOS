@@ -1,5 +1,7 @@
 package com.yenaly.han1meviewer.shared.search
 
+import com.yenaly.han1meviewer.shared.model.HanimeInfo
+import com.yenaly.han1meviewer.shared.model.PageResult
 import com.yenaly.han1meviewer.shared.model.SearchParams
 import com.yenaly.han1meviewer.shared.repository.SearchRepository
 import com.yenaly.han1meviewer.shared.util.currentEpochMillis
@@ -13,6 +15,39 @@ class SearchFeature(
     suspend fun search(keyword: String, page: Int): SearchSnapshot {
         val trimmedKeyword = keyword.trim()
         return search(SearchParams(keyword = trimmedKeyword), page, filterSummary = "")
+    }
+
+    @Throws(Exception::class)
+    suspend fun searchArtist(keyword: String, page: Int): SearchSnapshot {
+        val trimmedKeyword = keyword.trim()
+        var requestedPage = page
+        while (true) {
+            val result = repository.search(SearchParams(keyword = trimmedKeyword), requestedPage)
+            val exactArtistItems = result.items.filter { item ->
+                item.currentArtist?.trim()?.equals(trimmedKeyword, ignoreCase = true) == true
+            }
+            if (exactArtistItems.isNotEmpty() || !result.hasNext) {
+                return PageResult(
+                    items = exactArtistItems,
+                    page = result.page,
+                    hasNext = result.hasNext,
+                ).toSearchSnapshot()
+            }
+            requestedPage = result.page + 1
+        }
+    }
+
+    @Throws(Exception::class)
+    suspend fun searchSubscribedArtist(keyword: String, page: Int): SearchSnapshot {
+        val trimmedKeyword = keyword.trim()
+        val result = repository.searchSubscribedArtist(trimmedKeyword, page)
+        return PageResult(
+            items = result.items.filter { item ->
+                item.currentArtist?.trim()?.equals(trimmedKeyword, ignoreCase = true) == true
+            },
+            page = result.page,
+            hasNext = result.hasNext,
+        ).toSearchSnapshot()
     }
 
     @Throws(Exception::class)
@@ -65,7 +100,11 @@ class SearchFeature(
                 searchedAtEpochMillis = currentEpochMillis(),
             )
         }
-        val items = result.items.map { item ->
+        return result.toSearchSnapshot()
+    }
+
+    private fun PageResult<HanimeInfo>.toSearchSnapshot(): SearchSnapshot {
+        val items = items.map { item ->
             SearchVideoSnapshot(
                 videoCode = item.videoCode,
                 title = item.title,
@@ -79,8 +118,8 @@ class SearchFeature(
 
         return SearchSnapshot(
             items = items,
-            page = result.page,
-            hasNext = result.hasNext,
+            page = page,
+            hasNext = hasNext,
         )
     }
 

@@ -172,7 +172,8 @@ struct FollowingView: View {
             ) {
                 if let pushedArtist {
                     ArtistVideosView(
-                        artistName: pushedArtist.name,
+                        title: pushedArtist.name,
+                        mode: .subscribedArtist(pushedArtist.name),
                         searchFeature: searchFeature,
                         videoFeature: videoFeature,
                         commentFeature: commentFeature

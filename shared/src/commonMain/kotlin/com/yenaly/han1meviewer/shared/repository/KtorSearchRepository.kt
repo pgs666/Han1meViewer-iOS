@@ -47,4 +47,37 @@ class KtorSearchRepository(
         val body = response.bodyAsText()
         return withContext(Dispatchers.Default) { parser.parseSearch(body, params, page) }
     }
+
+    override suspend fun searchSubscribedArtist(keyword: String, page: Int): PageResult<HanimeInfo> {
+        val response = client.get("$baseUrl/subscriptions") {
+            header(HttpHeaders.UserAgent, HanimeNetworkDefaults.DEFAULT_USER_AGENT)
+            header(HttpHeaders.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            parameter("page", page)
+            parameter("query", keyword.trim())
+            cookieBridge.applyStoredCookies(this)
+        }
+        cookieBridge.saveResponseCookies(response)
+
+        val body = response.bodyAsText()
+        return withContext(Dispatchers.Default) {
+            val subscriptions = parser.parseSubscriptions(body, page)
+            PageResult(
+                items = subscriptions.subscriptionVideos.map { item ->
+                    HanimeInfo(
+                        title = item.title,
+                        videoCode = item.videoCode,
+                        coverUrl = item.coverUrl,
+                        detailUrl = null,
+                        duration = item.duration,
+                        views = item.views,
+                        uploadTime = item.uploadTime,
+                        reviews = item.reviews,
+                        currentArtist = item.currentArtist,
+                    )
+                },
+                page = subscriptions.page,
+                hasNext = subscriptions.hasNext,
+            )
+        }
+    }
 }

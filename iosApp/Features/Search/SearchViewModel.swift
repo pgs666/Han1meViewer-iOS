@@ -10,7 +10,14 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
     private var currentKeyword = ""
     private var currentFilters = SearchFilterState()
     private var currentRecordHistory = false
+    private var currentSearchScope = SearchScope.videos
     private var didLoadHistory = false
+
+    private enum SearchScope {
+        case videos
+        case artist
+        case subscribedArtist
+    }
 
     init(searchFeature: SearchFeature) {
         self.searchFeature = searchFeature
@@ -52,6 +59,7 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
         currentKeyword = ""
         currentFilters = SearchFilterState()
         currentRecordHistory = false
+        currentSearchScope = .videos
         filters.reset()
         resetPaginationToIdle()
     }
@@ -72,8 +80,31 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
         currentKeyword = trimmedKeyword
         currentFilters = nextFilters
         currentRecordHistory = recordHistory
+        currentSearchScope = .videos
         self.filters = nextFilters
         AppLogger.log("search kw=\(trimmedKeyword) filters=\(nextFilters.activeCount)")
+        super.load()
+    }
+
+    func searchArtist(_ artistName: String) {
+        let trimmedArtistName = artistName.trimmingCharacters(in: .whitespacesAndNewlines)
+        currentKeyword = trimmedArtistName
+        currentFilters = SearchFilterState()
+        currentRecordHistory = false
+        currentSearchScope = .artist
+        filters.reset()
+        AppLogger.log("search artist=\(trimmedArtistName)")
+        super.load()
+    }
+
+    func searchSubscribedArtist(_ artistName: String) {
+        let trimmedArtistName = artistName.trimmingCharacters(in: .whitespacesAndNewlines)
+        currentKeyword = trimmedArtistName
+        currentFilters = SearchFilterState()
+        currentRecordHistory = false
+        currentSearchScope = .subscribedArtist
+        filters.reset()
+        AppLogger.log("search subscribed artist=\(trimmedArtistName)")
         super.load()
     }
 
@@ -88,21 +119,29 @@ final class SearchViewModel: PaginatedViewModel<SearchScreenSnapshot> {
 
     override func executeLoad(page: Int32, appendingTo existingSnapshot: SearchScreenSnapshot?, generation: Int) async {
         do {
-            let filterDataJSON = Self.encodeFilterData(currentFilters)
-            let snapshot = try await searchFeature.searchAdvanced(
-                keyword: currentKeyword,
-                genre: currentFilters.genre?.searchKey,
-                sort: currentFilters.sort?.searchKey,
-                broad: currentFilters.broad,
-                releaseDate: currentFilters.releaseDate?.searchKey,
-                duration: currentFilters.duration?.searchKey,
-                tags: currentFilters.selectedTagKeys.joined(separator: "\n"),
-                brands: currentFilters.selectedBrandKeys.joined(separator: "\n"),
-                filterSummary: currentFilters.summaryItems.joined(separator: " · "),
-                filterData: filterDataJSON,
-                page: page,
-                recordHistory: currentRecordHistory && page == 1
-            )
+            let snapshot: SearchSnapshot
+            switch currentSearchScope {
+            case .artist:
+                snapshot = try await searchFeature.searchArtist(keyword: currentKeyword, page: page)
+            case .subscribedArtist:
+                snapshot = try await searchFeature.searchSubscribedArtist(keyword: currentKeyword, page: page)
+            case .videos:
+                let filterDataJSON = Self.encodeFilterData(currentFilters)
+                snapshot = try await searchFeature.searchAdvanced(
+                    keyword: currentKeyword,
+                    genre: currentFilters.genre?.searchKey,
+                    sort: currentFilters.sort?.searchKey,
+                    broad: currentFilters.broad,
+                    releaseDate: currentFilters.releaseDate?.searchKey,
+                    duration: currentFilters.duration?.searchKey,
+                    tags: currentFilters.selectedTagKeys.joined(separator: "\n"),
+                    brands: currentFilters.selectedBrandKeys.joined(separator: "\n"),
+                    filterSummary: currentFilters.summaryItems.joined(separator: " · "),
+                    filterData: filterDataJSON,
+                    page: page,
+                    recordHistory: currentRecordHistory && page == 1
+                )
+            }
             guard !Task.isCancelled, generation == currentGeneration else { return }
             let screenSnapshot = SearchScreenSnapshot(snapshot, appendingTo: existingSnapshot)
             if currentRecordHistory && page == 1 {

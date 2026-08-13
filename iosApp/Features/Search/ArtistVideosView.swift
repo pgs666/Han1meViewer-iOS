@@ -10,8 +10,11 @@ import Han1meShared
 /// tab itself.
 ///
 /// Two modes:
-/// - `.keyword(name)` — runs `/search?query=<name>`; used by the artist
-///   card (artist name) and by the tag flow (tag name).
+/// - `.artist(name)` — runs `/search?query=<name>` and keeps exact artist
+///   matches; used by artist cards to exclude title/tag keyword collisions.
+/// - `.subscribedArtist(name)` — runs `/subscriptions?query=<name>`; used by
+///   following cards because that endpoint returns the complete author list.
+/// - `.keyword(name)` — runs `/search?query=<name>`; used by tag entry points.
 /// - `.homeSection(request)` — runs the canonical home-section filter
 ///   (`SearchFilterState.homeSection(...)`); used by the home banner /
 ///   category 更多 buttons.
@@ -25,18 +28,20 @@ struct ArtistVideosView: View {
     @State private var didStartLoading = false
 
     enum Mode {
+        case artist(String)
+        case subscribedArtist(String)
         case keyword(String)
         case homeSection(SearchLaunchRequest)
     }
 
     /// Convenience initialiser used by the artist card path. Same as the
-    /// generic init below, with `mode = .keyword(artistName)`. Kept so the
+    /// generic init below, with `mode = .artist(artistName)`. Kept so the
     /// existing `ArtistVideosView(artistName:...)` call sites at video-
     /// detail and following-list don't have to change.
     init(artistName: String, searchFeature: SearchFeature, videoFeature: VideoFeature, commentFeature: CommentFeature) {
         self.init(
             title: artistName,
-            mode: .keyword(artistName),
+            mode: .artist(artistName),
             searchFeature: searchFeature,
             videoFeature: videoFeature,
             commentFeature: commentFeature
@@ -66,6 +71,10 @@ struct ArtistVideosView: View {
 
     private func load() {
         switch mode {
+        case .artist(let artistName):
+            viewModel.searchArtist(artistName)
+        case .subscribedArtist(let artistName):
+            viewModel.searchSubscribedArtist(artistName)
         case .keyword(let keyword):
             viewModel.search(keyword: keyword, recordHistory: false)
         case .homeSection(let request):

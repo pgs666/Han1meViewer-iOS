@@ -21,6 +21,15 @@ interface HomeRepository {
 
 interface SearchRepository {
     suspend fun search(params: SearchParams, page: Int): PageResult<HanimeInfo>
+
+    suspend fun searchSubscribedArtist(keyword: String, page: Int): PageResult<HanimeInfo> {
+        val result = search(SearchParams(keyword = keyword), page)
+        return result.copy(
+            items = result.items.filter { item ->
+                item.currentArtist?.trim()?.equals(keyword.trim(), ignoreCase = true) == true
+            },
+        )
+    }
 }
 
 interface VideoRepository {
