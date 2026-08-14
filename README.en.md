@@ -49,6 +49,8 @@ Planned ports relative to the Android upstream (features not yet implemented):
 
 ## 📲 Installation
 
+Minimum supported OS version: **iOS 16.0**.
+
 This project is not distributed through the App Store; installing it on a non-development iOS device requires **self-signing**.
 
 Get the unsigned IPA:
