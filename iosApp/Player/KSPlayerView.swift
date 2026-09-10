@@ -61,6 +61,8 @@ struct KSPlayerView: View {
     @AppStorage("tap_progress_bar_to_seek") private var tapProgressBarToSeek: Bool = true
     @AppStorage("double_tap_seeking") private var doubleTapSeeking: Bool = true
     @AppStorage("reverse_double_tap_seeking") private var reverseDoubleTapSeeking: Bool = false
+    @AppStorage("brightness_swipe_gesture") private var brightnessSwipeGesture: Bool = true
+    @AppStorage("volume_swipe_gesture") private var volumeSwipeGesture: Bool = true
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -86,6 +88,9 @@ struct KSPlayerView: View {
     @State private var longPressTask: Task<Void, Never>?
     /// 当前手势是否已经决定走 swipe 路径（以避免长按 timer 重复 schedule）。
     @State private var hasMovedToSwipe = false
+    /// Locks an intentionally disabled vertical swipe until finger-up so a
+    /// curved movement cannot later be reclassified as horizontal seeking.
+    @State private var ignoresCurrentSwipe = false
     /// 双指 pinch 进行中。SwiftUI 在多指环境下可能让 single-finger DragGesture(0)
     /// 也 fire onChanged 但**不 fire onEnded**（被 MagnificationGesture 抢走），
     /// 导致 longPress timer 触发 boost 后 endBoost() 永远不调 → boost 卡住。
@@ -397,6 +402,7 @@ struct KSPlayerView: View {
         doubleTapSeekHUDHideTask?.cancel()
         doubleTapSeekHUDHideTask = nil
         doubleTapSeekFeedback = nil
+        ignoresCurrentSwipe = false
         loadingHUDController.cancel()
         adaptiveQualityController.clearNotice()
         coordinator.playerLayer?.pause()
@@ -671,12 +677,14 @@ struct KSPlayerView: View {
             handleSwipeEnded()
         }
         hasMovedToSwipe = false
+        ignoresCurrentSwipe = false
     }
 
     /// First swipe-onChanged call (after the 12pt threshold) decides the kind
     /// based on dominant axis & start location. Subsequent calls update the
     /// active dimension only.
     private func handleSwipeChanged(_ value: DragGesture.Value, in size: CGSize) {
+        guard !ignoresCurrentSwipe else { return }
         if dragState == .none {
             // Decide direction: vertical vs horizontal based on dominant axis.
             let dx = value.translation.width
@@ -688,10 +696,18 @@ struct KSPlayerView: View {
             } else {
                 let onLeftHalf = value.startLocation.x < size.width / 2
                 if onLeftHalf {
+                    guard brightnessSwipeGesture else {
+                        ignoresCurrentSwipe = true
+                        return
+                    }
                     dragState = .brightness
                     dragStartBrightness = UIScreen.main.brightness
                     dragCurrentBrightness = dragStartBrightness
                 } else {
+                    guard volumeSwipeGesture else {
+                        ignoresCurrentSwipe = true
+                        return
+                    }
                     dragState = .volume
                     dragStartVolume = SystemVolumeController.currentVolume()
                     dragCurrentVolume = dragStartVolume

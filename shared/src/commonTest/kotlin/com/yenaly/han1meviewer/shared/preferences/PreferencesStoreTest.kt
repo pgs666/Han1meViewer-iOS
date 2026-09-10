@@ -39,6 +39,20 @@ class PreferencesStoreTest {
         assertFalse(reloaded.doubleTapSeeking.get())
         assertTrue(reloaded.reverseDoubleTapSeeking.get())
     }
+
+    @Test
+    fun verticalPlayerGesturesAreOnByDefaultAndPersistIndependently() {
+        val storage = MemoryPreferencesStorage()
+        val preferences = PreferencesStore(storage)
+
+        assertTrue(preferences.brightnessSwipeGesture.get())
+        assertTrue(preferences.volumeSwipeGesture.get())
+        preferences.brightnessSwipeGesture.set(false)
+
+        val reloaded = PreferencesStore(storage)
+        assertFalse(reloaded.brightnessSwipeGesture.get())
+        assertTrue(reloaded.volumeSwipeGesture.get())
+    }
 }
 
 private class MemoryPreferencesStorage : PreferencesStorage {

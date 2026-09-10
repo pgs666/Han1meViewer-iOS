@@ -6430,6 +6430,9 @@
     "双击快进快退": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Double-tap to seek"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"双击快进快退"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"雙擊快進快退"}}}},
     "交换快进快退位置": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Swap seek sides"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"交换快进快退位置"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"交換快進快退位置"}}}},
     "点击进度条跳转": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Tap progress bar to seek"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"点击进度条跳转"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"點擊進度列跳轉"}}}},
+    "分别控制播放器左侧亮度手势和右侧音量手势。": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Control the brightness gesture on the left and the volume gesture on the right independently."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"分别控制播放器左侧亮度手势和右侧音量手势。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"分別控制播放器左側亮度手勢和右側音量手勢。"}}}},
+    "滑动调节亮度": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Swipe to adjust brightness"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"滑动调节亮度"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"滑動調整亮度"}}}},
+    "滑动调节音量": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Swipe to adjust volume"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"滑动调节音量"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"滑動調整音量"}}}},
     "网络较慢时自动降低画质": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Lower quality automatically on slow networks"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"网络较慢时自动降低画质"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"網路較慢時自動降低畫質"}}}},
     "网络": {
       "localizations": {

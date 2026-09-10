@@ -34,6 +34,8 @@ struct SettingsView: View {
     @State private var tapProgressBarToSeek: Bool
     @State private var doubleTapSeeking: Bool
     @State private var reverseDoubleTapSeeking: Bool
+    @State private var brightnessSwipeGesture: Bool
+    @State private var volumeSwipeGesture: Bool
     @State private var maxConcurrentDownloads: Int
     @State private var showPlayedIndicator: Bool
     @State private var showBottomProgress: Bool
@@ -51,6 +53,8 @@ struct SettingsView: View {
         _tapProgressBarToSeek = State(initialValue: prefs.tapProgressBarToSeek.get())
         _doubleTapSeeking = State(initialValue: prefs.doubleTapSeeking.get())
         _reverseDoubleTapSeeking = State(initialValue: prefs.reverseDoubleTapSeeking.get())
+        _brightnessSwipeGesture = State(initialValue: prefs.brightnessSwipeGesture.get())
+        _volumeSwipeGesture = State(initialValue: prefs.volumeSwipeGesture.get())
         _maxConcurrentDownloads = State(initialValue: Int(prefs.maxConcurrentDownloads.get()))
         _showPlayedIndicator = State(initialValue: prefs.showPlayedIndicator.get())
         _showBottomProgress = State(initialValue: prefs.showBottomProgress.get())
@@ -219,6 +223,19 @@ struct SettingsView: View {
                     environment.preferences().reverseDoubleTapSeeking.set(value: newValue)
                 }
             Text("打开后左侧快进、右侧后退。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("滑动调节亮度", isOn: $brightnessSwipeGesture)
+                .onValueChange(of: brightnessSwipeGesture) { newValue in
+                    environment.preferences().brightnessSwipeGesture.set(value: newValue)
+                }
+
+            Toggle("滑动调节音量", isOn: $volumeSwipeGesture)
+                .onValueChange(of: volumeSwipeGesture) { newValue in
+                    environment.preferences().volumeSwipeGesture.set(value: newValue)
+                }
+            Text("分别控制播放器左侧亮度手势和右侧音量手势。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

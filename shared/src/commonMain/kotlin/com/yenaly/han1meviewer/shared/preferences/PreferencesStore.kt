@@ -47,6 +47,14 @@ class PreferencesStore(
     /// forward and the right side seeks backward.
     val reverseDoubleTapSeeking = booleanPref("reverse_double_tap_seeking", false)
 
+    /// Enables vertical swipes on the left half of the player to change the
+    /// screen brightness.
+    val brightnessSwipeGesture = booleanPref("brightness_swipe_gesture", true)
+
+    /// Enables vertical swipes on the right half of the player to change the
+    /// system output volume.
+    val volumeSwipeGesture = booleanPref("volume_swipe_gesture", true)
+
     /// Maximum number of simultaneous video downloads. 0 / negative is
     /// coerced to "unlimited" by the iOS layer; default 2 (matches the
     /// Android client's MAX_CONCURRENT_DOWNLOAD_DEF).
