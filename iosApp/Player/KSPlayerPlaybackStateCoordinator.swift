@@ -19,6 +19,14 @@ final class KSPlayerPlaybackStateCoordinator: ObservableObject {
         stateLogBudget = 8
     }
 
+    func beginMediaTransition() {
+        hasReachedStartPlayTime = false
+        hasAppliedResumeSeek = false
+        naturalSizeReported = false
+        autoPlayApplied = false
+        stateLogBudget = 8
+    }
+
     func handleProgress(
         current: TimeInterval,
         total: TimeInterval,

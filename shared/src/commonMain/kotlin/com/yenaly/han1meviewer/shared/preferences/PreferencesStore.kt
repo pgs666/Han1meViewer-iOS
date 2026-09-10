@@ -31,6 +31,11 @@ class PreferencesStore(
     /// button (false)? Default true (auto-play, current behaviour).
     val autoPlayOnEnter = booleanPref("auto_play_on_enter", true)
 
+    /// Automatically steps down to the next available resolution after
+    /// repeated playback stalls. Opt-in so a user's explicit quality choice
+    /// remains authoritative by default.
+    val autoLowerQuality = booleanPref("auto_lower_quality", false)
+
     /// Maximum number of simultaneous video downloads. 0 / negative is
     /// coerced to "unlimited" by the iOS layer; default 2 (matches the
     /// Android client's MAX_CONCURRENT_DOWNLOAD_DEF).

@@ -30,6 +30,7 @@ struct SettingsView: View {
     @State private var allowResumePlayback: Bool
     @State private var forcePortraitFullscreenForVerticalVideos: Bool
     @State private var autoPlayOnEnter: Bool
+    @State private var autoLowerQuality: Bool
     @State private var maxConcurrentDownloads: Int
     @State private var showPlayedIndicator: Bool
     @State private var showBottomProgress: Bool
@@ -43,6 +44,7 @@ struct SettingsView: View {
         _allowResumePlayback = State(initialValue: prefs.allowResumePlayback.get())
         _forcePortraitFullscreenForVerticalVideos = State(initialValue: prefs.forcePortraitFullscreenForVerticalVideos.get())
         _autoPlayOnEnter = State(initialValue: prefs.autoPlayOnEnter.get())
+        _autoLowerQuality = State(initialValue: prefs.autoLowerQuality.get())
         _maxConcurrentDownloads = State(initialValue: Int(prefs.maxConcurrentDownloads.get()))
         _showPlayedIndicator = State(initialValue: prefs.showPlayedIndicator.get())
         _showBottomProgress = State(initialValue: prefs.showBottomProgress.get())
@@ -178,6 +180,14 @@ struct SettingsView: View {
                     environment.preferences().autoPlayOnEnter.set(value: newValue)
                 }
             Text("关闭后，进入视频详情页不会自动开始播放，需要手动点击播放按钮。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("网络较慢时自动降低画质", isOn: $autoLowerQuality)
+                .onValueChange(of: autoLowerQuality) { newValue in
+                    environment.preferences().autoLowerQuality.set(value: newValue)
+                }
+            Text("关闭时始终保留手动选择的画质；打开后，连续发生缓冲时会逐级降低画质。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

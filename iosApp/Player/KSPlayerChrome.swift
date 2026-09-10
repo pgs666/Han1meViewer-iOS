@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct KSPlayerLoadingHUD: View {
+    let phase: KSPlayerPresentationPhase
     let speedText: String?
 
     var body: some View {
@@ -16,12 +17,63 @@ struct KSPlayerLoadingHUD: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
         .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 12))
+        .allowsHitTesting(false)
     }
 
     private var label: String {
-        let loading = String(localized: "加载中")
+        let loading: String
+        switch phase {
+        case .preparing:
+            loading = String(localized: "正在准备播放…")
+        case .buffering:
+            loading = String(localized: "正在缓冲…")
+        case .ready, .failed:
+            loading = String(localized: "加载中")
+        }
         guard let speedText else { return loading }
         return "\(loading) · \(speedText)"
+    }
+}
+
+struct KSPlayerErrorHUD: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title2)
+            Text("播放失败")
+                .font(.headline)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+                .lineLimit(3)
+                .multilineTextAlignment(.center)
+            Button("重试", action: onRetry)
+                .buttonStyle(.borderedProminent)
+                .tint(.white)
+                .foregroundStyle(.black)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: 260)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
+        .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct KSPlayerQualityNotice: View {
+    let quality: String
+
+    var body: some View {
+        Text(String(format: String(localized: "网络不稳定，已切换至%@"), quality))
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(.black.opacity(0.65), in: Capsule())
+            .allowsHitTesting(false)
     }
 }
 

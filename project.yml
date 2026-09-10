@@ -22,7 +22,7 @@ packages:
     from: "12.8.0"
   KSPlayer:
     url: https://github.com/kingslay/KSPlayer.git
-    branch: main
+    revision: 5e36754da25fdfeb986efc8df47bb39d8ff67cf0
 targets:
   Han1meViewer:
     type: application

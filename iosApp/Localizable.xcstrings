@@ -5803,6 +5803,7 @@
         }
       }
     },
+    "关闭时始终保留手动选择的画质；打开后，连续发生缓冲时会逐级降低画质。": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"When off, your manually selected quality is preserved. When on, repeated buffering progressively lowers the quality."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"关闭时始终保留手动选择的画质；打开后，连续发生缓冲时会逐级降低画质。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"關閉時一律保留手動選擇的畫質；開啟後，連續發生緩衝時會逐級降低畫質。"}}}},
     "打开后，竖屏视频进入全屏时保持竖屏，不旋转设备；横屏视频不受影响。关闭则始终强制横屏。": {
       "localizations": {
         "en": {
@@ -5913,6 +5914,9 @@
         }
       }
     },
+    "播放失败": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Playback failed"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"播放失败"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"播放失敗"}}}},
+    "播放失败，请重试。": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Playback failed. Please try again."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"播放失败，请重试。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"播放失敗，請重試。"}}}},
+    "播放进度": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Playback progress"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"播放进度"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"播放進度"}}}},
     "播放列表": {
       "localizations": {
         "en": {
@@ -6397,6 +6401,8 @@
         }
       }
     },
+    "网络不稳定，已切换至%@": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"The network is unstable. Switched to %@."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"网络不稳定，已切换至%@"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"網路不穩定，已切換至%@"}}}},
+    "网络较慢时自动降低画质": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Lower quality automatically on slow networks"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"网络较慢时自动降低画质"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"網路較慢時自動降低畫質"}}}},
     "网络": {
       "localizations": {
         "en": {
@@ -6419,6 +6425,8 @@
         }
       }
     },
+    "正在准备播放…": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Preparing playback…"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"正在准备播放…"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"正在準備播放…"}}}},
+    "正在缓冲…": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Buffering…"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"正在缓冲…"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"正在緩衝…"}}}},
     "自动恢复播放进度": {
       "localizations": {
         "en": {

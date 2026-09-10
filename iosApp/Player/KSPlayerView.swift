@@ -51,10 +51,13 @@ struct KSPlayerView: View {
     /// quality menu in bottomBar; switching value re-evaluates `body` and
     /// rebuilds KSVideoPlayer with the new url.
     @State private var selectedSourceID: String?
+    @State private var playbackResumeSeconds: TimeInterval?
+    @State private var shouldAutoPlayCurrentSource: Bool?
     /// Whether the player should auto-play on entering the detail page,
     /// or wait paused for the user to tap play. Mirrors PreferencesStore's
     /// auto_play_on_enter key (default ON).
     @AppStorage("auto_play_on_enter") private var autoPlayOnEnter: Bool = true
+    @AppStorage("auto_lower_quality") private var autoLowerQuality: Bool = false
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -99,14 +102,14 @@ struct KSPlayerView: View {
     @State private var physicalVolumeHUDHideTask: Task<Void, Never>?
 
     // MARK: - Buffering / loading feedback
-    /// Observes the underlying AVPlayer's `timeControlStatus` — the
-    /// canonical AVFoundation signal for "is the player currently
-    /// buffering / loading?". This drives the loading HUD instead of
-    /// trying to derive it from KSPlayerState transitions, which were
-    /// fragile across navigation re-mounts (HUD stuck on after popping
-    /// back from a tag/artist sub-page).
+    /// Combines the underlying AVPlayer's `timeControlStatus` with
+    /// KSPlayerState. AVFoundation gives precise waiting and range data for
+    /// the default engine, while KSPlayerState keeps loading feedback working
+    /// if KSPlayer falls back to its FFmpeg engine.
     @StateObject private var statusObserver = AVPlayerStatusObserver()
     @StateObject private var networkSpeedSampler = KSPlayerNetworkSpeedSampler()
+    @StateObject private var loadingHUDController = KSPlayerLoadingHUDController()
+    @StateObject private var adaptiveQualityController = KSPlayerAdaptiveQualityController()
     @State private var currentSpeedText: String?
     @State private var speedSampleTask: Task<Void, Never>?
 
@@ -146,10 +149,13 @@ struct KSPlayerView: View {
 
     @ViewBuilder
     private func playerWithControls(url: URL) -> some View {
-        let resumeSeconds = TimeInterval(snapshot.playbackPositionMillis) / 1000
+        let resumeSeconds = playbackResumeSeconds
+            ?? TimeInterval(snapshot.playbackPositionMillis) / 1000
         let options = KSPlayerOptionsFactory.make(
             resumeSeconds: resumeSeconds,
-            autoPlayOnEnter: autoPlayOnEnter
+            autoPlay: shouldAutoPlayCurrentSource ?? autoPlayOnEnter,
+            playbackRate: savedPlaybackRate,
+            referer: AppDomain.currentHomeURL
         )
 
         // GeometryReader wraps KSVideoPlayer (alone, not the whole ZStack) so the
@@ -164,7 +170,9 @@ struct KSPlayerView: View {
                     .onPlay { current, total in
                         handlePlaybackProgress(current: current, total: total)
                     }
-                    .onFinish { _, _ in onPlaybackEnded() }
+                    .onFinish { _, error in
+                        handlePlaybackFinished(error: error)
+                    }
                     .onStateChanged { layer, state in
                         handlePlayerState(layer: layer, state: state, url: url)
                     }
@@ -207,8 +215,20 @@ struct KSPlayerView: View {
                 boostHint.transition(.opacity)
             }
 
-            if statusObserver.isWaitingForPlayback {
+            if case let .failed(message) = statusObserver.phase {
+                KSPlayerErrorHUD(message: message, onRetry: retryPlayback)
+                    .transition(.opacity)
+            } else if loadingHUDController.isVisible {
                 loadingHUD.transition(.opacity)
+            }
+
+            if let automaticQualityNotice = adaptiveQualityController.noticeQuality {
+                VStack {
+                    Spacer()
+                    KSPlayerQualityNotice(quality: automaticQualityNotice)
+                        .padding(.bottom, 56)
+                }
+                .transition(.opacity)
             }
 
             if physicalVolumeHUDActive {
@@ -230,24 +250,49 @@ struct KSPlayerView: View {
     // MARK: - Playback coordination
 
     private func handlePlaybackProgress(current: TimeInterval, total: TimeInterval) {
+        statusObserver.updateProgress(
+            current: current,
+            total: total,
+            fallbackBufferedUntil: coordinator.playerLayer?.player.playableTime ?? 0
+        )
         playbackState.handleProgress(
             current: current,
             total: total,
-            savedSeconds: TimeInterval(snapshot.playbackPositionMillis) / 1000,
+            savedSeconds: playbackResumeSeconds
+                ?? TimeInterval(snapshot.playbackPositionMillis) / 1000,
             player: coordinator,
             onProgress: onProgress
         )
     }
 
     private func handlePlayerState(layer: KSPlayerLayer, state: KSPlayerState, url: URL) {
+        statusObserver.handleKSPlayerState(state)
         playbackState.handleState(
             layer: layer,
             state: state,
             url: url,
-            autoPlay: autoPlayOnEnter,
+            autoPlay: shouldAutoPlayCurrentSource ?? autoPlayOnEnter,
             onNaturalSize: onNaturalSize
         )
-        statusObserver.observe(networkSpeedSampler.avPlayer(from: layer.player))
+        let avPlayer = networkSpeedSampler.avPlayer(from: layer.player)
+        // KSPlayer disables this in KSAVPlayerView. Apple's own waiting
+        // controller is better at avoiding rapid play/stall oscillation on a
+        // slow connection, while KSPlayer still owns the outer state machine.
+        avPlayer?.automaticallyWaitsToMinimizeStalling = true
+        statusObserver.observe(avPlayer)
+        handleRebufferTransition(isBuffering: state == .buffering)
+        if state == .bufferFinished {
+            adaptiveQualityController.markPlayable()
+        }
+    }
+
+    private func handlePlaybackFinished(error: Error?) {
+        if let error {
+            AppLogger.log("player finish error=\(error.localizedDescription)")
+            statusObserver.reportFailure(error)
+        } else {
+            onPlaybackEnded()
+        }
     }
 
     // MARK: - Gesture coordination
@@ -294,7 +339,10 @@ struct KSPlayerView: View {
         playbackState.resetForMount()
         networkSpeedSampler.reset()
         currentSpeedText = nil
+        statusObserver.setPlaybackRequested(shouldAutoPlayCurrentSource ?? autoPlayOnEnter)
         statusObserver.observe(networkSpeedSampler.avPlayer(from: coordinator.playerLayer?.player))
+        startSpeedSampling()
+        handleWaitingChanged(statusObserver.isWaitingForPlayback)
         AppLogger.log("player mount autoPlayOnEnter=\(autoPlayOnEnter) ksAutoPlay=\(KSOptions.isAutoPlay)")
     }
 
@@ -306,17 +354,20 @@ struct KSPlayerView: View {
         physicalVolumeHUDHideTask = nil
         speedSampleTask?.cancel()
         speedSampleTask = nil
+        loadingHUDController.cancel()
+        adaptiveQualityController.clearNotice()
         coordinator.playerLayer?.pause()
     }
 
     private func handleWaitingChanged(_ waiting: Bool) {
         if waiting {
-            startSpeedSampling()
+            if statusObserver.phase == .buffering {
+                handleRebufferTransition(isBuffering: true)
+            }
         } else {
-            speedSampleTask?.cancel()
-            speedSampleTask = nil
-            currentSpeedText = nil
+            handleRebufferTransition(isBuffering: false)
         }
+        loadingHUDController.update(isWaiting: waiting)
     }
 
     private func handlePhysicalVolumeChanged() {
@@ -335,7 +386,7 @@ struct KSPlayerView: View {
     // MARK: - Loading / volume HUDs
 
     private var loadingHUD: some View {
-        KSPlayerLoadingHUD(speedText: currentSpeedText)
+        KSPlayerLoadingHUD(phase: statusObserver.phase, speedText: currentSpeedText)
     }
 
     private var physicalVolumeHUD: some View {
@@ -370,10 +421,11 @@ struct KSPlayerView: View {
             isPlaying: playbackState.isPlaying,
             sliderValue: $sliderValue,
             isSliderEditing: $isSliderEditing,
-            selectedSourceID: $selectedSourceID,
+            bufferedFraction: statusObserver.bufferedFraction,
             savedPlaybackRate: $savedPlaybackRate,
             onBack: onBack,
             onTogglePlayPause: togglePlayPause,
+            onSelectSource: { switchPlaybackSource(to: $0, automatically: false) },
             onCancelAutoHide: { hideControlsTask?.cancel() },
             onScheduleAutoHide: scheduleAutoHide
         )
@@ -431,6 +483,64 @@ struct KSPlayerView: View {
             return picked
         }
         return primarySource()
+    }
+
+    private func switchPlaybackSource(to source: VideoPlaybackSourceRow, automatically: Bool) {
+        guard activeSource?.id != source.id else { return }
+        let current = max(
+            coordinator.playerLayer?.player.currentPlaybackTime ?? 0,
+            sliderValue
+        )
+        playbackResumeSeconds = current
+        shouldAutoPlayCurrentSource = playbackState.isPlaying
+        savedPlaybackRate = coordinator.playbackRate
+        selectedSourceID = source.id
+        playbackState.beginMediaTransition()
+        statusObserver.resetForNewMedia()
+        statusObserver.setPlaybackRequested(shouldAutoPlayCurrentSource ?? false)
+        networkSpeedSampler.reset()
+        adaptiveQualityController.resetForNewSource()
+
+        if automatically {
+            adaptiveQualityController.showAutomaticChange(to: source.label)
+        } else {
+            adaptiveQualityController.clearNotice()
+        }
+        AppLogger.log("quality switch source=\(source.label) automatic=\(automatically) resume=\(current)")
+    }
+
+    private func retryPlayback() {
+        guard let source = activeSource, let url = URL(string: source.url),
+              let layer = coordinator.playerLayer else { return }
+        let current = max(layer.player.currentPlaybackTime, sliderValue)
+        playbackResumeSeconds = current
+        shouldAutoPlayCurrentSource = true
+        savedPlaybackRate = coordinator.playbackRate
+        playbackState.beginMediaTransition()
+        statusObserver.clearFailure()
+        statusObserver.setPlaybackRequested(true)
+        networkSpeedSampler.reset()
+        adaptiveQualityController.resetForNewSource()
+
+        let options = KSPlayerOptionsFactory.make(
+            resumeSeconds: current,
+            autoPlay: true,
+            playbackRate: savedPlaybackRate,
+            referer: AppDomain.currentHomeURL
+        )
+        layer.set(url: url, options: options)
+        layer.play()
+        AppLogger.log("player retry source=\(source.label) resume=\(current)")
+    }
+
+    private func handleRebufferTransition(isBuffering: Bool) {
+        guard let lowerSource = adaptiveQualityController.sourceForRebufferTransition(
+            isBuffering: isBuffering,
+            enabled: autoLowerQuality,
+            activeSource: activeSource,
+            sources: snapshot.playbackSources
+        ) else { return }
+        switchPlaybackSource(to: lowerSource, automatically: true)
     }
 
     /// Unified down/move handler. Called from `DragGesture(minimumDistance: 0)`
@@ -593,7 +703,13 @@ struct KSPlayerView: View {
     private func togglePlayPause() {
         guard let layer = coordinator.playerLayer else { return }
         AppLogger.log("gesture: toggle play/pause was=\(playbackState.isPlaying ? "playing" : "paused")")
-        if playbackState.isPlaying { layer.pause() } else { layer.play() }
+        if playbackState.isPlaying {
+            statusObserver.setPlaybackRequested(false)
+            layer.pause()
+        } else {
+            statusObserver.setPlaybackRequested(true)
+            layer.play()
+        }
     }
 
     private func startBoost() {
