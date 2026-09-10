@@ -32,6 +32,8 @@ struct SettingsView: View {
     @State private var autoPlayOnEnter: Bool
     @State private var autoLowerQuality: Bool
     @State private var tapProgressBarToSeek: Bool
+    @State private var doubleTapSeeking: Bool
+    @State private var reverseDoubleTapSeeking: Bool
     @State private var maxConcurrentDownloads: Int
     @State private var showPlayedIndicator: Bool
     @State private var showBottomProgress: Bool
@@ -47,6 +49,8 @@ struct SettingsView: View {
         _autoPlayOnEnter = State(initialValue: prefs.autoPlayOnEnter.get())
         _autoLowerQuality = State(initialValue: prefs.autoLowerQuality.get())
         _tapProgressBarToSeek = State(initialValue: prefs.tapProgressBarToSeek.get())
+        _doubleTapSeeking = State(initialValue: prefs.doubleTapSeeking.get())
+        _reverseDoubleTapSeeking = State(initialValue: prefs.reverseDoubleTapSeeking.get())
         _maxConcurrentDownloads = State(initialValue: Int(prefs.maxConcurrentDownloads.get()))
         _showPlayedIndicator = State(initialValue: prefs.showPlayedIndicator.get())
         _showBottomProgress = State(initialValue: prefs.showBottomProgress.get())
@@ -198,6 +202,23 @@ struct SettingsView: View {
                     environment.preferences().tapProgressBarToSeek.set(value: newValue)
                 }
             Text("关闭后仍可拖动滑块调整播放进度。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("双击快进快退", isOn: $doubleTapSeeking)
+                .onValueChange(of: doubleTapSeeking) { newValue in
+                    environment.preferences().doubleTapSeeking.set(value: newValue)
+                }
+            Text("默认双击左侧后退 10 秒、右侧快进 10 秒。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("交换快进快退位置", isOn: $reverseDoubleTapSeeking)
+                .disabled(!doubleTapSeeking)
+                .onValueChange(of: reverseDoubleTapSeeking) { newValue in
+                    environment.preferences().reverseDoubleTapSeeking.set(value: newValue)
+                }
+            Text("打开后左侧快进、右侧后退。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

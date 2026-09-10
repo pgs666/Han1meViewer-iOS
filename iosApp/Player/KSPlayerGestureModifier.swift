@@ -4,7 +4,7 @@ import SwiftUI
 /// place. Gesture state and player commands stay owned by `KSPlayerView`;
 /// this modifier only defines arbitration and forwards events.
 struct KSPlayerGestureModifier: ViewModifier {
-    let onDoubleTap: () -> Void
+    let onDoubleTap: (CGPoint) -> Void
     let onSingleTap: () -> Void
     let onPinchChanged: () -> Void
     let onPinchEnded: (CGFloat) -> Void
@@ -14,8 +14,18 @@ struct KSPlayerGestureModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .contentShape(Rectangle())
-            .onTapGesture(count: 2, perform: onDoubleTap)
-            .onTapGesture(count: 1, perform: onSingleTap)
+            .gesture(
+                SpatialTapGesture(count: 2)
+                    .exclusively(before: SpatialTapGesture())
+                    .onEnded { gesture in
+                        switch gesture {
+                        case let .first(doubleTap):
+                            onDoubleTap(doubleTap.location)
+                        case .second:
+                            onSingleTap()
+                        }
+                    }
+            )
             .simultaneousGesture(
                 MagnificationGesture()
                     .onChanged { _ in onPinchChanged() }

@@ -24,6 +24,21 @@ class PreferencesStoreTest {
         preferences.tapProgressBarToSeek.set(false)
         assertFalse(PreferencesStore(storage).tapProgressBarToSeek.get())
     }
+
+    @Test
+    fun doubleTapSeekingDefaultsAndDirectionPersist() {
+        val storage = MemoryPreferencesStorage()
+        val preferences = PreferencesStore(storage)
+
+        assertTrue(preferences.doubleTapSeeking.get())
+        assertFalse(preferences.reverseDoubleTapSeeking.get())
+        preferences.doubleTapSeeking.set(false)
+        preferences.reverseDoubleTapSeeking.set(true)
+
+        val reloaded = PreferencesStore(storage)
+        assertFalse(reloaded.doubleTapSeeking.get())
+        assertTrue(reloaded.reverseDoubleTapSeeking.get())
+    }
 }
 
 private class MemoryPreferencesStorage : PreferencesStorage {

@@ -40,6 +40,13 @@ class PreferencesStore(
     /// Dragging the slider remains available when this is disabled.
     val tapProgressBarToSeek = booleanPref("tap_progress_bar_to_seek", true)
 
+    /// Double-tapping either half of the player seeks backward or forward.
+    val doubleTapSeeking = booleanPref("double_tap_seeking", true)
+
+    /// Reverses the conventional double-tap mapping so the left side seeks
+    /// forward and the right side seeks backward.
+    val reverseDoubleTapSeeking = booleanPref("reverse_double_tap_seeking", false)
+
     /// Maximum number of simultaneous video downloads. 0 / negative is
     /// coerced to "unlimited" by the iOS layer; default 2 (matches the
     /// Android client's MAX_CONCURRENT_DOWNLOAD_DEF).

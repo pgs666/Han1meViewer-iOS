@@ -8,6 +8,12 @@ enum KSPlayerDragKind: Equatable {
     case volume
 }
 
+struct KSPlayerSeekFeedback: Equatable {
+    let delta: TimeInterval
+    let target: TimeInterval
+    let total: TimeInterval
+}
+
 enum KSPlayerDisplayFormatter {
     static let playbackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 

@@ -59,6 +59,8 @@ struct KSPlayerView: View {
     @AppStorage("auto_play_on_enter") private var autoPlayOnEnter: Bool = true
     @AppStorage("auto_lower_quality") private var autoLowerQuality: Bool = false
     @AppStorage("tap_progress_bar_to_seek") private var tapProgressBarToSeek: Bool = true
+    @AppStorage("double_tap_seeking") private var doubleTapSeeking: Bool = true
+    @AppStorage("reverse_double_tap_seeking") private var reverseDoubleTapSeeking: Bool = false
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -113,6 +115,8 @@ struct KSPlayerView: View {
     @StateObject private var adaptiveQualityController = KSPlayerAdaptiveQualityController()
     @State private var currentSpeedText: String?
     @State private var speedSampleTask: Task<Void, Never>?
+    @State private var doubleTapSeekFeedback: KSPlayerSeekFeedback?
+    @State private var doubleTapSeekHUDHideTask: Task<Void, Never>?
 
     init(
         snapshot: VideoDetailScreenSnapshot,
@@ -190,7 +194,7 @@ struct KSPlayerView: View {
                     // layer's gestures below.
                     .modifier(
                         KSPlayerGestureModifier(
-                            onDoubleTap: handleDoubleTap,
+                            onDoubleTap: { handleDoubleTap(at: $0, in: proxy.size) },
                             onSingleTap: handleSingleTap,
                             onPinchChanged: handlePinchChanged,
                             onPinchEnded: handlePinchEnded,
@@ -210,6 +214,15 @@ struct KSPlayerView: View {
 
             if dragState != .none {
                 swipeHUD.transition(.opacity)
+            }
+
+            if let feedback = doubleTapSeekFeedback {
+                KSPlayerSeekHUD(
+                    delta: feedback.delta,
+                    target: feedback.target,
+                    total: feedback.total
+                )
+                .transition(.opacity)
             }
 
             if isBoosted {
@@ -298,9 +311,35 @@ struct KSPlayerView: View {
 
     // MARK: - Gesture coordination
 
-    private func handleDoubleTap() {
+    private func handleDoubleTap(at location: CGPoint, in size: CGSize) {
         if isBoosted { endBoost() }
-        togglePlayPause()
+        guard doubleTapSeeking, size.width > 0 else { return }
+        let total = TimeInterval(coordinator.timemodel.totalTime)
+        guard total > 0 else { return }
+
+        let current = TimeInterval(coordinator.timemodel.currentTime)
+        let tappedLeftSide = location.x < size.width / 2
+        let conventionalDelta: TimeInterval = tappedLeftSide ? -10 : 10
+        let requestedDelta = reverseDoubleTapSeeking ? -conventionalDelta : conventionalDelta
+        let target = min(max(current + requestedDelta, 0), total)
+
+        coordinator.seek(time: target)
+        sliderValue = target
+        withAnimation(.easeInOut(duration: 0.12)) {
+            doubleTapSeekFeedback = KSPlayerSeekFeedback(
+                delta: target - current,
+                target: target,
+                total: total
+            )
+        }
+        doubleTapSeekHUDHideTask?.cancel()
+        doubleTapSeekHUDHideTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.16)) {
+                doubleTapSeekFeedback = nil
+            }
+        }
         scheduleAutoHide()
     }
 
@@ -355,6 +394,9 @@ struct KSPlayerView: View {
         physicalVolumeHUDHideTask = nil
         speedSampleTask?.cancel()
         speedSampleTask = nil
+        doubleTapSeekHUDHideTask?.cancel()
+        doubleTapSeekHUDHideTask = nil
+        doubleTapSeekFeedback = nil
         loadingHUDController.cancel()
         adaptiveQualityController.clearNotice()
         coordinator.playerLayer?.pause()
