@@ -38,8 +38,8 @@ enum KSPlayerOptionsFactory {
         playbackRate: Float,
         referer: String
     ) -> KSOptions {
-        // KSPlayerLayer's initializer currently reads this static value instead
-        // of options.isAutoPlay, so keep both in sync for a newly created layer.
+        // KSPlayerLayer's initializer currently reads the global setting when
+        // creating a layer, so update it before constructing the options.
         KSOptions.isAutoPlay = autoPlay
         let options = KSOptions()
         options.appendHeader([
@@ -47,7 +47,6 @@ enum KSPlayerOptionsFactory {
             "Referer": referer,
         ])
         options.referer = referer
-        options.isAutoPlay = autoPlay
         options.isSeekedAutoPlay = true
         options.isAccurateSeek = false
         options.isSecondOpen = false
