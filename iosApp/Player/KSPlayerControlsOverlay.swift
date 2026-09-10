@@ -1,7 +1,6 @@
 import Han1meShared
 import KSPlayer
 import SwiftUI
-import UIKit
 
 struct KSPlayerControlsOverlay: View {
     let title: String
@@ -31,7 +30,7 @@ struct KSPlayerControlsOverlay: View {
 
             VStack(spacing: 0) {
                 topBar
-                Spacer(minLength: 0)
+                Spacer()
                 bottomBar
             }
             .padding(.horizontal, 12)
@@ -193,106 +192,36 @@ struct KSPlayerControlsOverlay: View {
     }
 }
 
-private struct KSPlayerBufferedSlider: UIViewRepresentable {
+private struct KSPlayerBufferedSlider: View {
     @Binding var value: TimeInterval
     let range: ClosedRange<TimeInterval>
     let bufferedFraction: Double
     let onEditingChanged: (Bool) -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
+    var body: some View {
+        Slider(value: $value, in: range, onEditingChanged: onEditingChanged)
+            .tint(.white)
+            .overlay {
+                GeometryReader { proxy in
+                    let span = max(range.upperBound - range.lowerBound, 1)
+                    let played = min(max((value - range.lowerBound) / span, 0), 1)
+                    let buffered = min(max(bufferedFraction, played), 1)
+                    let horizontalInset: CGFloat = 10
+                    let trackWidth = max(proxy.size.width - horizontalInset * 2, 0)
 
-    func makeUIView(context: Context) -> BufferedSliderView {
-        let view = BufferedSliderView()
-        view.slider.addTarget(context.coordinator, action: #selector(Coordinator.editingBegan), for: .touchDown)
-        view.slider.addTarget(context.coordinator, action: #selector(Coordinator.valueChanged), for: .valueChanged)
-        view.slider.addTarget(
-            context.coordinator,
-            action: #selector(Coordinator.editingEnded),
-            for: [.touchUpInside, .touchUpOutside, .touchCancel]
-        )
-        view.slider.accessibilityLabel = String(localized: "播放进度")
-        return view
-    }
-
-    func updateUIView(_ uiView: BufferedSliderView, context: Context) {
-        context.coordinator.parent = self
-        uiView.slider.minimumValue = Float(range.lowerBound)
-        uiView.slider.maximumValue = Float(range.upperBound)
-        if !uiView.slider.isTracking {
-            uiView.slider.value = Float(min(max(value, range.lowerBound), range.upperBound))
-        }
-        uiView.bufferedFraction = CGFloat(min(max(bufferedFraction, 0), 1))
-    }
-
-    final class Coordinator: NSObject {
-        var parent: KSPlayerBufferedSlider
-
-        init(parent: KSPlayerBufferedSlider) {
-            self.parent = parent
-        }
-
-        @objc func editingBegan() {
-            parent.onEditingChanged(true)
-        }
-
-        @objc func valueChanged(_ sender: UISlider) {
-            parent.value = TimeInterval(sender.value)
-        }
-
-        @objc func editingEnded(_ sender: UISlider) {
-            parent.value = TimeInterval(sender.value)
-            parent.onEditingChanged(false)
-        }
-    }
-}
-
-private final class BufferedSliderView: UIView {
-    let slider = UISlider()
-    private let baseTrack = UIView()
-    private let bufferedTrack = UIView()
-
-    var bufferedFraction: CGFloat = 0 {
-        didSet { setNeedsLayout() }
-    }
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        baseTrack.backgroundColor = UIColor.white.withAlphaComponent(0.22)
-        bufferedTrack.backgroundColor = UIColor.white.withAlphaComponent(0.48)
-        baseTrack.layer.cornerRadius = 1.5
-        bufferedTrack.layer.cornerRadius = 1.5
-        slider.minimumTrackTintColor = .white
-        slider.maximumTrackTintColor = .clear
-        addSubview(baseTrack)
-        addSubview(bufferedTrack)
-        addSubview(slider)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: 32)
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        slider.frame = bounds
-        let trackRect = slider.trackRect(forBounds: slider.bounds)
-        let converted = slider.convert(trackRect, to: self)
-        let trackFrame = CGRect(x: converted.minX, y: converted.midY - 1.5, width: converted.width, height: 3)
-        baseTrack.frame = trackFrame
-        bufferedTrack.frame = CGRect(
-            x: trackFrame.minX,
-            y: trackFrame.minY,
-            width: trackFrame.width * bufferedFraction,
-            height: trackFrame.height
-        )
-        sendSubviewToBack(baseTrack)
-        insertSubview(bufferedTrack, aboveSubview: baseTrack)
+                    Capsule()
+                        .fill(.white.opacity(0.48))
+                        .frame(
+                            width: trackWidth * CGFloat(buffered - played),
+                            height: 3
+                        )
+                        .offset(
+                            x: horizontalInset + trackWidth * CGFloat(played),
+                            y: (proxy.size.height - 3) / 2
+                        )
+                }
+                .allowsHitTesting(false)
+            }
+            .accessibilityLabel(Text("播放进度"))
     }
 }

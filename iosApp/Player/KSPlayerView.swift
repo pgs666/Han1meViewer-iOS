@@ -158,12 +158,14 @@ struct KSPlayerView: View {
             referer: AppDomain.currentHomeURL
         )
 
-        // Read the player container once and give both the video surface and
-        // every overlay the same explicit bounds. A GeometryReader used only as
-        // a ZStack child reports a small ideal size; UIKit can still stretch the
-        // video layer, but SwiftUI then centers the chrome at that ideal height.
-        GeometryReader { proxy in
-            ZStack {
+        // GeometryReader wraps KSVideoPlayer (alone, not the whole ZStack) so the
+        // DragGesture handler can see the player's own size — needed to decide
+        // whether a vertical swipe started on the LEFT half (brightness) or the
+        // RIGHT half (volume), and to scale a horizontal swipe to a sensible
+        // seek delta. KSVideoPlayer is the only child of this GeometryReader,
+        // no branching, so view identity is preserved.
+        ZStack {
+            GeometryReader { proxy in
                 KSVideoPlayer(coordinator: coordinator, url: url, options: options)
                     .onPlay { current, total in
                         handlePlaybackProgress(current: current, total: total)
@@ -195,46 +197,43 @@ struct KSPlayerView: View {
                             onDragEnded: handlePressOrSwipeEnded
                         )
                     )
-
-                // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
-                // The two HUDs sit ABOVE the controls so the centre play / skip
-                // buttons (which live inside controlsOverlay) don't visually
-                // cover the swipe HUD or the boost badge.
-                if showsControls {
-                    controlsOverlay
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                        .transition(.opacity)
-                }
-
-                if dragState != .none {
-                    swipeHUD.transition(.opacity)
-                }
-
-                if isBoosted {
-                    boostHint.transition(.opacity)
-                }
-
-                if case let .failed(message) = statusObserver.phase {
-                    KSPlayerErrorHUD(message: message, onRetry: retryPlayback)
-                        .transition(.opacity)
-                } else if loadingHUDController.isVisible {
-                    loadingHUD.transition(.opacity)
-                }
-
-                if let automaticQualityNotice = adaptiveQualityController.noticeQuality {
-                    VStack {
-                        Spacer()
-                        KSPlayerQualityNotice(quality: automaticQualityNotice)
-                            .padding(.bottom, 56)
-                    }
-                    .transition(.opacity)
-                }
-
-                if physicalVolumeHUDActive {
-                    physicalVolumeHUD.transition(.opacity)
-                }
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+
+            // Z-order: KSVideoPlayer < controlsOverlay < swipeHUD / boostHint.
+            // The two HUDs sit ABOVE the controls so the centre play / skip
+            // buttons (which live inside controlsOverlay) don't visually
+            // cover the swipe HUD or the boost badge.
+            if showsControls {
+                controlsOverlay.transition(.opacity)
+            }
+
+            if dragState != .none {
+                swipeHUD.transition(.opacity)
+            }
+
+            if isBoosted {
+                boostHint.transition(.opacity)
+            }
+
+            if case let .failed(message) = statusObserver.phase {
+                KSPlayerErrorHUD(message: message, onRetry: retryPlayback)
+                    .transition(.opacity)
+            } else if loadingHUDController.isVisible {
+                loadingHUD.transition(.opacity)
+            }
+
+            if let automaticQualityNotice = adaptiveQualityController.noticeQuality {
+                VStack {
+                    Spacer()
+                    KSPlayerQualityNotice(quality: automaticQualityNotice)
+                        .padding(.bottom, 56)
+                }
+                .transition(.opacity)
+            }
+
+            if physicalVolumeHUDActive {
+                physicalVolumeHUD.transition(.opacity)
+            }
         }
         .modifier(
             KSPlayerLifecycleModifier(
