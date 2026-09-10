@@ -22,6 +22,9 @@ struct CloudflareChallengePresenter: ViewModifier {
                     cloudflareFeature: cloudflareFeature,
                     onResolved: {
                         challengeRequest = nil
+                    },
+                    onCancelled: {
+                        challengeRequest = nil
                     }
                 )
             }
@@ -38,6 +41,7 @@ private struct CloudflareChallengeView: View {
     let url: URL
     let cloudflareFeature: CloudflareFeature
     let onResolved: () -> Void
+    let onCancelled: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var status: ChallengeStatus = .loading
@@ -64,6 +68,12 @@ private struct CloudflareChallengeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") {
+                        if status != .resolved {
+                            CloudflareRetryCenter.signalFailed(
+                                reason: String(localized: "Cloudflare 验证已取消")
+                            )
+                            onCancelled()
+                        }
                         dismiss()
                     }
                 }
@@ -136,8 +146,7 @@ private struct CloudflareWebView: UIViewRepresentable {
         webView.allowsBackForwardNavigationGestures = true
         configuration.websiteDataStore.httpCookieStore.add(context.coordinator)
 
-        context.coordinator.load(url: url, in: webView)
-        context.coordinator.importClearanceCookies(from: webView)
+        context.coordinator.prepareAndLoad(url: url, in: webView)
         return webView
     }
 
@@ -160,6 +169,9 @@ private struct CloudflareWebView: UIViewRepresentable {
         private var didResolve = false
         private let importStateQueue = DispatchQueue(label: "com.han1me.cf-import-state")
         private var pendingCookiesChangedWorkItem: DispatchWorkItem?
+        private var baselineClearanceValue: String?
+        private var hasFinishedMainFrame = false
+        private var mainFrameWasChallenge = true
 
         init(cloudflareFeature: CloudflareFeature, challengeURL: URL, status: Binding<ChallengeStatus>, onResolved: @escaping () -> Void) {
             self.cloudflareFeature = cloudflareFeature
@@ -168,10 +180,14 @@ private struct CloudflareWebView: UIViewRepresentable {
             self.onResolved = onResolved
         }
 
-        func load(url: URL, in webView: WKWebView) {
+        func prepareAndLoad(url: URL, in webView: WKWebView) {
             self.webView = webView
             status.wrappedValue = .loading
-            webView.load(URLRequest(url: url))
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self, weak webView] cookies in
+                guard let self, let webView, !self.isResolved else { return }
+                self.baselineClearanceValue = self.clearanceCookie(in: cookies)?.value
+                webView.load(URLRequest(url: url))
+            }
         }
 
         func detachWebView() {
@@ -189,7 +205,7 @@ private struct CloudflareWebView: UIViewRepresentable {
 
             let workItem = DispatchWorkItem { [weak self, weak webView] in
                 guard let self, let webView, !self.isResolved else { return }
-                self.importClearanceCookies(from: webView)
+                self.evaluateChallengeCompletion(in: webView)
             }
             pendingCookiesChangedWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
@@ -197,27 +213,36 @@ private struct CloudflareWebView: UIViewRepresentable {
 
         // MARK: - WKNavigationDelegate
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard !isResolved else { return }
-            if status.wrappedValue == .loading {
-                status.wrappedValue = .waiting
-                // Check if challenge elements are gone before importing
-                let checkScript = """
-                (() => {
-                    const head = document.head ? document.head.innerHTML : '';
-                    return !head.includes('#challenge-form') &&
-                           !head.includes('#challenge-success-text') &&
-                           !head.includes('#challenge-error-text');
-                })();
-                """
-                webView.evaluateJavaScript(checkScript) { [weak self, weak webView] result, _ in
-                    guard let self, let webView else { return }
-                    let challengeCleared = (result as? Bool) == true
-                    if challengeCleared {
-                        self.importClearanceCookies(from: webView)
-                    }
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            hasFinishedMainFrame = false
+            mainFrameWasChallenge = true
+            if status.wrappedValue != .importing {
+                status.wrappedValue = .loading
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationResponse: WKNavigationResponse,
+            decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+        ) {
+            if navigationResponse.isForMainFrame,
+               let response = navigationResponse.response as? HTTPURLResponse {
+                mainFrameWasChallenge = response.allHeaderFields.contains { key, value in
+                    String(describing: key).lowercased() == "cf-mitigated" &&
+                        String(describing: value).lowercased() == "challenge"
                 }
             }
+            decisionHandler(.allow)
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard !isResolved else { return }
+            hasFinishedMainFrame = true
+            if status.wrappedValue != .importing {
+                status.wrappedValue = .waiting
+            }
+            evaluateChallengeCompletion(in: webView)
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -228,7 +253,36 @@ private struct CloudflareWebView: UIViewRepresentable {
             status.wrappedValue = .failed(ErrorMessage.userFriendly(error))
         }
 
-        func importClearanceCookies(from webView: WKWebView) {
+        private func evaluateChallengeCompletion(in webView: WKWebView) {
+            guard hasFinishedMainFrame, !isResolved else { return }
+
+            let checkScript = """
+            (() => {
+                if (document.readyState !== 'complete') return false;
+                const selectors = [
+                    '#challenge-form',
+                    '#challenge-stage',
+                    '#challenge-running',
+                    '#challenge-success-text',
+                    '#challenge-error-text',
+                    'iframe[src*="challenges.cloudflare.com"]'
+                ];
+                return !selectors.some(selector => document.querySelector(selector));
+            })();
+            """
+            webView.evaluateJavaScript(checkScript) { [weak self, weak webView] result, _ in
+                guard let self, let webView, !self.isResolved else { return }
+                guard (result as? Bool) == true else {
+                    if self.status.wrappedValue != .importing {
+                        self.status.wrappedValue = .waiting
+                    }
+                    return
+                }
+                self.importClearanceCookies(from: webView)
+            }
+        }
+
+        private func importClearanceCookies(from webView: WKWebView) {
             guard tryBeginImport() else {
                 return
             }
@@ -244,8 +298,19 @@ private struct CloudflareWebView: UIViewRepresentable {
                         (cookieDomain == self.challengeHost || self.challengeHost.hasSuffix(".\(cookieDomain)"))
                 }
 
-                guard challengeCookies.contains(where: { $0.name == "cf_clearance" }) else {
+                guard let clearanceCookie = self.clearanceCookie(in: challengeCookies) else {
                     self.finishImport()
+                    return
+                }
+
+                // A persisted clearance cookie may be the same stale value that
+                // caused the original request to be challenged. Accept it only
+                // after a non-challenge main-frame response, or when Cloudflare
+                // replaced it while the user completed this challenge.
+                let clearanceWasUpdated = self.baselineClearanceValue != clearanceCookie.value
+                guard clearanceWasUpdated || !self.mainFrameWasChallenge else {
+                    self.finishImport()
+                    self.status.wrappedValue = .waiting
                     return
                 }
 
@@ -276,6 +341,19 @@ private struct CloudflareWebView: UIViewRepresentable {
                         self.status.wrappedValue = .failed(ErrorMessage.userFriendly(error))
                     }
                 }
+            }
+        }
+
+        private func clearanceCookie(in cookies: [HTTPCookie]) -> HTTPCookie? {
+            cookies.first { cookie in
+                guard cookie.name == "cf_clearance" else { return false }
+                let cookieDomain = cookie.domain
+                    .lowercased()
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+                let matchesHost = !challengeHost.isEmpty &&
+                    (cookieDomain == challengeHost || challengeHost.hasSuffix(".\(cookieDomain)"))
+                let hasNotExpired = cookie.expiresDate.map { $0 > Date() } ?? true
+                return matchesHost && hasNotExpired && !cookie.value.isEmpty
             }
         }
 

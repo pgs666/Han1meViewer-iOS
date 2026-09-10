@@ -23,6 +23,28 @@
         }
       }
     },
+    "Cloudflare 验证已取消": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare verification was cancelled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare 验证已取消"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloudflare 驗證已取消"
+          }
+        }
+      }
+    },
     "Motion Anime": {
       "localizations": {
         "en": {
