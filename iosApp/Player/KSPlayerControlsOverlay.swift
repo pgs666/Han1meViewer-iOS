@@ -31,7 +31,7 @@ struct KSPlayerControlsOverlay: View {
 
             VStack(spacing: 0) {
                 topBar
-                Spacer()
+                Spacer(minLength: 0)
                 bottomBar
             }
             .padding(.horizontal, 12)
