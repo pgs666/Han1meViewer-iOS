@@ -14,6 +14,16 @@ class PreferencesStoreTest {
         preferences.autoLowerQuality.set(true)
         assertTrue(PreferencesStore(storage).autoLowerQuality.get())
     }
+
+    @Test
+    fun progressBarTapSeekingIsOnByDefaultAndPersists() {
+        val storage = MemoryPreferencesStorage()
+        val preferences = PreferencesStore(storage)
+
+        assertTrue(preferences.tapProgressBarToSeek.get())
+        preferences.tapProgressBarToSeek.set(false)
+        assertFalse(PreferencesStore(storage).tapProgressBarToSeek.get())
+    }
 }
 
 private class MemoryPreferencesStorage : PreferencesStorage {

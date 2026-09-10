@@ -12,6 +12,7 @@ struct KSPlayerControlsOverlay: View {
     @Binding var sliderValue: TimeInterval
     @Binding var isSliderEditing: Bool
     let bufferedFraction: Double
+    let allowsTapSeeking: Bool
     @Binding var savedPlaybackRate: Float
     let onBack: () -> Void
     let onTogglePlayPause: () -> Void
@@ -94,6 +95,7 @@ struct KSPlayerControlsOverlay: View {
                 value: $sliderValue,
                 range: 0...total,
                 bufferedFraction: bufferedFraction,
+                allowsTapSeeking: allowsTapSeeking,
                 onEditingChanged: { editing in
                     if editing {
                         isSliderEditing = true
@@ -196,7 +198,9 @@ private struct KSPlayerBufferedSlider: View {
     @Binding var value: TimeInterval
     let range: ClosedRange<TimeInterval>
     let bufferedFraction: Double
+    let allowsTapSeeking: Bool
     let onEditingChanged: (Bool) -> Void
+    @State private var sliderWidth: CGFloat = 0
 
     var body: some View {
         Slider(value: $value, in: range, onEditingChanged: onEditingChanged)
@@ -222,6 +226,28 @@ private struct KSPlayerBufferedSlider: View {
                 }
                 .allowsHitTesting(false)
             }
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { sliderWidth = proxy.size.width }
+                        .onValueChange(of: proxy.size.width) { sliderWidth = $0 }
+                }
+            }
+            .simultaneousGesture(
+                SpatialTapGesture()
+                    .onEnded { tap in
+                        guard allowsTapSeeking, sliderWidth > 0 else { return }
+                        // KSPlayer's UIKit KSSlider follows the same model:
+                        // convert the tap's local x-position to a normalized
+                        // progress value, then finish a seek operation.
+                        let horizontalInset: CGFloat = 10
+                        let usableWidth = max(sliderWidth - horizontalInset * 2, 1)
+                        let fraction = min(max((tap.location.x - horizontalInset) / usableWidth, 0), 1)
+                        value = range.lowerBound
+                            + TimeInterval(fraction) * (range.upperBound - range.lowerBound)
+                        onEditingChanged(false)
+                    }
+            )
             .accessibilityLabel(Text("播放进度"))
     }
 }

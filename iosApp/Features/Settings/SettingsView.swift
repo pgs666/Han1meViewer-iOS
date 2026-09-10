@@ -31,6 +31,7 @@ struct SettingsView: View {
     @State private var forcePortraitFullscreenForVerticalVideos: Bool
     @State private var autoPlayOnEnter: Bool
     @State private var autoLowerQuality: Bool
+    @State private var tapProgressBarToSeek: Bool
     @State private var maxConcurrentDownloads: Int
     @State private var showPlayedIndicator: Bool
     @State private var showBottomProgress: Bool
@@ -45,6 +46,7 @@ struct SettingsView: View {
         _forcePortraitFullscreenForVerticalVideos = State(initialValue: prefs.forcePortraitFullscreenForVerticalVideos.get())
         _autoPlayOnEnter = State(initialValue: prefs.autoPlayOnEnter.get())
         _autoLowerQuality = State(initialValue: prefs.autoLowerQuality.get())
+        _tapProgressBarToSeek = State(initialValue: prefs.tapProgressBarToSeek.get())
         _maxConcurrentDownloads = State(initialValue: Int(prefs.maxConcurrentDownloads.get()))
         _showPlayedIndicator = State(initialValue: prefs.showPlayedIndicator.get())
         _showBottomProgress = State(initialValue: prefs.showBottomProgress.get())
@@ -188,6 +190,14 @@ struct SettingsView: View {
                     environment.preferences().autoLowerQuality.set(value: newValue)
                 }
             Text("关闭时始终保留手动选择的画质；打开后，连续发生缓冲时会逐级降低画质。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("点击进度条跳转", isOn: $tapProgressBarToSeek)
+                .onValueChange(of: tapProgressBarToSeek) { newValue in
+                    environment.preferences().tapProgressBarToSeek.set(value: newValue)
+                }
+            Text("关闭后仍可拖动滑块调整播放进度。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

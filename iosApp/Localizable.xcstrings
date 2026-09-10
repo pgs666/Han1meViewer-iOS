@@ -6424,6 +6424,8 @@
       }
     },
     "网络不稳定，已切换至%@": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"The network is unstable. Switched to %@."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"网络不稳定，已切换至%@"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"網路不穩定，已切換至%@"}}}},
+    "关闭后仍可拖动滑块调整播放进度。": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"You can still drag the slider to adjust playback progress when this is off."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"关闭后仍可拖动滑块调整播放进度。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"關閉後仍可拖動滑桿調整播放進度。"}}}},
+    "点击进度条跳转": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Tap progress bar to seek"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"点击进度条跳转"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"點擊進度列跳轉"}}}},
     "网络较慢时自动降低画质": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Lower quality automatically on slow networks"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"网络较慢时自动降低画质"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"網路較慢時自動降低畫質"}}}},
     "网络": {
       "localizations": {

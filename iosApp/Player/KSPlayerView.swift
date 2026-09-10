@@ -58,6 +58,7 @@ struct KSPlayerView: View {
     /// auto_play_on_enter key (default ON).
     @AppStorage("auto_play_on_enter") private var autoPlayOnEnter: Bool = true
     @AppStorage("auto_lower_quality") private var autoLowerQuality: Bool = false
+    @AppStorage("tap_progress_bar_to_seek") private var tapProgressBarToSeek: Bool = true
     /// 长按 boost 倍速。读 `long_press_speed_times` —— `PreferencesStore` 已经预留
     /// 这个 key（KMP 端 `IosPreferencesStorage` 用 NSUserDefaults，所以 Swift
     /// `@AppStorage` 直接读到同一份值）。Settings 现在把"长按倍速"绑定到这个 key。
@@ -422,6 +423,7 @@ struct KSPlayerView: View {
             sliderValue: $sliderValue,
             isSliderEditing: $isSliderEditing,
             bufferedFraction: statusObserver.bufferedFraction,
+            allowsTapSeeking: tapProgressBarToSeek,
             savedPlaybackRate: $savedPlaybackRate,
             onBack: onBack,
             onTogglePlayPause: togglePlayPause,

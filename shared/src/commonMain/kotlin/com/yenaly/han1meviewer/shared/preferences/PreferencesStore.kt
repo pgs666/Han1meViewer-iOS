@@ -36,6 +36,10 @@ class PreferencesStore(
     /// remains authoritative by default.
     val autoLowerQuality = booleanPref("auto_lower_quality", false)
 
+    /// Allows a tap on the progress track to seek directly to that position.
+    /// Dragging the slider remains available when this is disabled.
+    val tapProgressBarToSeek = booleanPref("tap_progress_bar_to_seek", true)
+
     /// Maximum number of simultaneous video downloads. 0 / negative is
     /// coerced to "unlimited" by the iOS layer; default 2 (matches the
     /// Android client's MAX_CONCURRENT_DOWNLOAD_DEF).
