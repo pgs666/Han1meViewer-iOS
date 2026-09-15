@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import UIKit
 import Han1meShared
@@ -141,13 +142,29 @@ private struct DownloadRow: View {
 
     private var statusLine: String {
         let pct = Int(item.progress * 100)
+        let statusAndQuality: String
         switch item.state {
-        case .queued:      return String(localized: "排队中 · \(item.quality)")
-        case .downloading: return String(localized: "下载中 \(pct)% · \(item.quality)")
-        case .paused:      return String(localized: "已暂停 \(pct)% · \(item.quality)")
-        case .finished:    return String(localized: "已完成 · \(item.quality)")
-        case .failed:      return String(localized: "下载失败，点击重试 · \(item.quality)")
+        case .queued:      statusAndQuality = String(localized: "排队中 · \(item.quality)")
+        case .downloading: statusAndQuality = String(localized: "下载中 \(pct)% · \(item.quality)")
+        case .paused:      statusAndQuality = String(localized: "已暂停 \(pct)% · \(item.quality)")
+        case .finished:    statusAndQuality = String(localized: "已完成 · \(item.quality)")
+        case .failed:      statusAndQuality = String(localized: "下载失败，点击重试 · \(item.quality)")
         }
+        return "\(statusAndQuality) · \(fileSizeText)"
+    }
+
+    private var fileSizeText: String {
+        let bytes: Int64
+        if item.isFinished,
+           let actualSize = try? item.localFileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           actualSize > 0 {
+            bytes = Int64(actualSize)
+        } else if item.totalBytes > 0 {
+            bytes = item.totalBytes
+        } else {
+            return String(localized: "大小未知")
+        }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }
 
