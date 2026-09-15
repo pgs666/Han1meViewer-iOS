@@ -1,6 +1,7 @@
 package com.yenaly.han1meviewer.shared.preferences
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -32,12 +33,15 @@ class PreferencesStoreTest {
 
         assertTrue(preferences.doubleTapSeeking.get())
         assertFalse(preferences.reverseDoubleTapSeeking.get())
+        assertEquals(10, preferences.doubleTapSeekSeconds.get())
         preferences.doubleTapSeeking.set(false)
         preferences.reverseDoubleTapSeeking.set(true)
+        preferences.doubleTapSeekSeconds.set(30)
 
         val reloaded = PreferencesStore(storage)
         assertFalse(reloaded.doubleTapSeeking.get())
         assertTrue(reloaded.reverseDoubleTapSeeking.get())
+        assertEquals(30, reloaded.doubleTapSeekSeconds.get())
     }
 
     @Test

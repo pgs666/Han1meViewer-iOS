@@ -40,8 +40,12 @@ class PreferencesStore(
     /// Dragging the slider remains available when this is disabled.
     val tapProgressBarToSeek = booleanPref("tap_progress_bar_to_seek", true)
 
-    /// Double-tapping either half of the player seeks backward or forward.
+    /// Double-tapping either outer third of the player seeks backward or forward.
     val doubleTapSeeking = booleanPref("double_tap_seeking", true)
+
+    /// Number of seconds applied by a double-tap seek. The iOS settings UI
+    /// constrains this to 5...60 seconds in five-second increments.
+    val doubleTapSeekSeconds = intPref("double_tap_seek_seconds", 10)
 
     /// Reverses the conventional double-tap mapping so the left side seeks
     /// forward and the right side seeks backward.

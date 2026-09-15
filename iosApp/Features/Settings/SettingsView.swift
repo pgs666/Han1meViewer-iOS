@@ -33,6 +33,7 @@ struct SettingsView: View {
     @State private var autoLowerQuality: Bool
     @State private var tapProgressBarToSeek: Bool
     @State private var doubleTapSeeking: Bool
+    @State private var doubleTapSeekSeconds: Int
     @State private var reverseDoubleTapSeeking: Bool
     @State private var brightnessSwipeGesture: Bool
     @State private var volumeSwipeGesture: Bool
@@ -52,6 +53,7 @@ struct SettingsView: View {
         _autoLowerQuality = State(initialValue: prefs.autoLowerQuality.get())
         _tapProgressBarToSeek = State(initialValue: prefs.tapProgressBarToSeek.get())
         _doubleTapSeeking = State(initialValue: prefs.doubleTapSeeking.get())
+        _doubleTapSeekSeconds = State(initialValue: Int(prefs.doubleTapSeekSeconds.get()))
         _reverseDoubleTapSeeking = State(initialValue: prefs.reverseDoubleTapSeeking.get())
         _brightnessSwipeGesture = State(initialValue: prefs.brightnessSwipeGesture.get())
         _volumeSwipeGesture = State(initialValue: prefs.volumeSwipeGesture.get())
@@ -213,9 +215,22 @@ struct SettingsView: View {
                 .onValueChange(of: doubleTapSeeking) { newValue in
                     environment.preferences().doubleTapSeeking.set(value: newValue)
                 }
-            Text("打开后双击中间播放或暂停，左侧后退 10 秒、右侧快进 10 秒；关闭后全屏双击播放或暂停。")
+            Text("打开后双击中间播放或暂停，两侧快进或快退；关闭后全屏双击播放或暂停。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Stepper(value: $doubleTapSeekSeconds, in: 5...60, step: 5) {
+                HStack {
+                    Text("快进快退秒数")
+                    Spacer()
+                    Text(String(format: String(localized: "%lld 秒"), doubleTapSeekSeconds))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!doubleTapSeeking)
+            .onValueChange(of: doubleTapSeekSeconds) { newValue in
+                environment.preferences().doubleTapSeekSeconds.set(value: Int32(newValue))
+            }
 
             Toggle("交换快进快退位置", isOn: $reverseDoubleTapSeeking)
                 .disabled(!doubleTapSeeking)

@@ -60,6 +60,7 @@ struct KSPlayerView: View {
     @AppStorage("auto_lower_quality") private var autoLowerQuality: Bool = false
     @AppStorage("tap_progress_bar_to_seek") private var tapProgressBarToSeek: Bool = true
     @AppStorage("double_tap_seeking") private var doubleTapSeeking: Bool = true
+    @AppStorage("double_tap_seek_seconds") private var doubleTapSeekSeconds: Int = 10
     @AppStorage("reverse_double_tap_seeking") private var reverseDoubleTapSeeking: Bool = false
     @AppStorage("brightness_swipe_gesture") private var brightnessSwipeGesture: Bool = true
     @AppStorage("volume_swipe_gesture") private var volumeSwipeGesture: Bool = true
@@ -336,7 +337,8 @@ struct KSPlayerView: View {
 
         let current = TimeInterval(coordinator.timemodel.currentTime)
         let tappedLeftSide = location.x < size.width / 3
-        let conventionalDelta: TimeInterval = tappedLeftSide ? -10 : 10
+        let seekInterval = TimeInterval(max(5, min(doubleTapSeekSeconds, 60)))
+        let conventionalDelta: TimeInterval = tappedLeftSide ? -seekInterval : seekInterval
         let requestedDelta = reverseDoubleTapSeeking ? -conventionalDelta : conventionalDelta
         let target = min(max(current + requestedDelta, 0), total)
 
