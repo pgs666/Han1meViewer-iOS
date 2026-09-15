@@ -222,7 +222,7 @@ struct KSPlayerView: View {
             }
 
             if let feedback = doubleTapSeekFeedback {
-                KSPlayerSeekHUD(
+                topSeekHUD(
                     delta: feedback.delta,
                     target: feedback.target,
                     total: feedback.total
@@ -318,12 +318,24 @@ struct KSPlayerView: View {
 
     private func handleDoubleTap(at location: CGPoint, in size: CGSize) {
         if isBoosted { endBoost() }
-        guard doubleTapSeeking, size.width > 0 else { return }
+        guard size.width > 0 else { return }
+
+        // Preserve the player's original double-tap play/pause behaviour when
+        // side seeking is disabled. When it is enabled, reserve the middle
+        // third for play/pause and use only the outer thirds for seeking.
+        let tappedMiddle = location.x >= size.width / 3
+            && location.x <= size.width * 2 / 3
+        if !doubleTapSeeking || tappedMiddle {
+            togglePlayPause()
+            scheduleAutoHide()
+            return
+        }
+
         let total = TimeInterval(coordinator.timemodel.totalTime)
         guard total > 0 else { return }
 
         let current = TimeInterval(coordinator.timemodel.currentTime)
-        let tappedLeftSide = location.x < size.width / 2
+        let tappedLeftSide = location.x < size.width / 3
         let conventionalDelta: TimeInterval = tappedLeftSide ? -10 : 10
         let requestedDelta = reverseDoubleTapSeeking ? -conventionalDelta : conventionalDelta
         let target = min(max(current + requestedDelta, 0), total)
@@ -402,6 +414,7 @@ struct KSPlayerView: View {
         doubleTapSeekHUDHideTask?.cancel()
         doubleTapSeekHUDHideTask = nil
         doubleTapSeekFeedback = nil
+        isSliderEditing = false
         ignoresCurrentSwipe = false
         loadingHUDController.cancel()
         adaptiveQualityController.clearNotice()
@@ -485,8 +498,8 @@ struct KSPlayerView: View {
         KSPlayerBoostHint(rate: effectiveBoostRate)
     }
 
-    /// HUD displayed in the centre of the player while a swipe gesture is active.
-    /// Shows progress preview / brightness / volume depending on dragState.
+    /// HUD displayed while a swipe gesture is active. Seek feedback is aligned
+    /// with the boost indicator at the top; brightness and volume stay centred.
     @ViewBuilder
     private var swipeHUD: some View {
         ZStack {
@@ -494,7 +507,7 @@ struct KSPlayerView: View {
             case .seek:
                 let total = max(TimeInterval(coordinator.timemodel.totalTime), 1)
                 let delta = dragTargetProgressSeconds - dragStartProgressSeconds
-                KSPlayerSeekHUD(delta: delta, target: dragTargetProgressSeconds, total: total)
+                topSeekHUD(delta: delta, target: dragTargetProgressSeconds, total: total)
             case .brightness:
                 KSPlayerValueHUD(
                     systemImage: "sun.max.fill",
@@ -511,6 +524,19 @@ struct KSPlayerView: View {
                 EmptyView()
             }
         }
+    }
+
+    private func topSeekHUD(
+        delta: TimeInterval,
+        target: TimeInterval,
+        total: TimeInterval
+    ) -> some View {
+        VStack {
+            KSPlayerSeekHUD(delta: delta, target: target, total: total)
+            Spacer()
+        }
+        .padding(.top, 12)
+        .allowsHitTesting(false)
     }
 
     private var emptyPlaceholder: some View {
@@ -693,6 +719,10 @@ struct KSPlayerView: View {
                 dragState = .seek
                 dragStartProgressSeconds = TimeInterval(coordinator.timemodel.currentTime)
                 dragTargetProgressSeconds = dragStartProgressSeconds
+                sliderValue = dragStartProgressSeconds
+                // Reuse the slider's editing guard so playback-time updates do
+                // not overwrite the live swipe preview.
+                isSliderEditing = true
             } else {
                 let onLeftHalf = value.startLocation.x < size.width / 2
                 if onLeftHalf {
@@ -727,6 +757,7 @@ struct KSPlayerView: View {
             let fraction = value.translation.width / size.width
             let secondsDelta = TimeInterval(fraction) * total * 0.5
             dragTargetProgressSeconds = max(0, min(total, dragStartProgressSeconds + secondsDelta))
+            sliderValue = dragTargetProgressSeconds
         case .brightness:
             // Up = brighter (negative dy in SwiftUI = upward motion).
             guard size.height > 0 else { return }
@@ -752,6 +783,7 @@ struct KSPlayerView: View {
             coordinator.seek(time: dragTargetProgressSeconds)
             // Sync slider too so it doesn't snap back to the pre-drag value.
             sliderValue = dragTargetProgressSeconds
+            isSliderEditing = false
         }
         // Hide HUD with a small fade.
         withAnimation(.easeOut(duration: 0.2)) {

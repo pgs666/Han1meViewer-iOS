@@ -213,7 +213,7 @@ struct SettingsView: View {
                 .onValueChange(of: doubleTapSeeking) { newValue in
                     environment.preferences().doubleTapSeeking.set(value: newValue)
                 }
-            Text("默认双击左侧后退 10 秒、右侧快进 10 秒。")
+            Text("打开后双击中间播放或暂停，左侧后退 10 秒、右侧快进 10 秒；关闭后全屏双击播放或暂停。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
